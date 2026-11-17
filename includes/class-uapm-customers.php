@@ -5,6 +5,8 @@ if (!defined('ABSPATH')) {
 
 class UAPM_Customers {
 
+    private static $schema_checked = false;
+
     private static function table() {
         global $wpdb;
         return $wpdb->prefix . 'uapm_customers';
@@ -17,35 +19,124 @@ class UAPM_Customers {
         add_action('admin_post_uapm_delete_customer', array(__CLASS__, 'handle_delete'));
     }
 
+    /**
+     * Перевіряє наявність колонки.
+     */
+    private static function column_exists($table, $column) {
+        global $wpdb;
+
+        return (bool) $wpdb->get_var(
+            $wpdb->prepare(
+                "SHOW COLUMNS FROM `{$table}` LIKE %s",
+                $column
+            )
+        );
+    }
+
+    /**
+     * Перевіряє наявність індексу.
+     */
+    private static function index_exists($table, $index) {
+        global $wpdb;
+
+        $indexes = $wpdb->get_results("SHOW INDEX FROM `{$table}`");
+
+        if (!$indexes) {
+            return false;
+        }
+
+        foreach ($indexes as $item) {
+            if ($item->Key_name === $index) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Безпечне оновлення структури таблиці.
+     * Не додає повторно наявні поля та індекси.
+     */
     public static function install_schema() {
         global $wpdb;
 
-        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+        if (self::$schema_checked) {
+            return;
+        }
+
+        self::$schema_checked = true;
 
         $table = self::table();
         $charset = $wpdb->get_charset_collate();
 
-        $sql = "CREATE TABLE {$table} (
-            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-            user_id bigint(20) unsigned NOT NULL DEFAULT 0,
-            name varchar(190) NOT NULL DEFAULT '',
-            email varchar(190) NOT NULL DEFAULT '',
-            phone varchar(60) NOT NULL DEFAULT '',
-            company varchar(190) NOT NULL DEFAULT '',
-            country varchar(100) NOT NULL DEFAULT '',
-            customer_type varchar(30) NOT NULL DEFAULT 'individual',
-            status varchar(30) NOT NULL DEFAULT 'active',
-            mailing_consent tinyint(1) NOT NULL DEFAULT 0,
-            notes longtext NULL,
-            created_at datetime NOT NULL,
-            updated_at datetime NOT NULL,
-            PRIMARY KEY  (id),
-            KEY user_id (user_id),
-            KEY email (email),
-            KEY status (status)
-        ) {$charset};";
+        $exists = $wpdb->get_var(
+            $wpdb->prepare(
+                'SHOW TABLES LIKE %s',
+                $wpdb->esc_like($table)
+            )
+        );
 
-        dbDelta($sql);
+        if ($exists !== $table) {
+            require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+            $sql = "CREATE TABLE {$table} (
+                id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+                user_id bigint(20) unsigned NOT NULL DEFAULT 0,
+                name varchar(190) NOT NULL DEFAULT '',
+                email varchar(190) NOT NULL DEFAULT '',
+                phone varchar(60) NOT NULL DEFAULT '',
+                company varchar(190) NOT NULL DEFAULT '',
+                country varchar(100) NOT NULL DEFAULT '',
+                customer_type varchar(30) NOT NULL DEFAULT 'individual',
+                status varchar(30) NOT NULL DEFAULT 'active',
+                mailing_consent tinyint(1) NOT NULL DEFAULT 0,
+                notes longtext NULL,
+                created_at datetime NOT NULL,
+                updated_at datetime NOT NULL,
+                PRIMARY KEY  (id),
+                KEY user_id (user_id),
+                KEY email (email),
+                KEY status (status)
+            ) {$charset};";
+
+            dbDelta($sql);
+        }
+
+        $columns = array(
+            'user_id' => "bigint(20) unsigned NOT NULL DEFAULT 0",
+            'phone' => "varchar(60) NOT NULL DEFAULT ''",
+            'company' => "varchar(190) NOT NULL DEFAULT ''",
+            'country' => "varchar(100) NOT NULL DEFAULT ''",
+            'customer_type' => "varchar(30) NOT NULL DEFAULT 'individual'",
+            'status' => "varchar(30) NOT NULL DEFAULT 'active'",
+            'mailing_consent' => "tinyint(1) NOT NULL DEFAULT 0",
+            'notes' => "longtext NULL",
+        );
+
+        foreach ($columns as $column => $definition) {
+            if (!self::column_exists($table, $column)) {
+                $wpdb->query(
+                    "ALTER TABLE `{$table}` ADD COLUMN `{$column}` {$definition}"
+                );
+            }
+        }
+
+        $indexes = array(
+            'user_id' => 'user_id',
+            'status' => 'status',
+        );
+
+        foreach ($indexes as $index => $column) {
+            if (
+                !self::index_exists($table, $index) &&
+                self::column_exists($table, $column)
+            ) {
+                $wpdb->query(
+                    "ALTER TABLE `{$table}` ADD KEY `{$index}` (`{$column}`)"
+                );
+            }
+        }
     }
 
     public static function create($data) {
