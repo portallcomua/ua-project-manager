@@ -1,3 +1,4 @@
+
 <?php
 if (!defined('ABSPATH')) {
     exit;
@@ -24,26 +25,16 @@ class UAPM_Customers {
             return;
         }
 
-        self::$schema_checked = true;
-
-        $table = self::table();
-        $exists = $wpdb->get_var(
-            $wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table))
-        );
-
-        if ($exists === $table) {
-            return;
-        }
-
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
+        $table = self::table();
         $charset = $wpdb->get_charset_collate();
 
         $sql = "CREATE TABLE {$table} (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             user_id bigint(20) unsigned NOT NULL DEFAULT 0,
             name varchar(190) NOT NULL DEFAULT '',
-            email varchar(190) NOT NULL DEFAULT '',
+            email varchar(191) NOT NULL DEFAULT '',
             phone varchar(60) NOT NULL DEFAULT '',
             company varchar(190) NOT NULL DEFAULT '',
             country varchar(100) NOT NULL DEFAULT '',
@@ -60,6 +51,8 @@ class UAPM_Customers {
         ) {$charset};";
 
         dbDelta($sql);
+
+        self::$schema_checked = true;
     }
 
     public static function create($data) {
@@ -86,12 +79,7 @@ class UAPM_Customers {
             'updated_at' => $now,
         ));
 
-        $formats = array(
-            '%d', '%s', '%s', '%s', '%s', '%s',
-            '%s', '%s', '%d', '%s', '%s', '%s',
-        );
-
-        $inserted = $wpdb->insert(self::table(), $insert_data, $formats);
+        $inserted = $wpdb->insert(self::table(), $insert_data);
 
         if (!$inserted) {
             return new WP_Error(
