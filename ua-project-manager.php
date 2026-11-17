@@ -101,6 +101,7 @@ final class UAPM_Plugin {
             'class-uapm-updater.php',
             'class-uapm-downloads.php',
             'class-uapm-installations.php',
+            'class-uapm-installation-compat.php',
             'class-uapm-integrations.php',
             'class-uapm-notifications.php',
             'class-uapm-email-templates.php',
@@ -166,6 +167,7 @@ final class UAPM_Plugin {
          * UAPM_GitHub
          * UAPM_Downloads
          * UAPM_Installations
+         * UAPM_Installation_Compat
          * UAPM_Integrations
          * UAPM_Notifications
          * UAPM_Code_Inspector
