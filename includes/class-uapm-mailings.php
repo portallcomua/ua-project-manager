@@ -1,3 +1,4 @@
+
 <?php
 if (!defined('ABSPATH')) {
     exit;
@@ -6,6 +7,7 @@ if (!defined('ABSPATH')) {
 class UAPM_Mailings {
 
     public static function init() {
+        self::install_schema();
         add_action('admin_post_uapm_send_mailing', array(__CLASS__, 'send_mailing'));
         add_action('admin_post_uapm_save_mailing', array(__CLASS__, 'save_mailing'));
     }
@@ -23,24 +25,24 @@ class UAPM_Mailings {
         $table = self::table_name();
         $charset = $wpdb->get_charset_collate();
 
-        $sql = "CREATE TABLE $table (
-            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-            name VARCHAR(255) NOT NULL,
-            subject VARCHAR(255) NOT NULL,
-            message LONGTEXT NOT NULL,
-            project_id BIGINT UNSIGNED DEFAULT 0,
-            status VARCHAR(30) DEFAULT 'draft',
-            recipient_count INT UNSIGNED DEFAULT 0,
-            sent_count INT UNSIGNED DEFAULT 0,
-            failed_count INT UNSIGNED DEFAULT 0,
-            created_by BIGINT UNSIGNED DEFAULT 0,
-            created_at DATETIME NOT NULL,
-            sent_at DATETIME DEFAULT NULL,
+        $sql = "CREATE TABLE {$table} (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            name varchar(255) NOT NULL,
+            subject varchar(255) NOT NULL,
+            message longtext NOT NULL,
+            project_id bigint(20) unsigned NOT NULL DEFAULT 0,
+            status varchar(30) NOT NULL DEFAULT 'draft',
+            recipient_count int(10) unsigned NOT NULL DEFAULT 0,
+            sent_count int(10) unsigned NOT NULL DEFAULT 0,
+            failed_count int(10) unsigned NOT NULL DEFAULT 0,
+            created_by bigint(20) unsigned NOT NULL DEFAULT 0,
+            created_at datetime NOT NULL,
+            sent_at datetime NULL,
             PRIMARY KEY  (id),
             KEY project_id (project_id),
             KEY status (status),
             KEY created_at (created_at)
-        ) $charset;";
+        ) {$charset};";
 
         dbDelta($sql);
     }
@@ -56,18 +58,15 @@ class UAPM_Mailings {
             return new WP_Error('uapm_invalid_mailing', 'Заповніть назву, тему та текст розсилки.');
         }
 
-        $result = $wpdb->insert(
-            self::table_name(),
-            array(
-                'name' => $name,
-                'subject' => $subject,
-                'message' => $message,
-                'project_id' => absint($data['project_id'] ?? 0),
-                'status' => 'draft',
-                'created_by' => get_current_user_id(),
-                'created_at' => current_time('mysql'),
-            )
-        );
+        $result = $wpdb->insert(self::table_name(), array(
+            'name' => $name,
+            'subject' => $subject,
+            'message' => $message,
+            'project_id' => absint($data['project_id'] ?? 0),
+            'status' => 'draft',
+            'created_by' => get_current_user_id(),
+            'created_at' => current_time('mysql'),
+        ));
 
         return $result ? (int) $wpdb->insert_id : new WP_Error('uapm_mailing_error', 'Не вдалося створити розсилку.');
     }
@@ -93,30 +92,41 @@ class UAPM_Mailings {
     public static function get_recipients($project_id = 0) {
         global $wpdb;
 
-        $table = $wpdb->prefix . 'uapm_customers';
+        $customers = $wpdb->prefix . 'uapm_customers';
 
-        $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
-
-        if ($exists !== $table) {
+        $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($customers)));
+        if ($exists !== $customers) {
             return array();
         }
 
         if ($project_id) {
+            $payments = $wpdb->prefix . 'uapm_payments';
+
             return $wpdb->get_results($wpdb->prepare(
-                "SELECT DISTINCT email, name FROM $table
-                 WHERE project_id = %d AND email <> '' AND mailing_consent = 1",
+                "SELECT DISTINCT c.email, c.name
+                 FROM {$customers} c
+                 WHERE c.email <> ''
+                 AND c.mailing_consent = 1
+                 AND EXISTS (
+                    SELECT 1 FROM {$payments} p
+                    WHERE p.project_id = %d
+                    AND p.customer_email = c.email
+                 )
+                 ORDER BY c.email ASC",
                 absint($project_id)
             ));
         }
 
         return $wpdb->get_results(
-            "SELECT DISTINCT email, name FROM $table
-             WHERE email <> '' AND mailing_consent = 1"
+            "SELECT DISTINCT email, name
+             FROM {$customers}
+             WHERE email <> '' AND mailing_consent = 1
+             ORDER BY email ASC"
         );
     }
 
     public static function save_mailing() {
-        if (!current_user_can('uapm_manage_projects')) {
+        if (!current_user_can('uapm_manage_projects') && !current_user_can('manage_options')) {
             wp_die('Недостатньо прав.');
         }
 
@@ -142,7 +152,7 @@ class UAPM_Mailings {
     }
 
     public static function send_mailing() {
-        if (!current_user_can('uapm_manage_projects')) {
+        if (!current_user_can('uapm_manage_projects') && !current_user_can('manage_options')) {
             wp_die('Недостатньо прав.');
         }
 
@@ -155,7 +165,7 @@ class UAPM_Mailings {
             wp_die('Розсилку не знайдено або її вже відправлено.');
         }
 
-        $recipients = self::get_recipients($mailing->project_id);
+        $recipients = self::get_recipients(absint($mailing->project_id));
         $sent = 0;
         $failed = 0;
 
@@ -167,16 +177,19 @@ class UAPM_Mailings {
                 continue;
             }
 
-            $name = sanitize_text_field($recipient->name);
+            $name = sanitize_text_field($recipient->name ?? '');
             $message = str_replace(
                 array('{{name}}', '{{email}}'),
-                array($name, $email),
+                array(esc_html($name), esc_html($email)),
                 $mailing->message
             );
 
-            $headers = array('Content-Type: text/html; charset=UTF-8');
-
-            if (wp_mail($email, $mailing->subject, wpautop($message), $headers)) {
+            if (wp_mail(
+                $email,
+                $mailing->subject,
+                wpautop($message),
+                array('Content-Type: text/html; charset=UTF-8')
+            )) {
                 $sent++;
             } else {
                 $failed++;
@@ -185,45 +198,37 @@ class UAPM_Mailings {
 
         global $wpdb;
 
-        $wpdb->update(
-            self::table_name(),
-            array(
-                'status' => 'sent',
-                'recipient_count' => count($recipients),
-                'sent_count' => $sent,
-                'failed_count' => $failed,
-                'sent_at' => current_time('mysql'),
-            ),
-            array('id' => $id)
-        );
+        $wpdb->update(self::table_name(), array(
+            'status' => 'sent',
+            'recipient_count' => count($recipients),
+            'sent_count' => $sent,
+            'failed_count' => $failed,
+            'sent_at' => current_time('mysql'),
+        ), array('id' => $id));
 
-        wp_safe_redirect(add_query_arg(
-            array(
-                'page' => 'uapm-mailings',
-                'uapm_sent' => $sent,
-                'uapm_failed' => $failed,
-            ),
-            admin_url('admin.php')
-        ));
+        wp_safe_redirect(add_query_arg(array(
+            'page' => 'uapm-mailings',
+            'uapm_sent' => $sent,
+            'uapm_failed' => $failed,
+        ), admin_url('admin.php')));
         exit;
     }
 
     public static function render_page() {
-        if (!current_user_can('uapm_manage_projects')) {
+        if (!current_user_can('uapm_manage_projects') && !current_user_can('manage_options')) {
             wp_die('Недостатньо прав.');
         }
 
         $mailings = self::get_all();
 
-        echo '<div class="wrap uapm-admin">';
-        echo '<h1>Розсилки</h1>';
+        echo '<div class="wrap uapm-admin"><h1>Розсилки</h1>';
 
         if (isset($_GET['uapm_sent'])) {
-            echo '<div class="notice notice-success"><p>Відправлено: '
-                . absint($_GET['uapm_sent'])
-                . '; помилок: '
-                . absint($_GET['uapm_failed'] ?? 0)
-                . '.</p></div>';
+            echo '<div class="notice notice-success"><p>Відправлено: ' . absint($_GET['uapm_sent']) . '; помилок: ' . absint($_GET['uapm_failed'] ?? 0) . '.</p></div>';
+        }
+
+        if (isset($_GET['uapm_error'])) {
+            echo '<div class="notice notice-error"><p>' . esc_html(wp_unslash($_GET['uapm_error'])) . '</p></div>';
         }
 
         echo '<h2>Створити розсилку</h2>';
@@ -234,7 +239,7 @@ class UAPM_Mailings {
         echo '<table class="form-table">';
         echo '<tr><th><label for="uapm-mailing-name">Назва</label></th><td><input required class="regular-text" id="uapm-mailing-name" name="name"></td></tr>';
         echo '<tr><th><label for="uapm-mailing-subject">Тема листа</label></th><td><input required class="regular-text" id="uapm-mailing-subject" name="subject"></td></tr>';
-        echo '<tr><th><label for="uapm-mailing-project">Проєкт</label></th><td><input type="number" min="0" id="uapm-mailing-project" name="project_id" value="0"><p class="description">0 — усі проєкти.</p></td></tr>';
+        echo '<tr><th><label for="uapm-mailing-project">Проєкт</label></th><td><input type="number" min="0" id="uapm-mailing-project" name="project_id" value="0"><p class="description">0 — усі клієнти з підтвердженою згодою.</p></td></tr>';
         echo '<tr><th><label for="uapm-mailing-message">Текст</label></th><td><textarea required class="large-text" rows="10" id="uapm-mailing-message" name="message"></textarea><p class="description">Мітки: {{name}}, {{email}}.</p></td></tr>';
         echo '</table>';
 
@@ -272,7 +277,6 @@ class UAPM_Mailings {
             echo '<tr><td colspan="7">Розсилок поки немає.</td></tr>';
         }
 
-        echo '</tbody></table>';
-        echo '</div>';
+        echo '</tbody></table></div>';
     }
 }
