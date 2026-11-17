@@ -48,7 +48,6 @@ final class UAPM_Plugin {
     private $initialized = false;
 
     public static function instance() {
-
         if (self::$instance === null) {
             self::$instance = new self();
         }
@@ -69,11 +68,9 @@ final class UAPM_Plugin {
         $this->initialized = true;
 
         $this->load_modules();
-
         $this->initialize_modules();
 
         if (class_exists('UAPM_Installer')) {
-
             $installed_version = get_option('uapm_db_version', '');
 
             if (version_compare($installed_version, UAPM_DB_VERSION, '<')) {
@@ -141,6 +138,7 @@ final class UAPM_Plugin {
             'class-uapm-milestones.php',
             'class-uapm-dependencies.php',
             'class-uapm-admin.php',
+            'class-uapm-admin-sections.php',
             'class-uapm-portal.php',
         );
 
@@ -173,6 +171,7 @@ final class UAPM_Plugin {
          * UAPM_REST_API
          * UAPM_Dependencies
          * UAPM_Portal
+         * UAPM_Admin_Sections
          *
          * They must not be initialized again here.
          */
@@ -293,7 +292,6 @@ final class UAPM_Plugin {
         $missing = array();
 
         foreach ($dependencies as $name => $dependency) {
-
             if (!is_plugin_active($dependency['slug'])) {
                 $missing[$name] = $dependency;
             }
@@ -308,20 +306,14 @@ final class UAPM_Plugin {
         echo '<ul>';
 
         foreach ($missing as $name => $dependency) {
-
             echo '<li><strong>' . esc_html($name) . '</strong>';
             echo ' — ' . esc_html($dependency['description']);
             echo ' (необов’язкова інтеграція)</li>';
         }
 
         echo '</ul>';
-
         echo '<p>Основні функції UA Project Manager повинні працювати незалежно від цих плагінів.</p>';
-
-        echo '<p><a href="' . esc_url(admin_url('plugins.php')) . '">';
-        echo 'Переглянути встановлені плагіни';
-        echo '</a></p>';
-
+        echo '<p><a href="' . esc_url(admin_url('plugins.php')) . '">Переглянути встановлені плагіни</a></p>';
         echo '</div>';
     }
 }
@@ -344,7 +336,6 @@ function uapm_activate_plugin() {
     $installer = UAPM_PATH . 'includes/class-uapm-installer.php';
 
     if (file_exists($installer)) {
-
         require_once $installer;
 
         if (class_exists('UAPM_Installer')) {
@@ -352,17 +343,15 @@ function uapm_activate_plugin() {
         }
     }
 
-    /*
-     * Register the /gpm/ portal rewrite rule before flushing rules.
-     * The portal module is also loaded normally on regular requests.
-     */
     $portal = UAPM_PATH . 'includes/class-uapm-portal.php';
 
     if (file_exists($portal)) {
-
         require_once $portal;
 
-        if (class_exists('UAPM_Portal') && is_callable(array('UAPM_Portal', 'register_rewrite'))) {
+        if (
+            class_exists('UAPM_Portal') &&
+            is_callable(array('UAPM_Portal', 'register_rewrite'))
+        ) {
             UAPM_Portal::register_rewrite();
         }
     }
@@ -377,14 +366,7 @@ function uapm_deactivate_plugin() {
     flush_rewrite_rules();
 }
 
-register_activation_hook(
-    __FILE__,
-    'uapm_activate_plugin'
-);
-
-register_deactivation_hook(
-    __FILE__,
-    'uapm_deactivate_plugin'
-);
+register_activation_hook(__FILE__, 'uapm_activate_plugin');
+register_deactivation_hook(__FILE__, 'uapm_deactivate_plugin');
 
 uapm();
