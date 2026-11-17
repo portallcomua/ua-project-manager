@@ -1,304 +1,595 @@
 <?php
-if (!defined('ABSPATH')) {
-    exit;
+/**
+ * UA Project Manager — Analytics.
+ *
+ * @package UA_Project_Manager
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
 }
 
-class UAPM_Analytics {
+final class UAPM_Analytics {
 
-    public static function init() {
-        add_action('admin_post_uapm_export_analytics', array(__CLASS__, 'export_csv'));
-    }
+	/**
+	 * Register hooks.
+	 *
+	 * @return void
+	 */
+	public static function init() {
+		add_action( 'admin_post_uapm_export_analytics', array( __CLASS__, 'export_csv' ) );
+	}
 
-    private static function table($name) {
-        global $wpdb;
-        return $wpdb->prefix . 'uapm_' . $name;
-    }
+	/**
+	 * Get prefixed table name.
+	 *
+	 * @param string $name Table suffix.
+	 * @return string
+	 */
+	private static function table( $name ) {
+		global $wpdb;
+		return $wpdb->prefix . 'uapm_' . sanitize_key( $name );
+	}
 
-    public static function get_overview($date_from = '', $date_to = '') {
-        global $wpdb;
+	/**
+	 * Check analytics permissions.
+	 *
+	 * @return bool
+	 */
+	private static function can_view() {
+		return current_user_can( 'uapm_manage_projects' ) ||
+			current_user_can( 'uapm_manage_payments' ) ||
+			current_user_can( 'manage_options' );
+	}
 
-        $date_from = $date_from ?: date('Y-m-01 00:00:00');
-        $date_to = $date_to ?: date('Y-m-d 23:59:59');
+	/**
+	 * Get date range defaults.
+	 *
+	 * @param string $date_from Start date.
+	 * @param string $date_to   End date.
+	 * @return array
+	 */
+	private static function normalize_dates( $date_from = '', $date_to = '' ) {
+		$today = current_time( 'Y-m-d' );
 
-        $payments = self::table('payments');
-        $installations = self::table('installations');
-        $projects = self::table('projects');
-        $customers = self::table('customers');
+		if ( ! self::valid_date( $date_from ) ) {
+			$date_from = substr( $today, 0, 7 ) . '-01';
+		}
 
-        $result = array(
-            'projects' => (int) $wpdb->get_var("SELECT COUNT(*) FROM $projects"),
-            'installations' => (int) $wpdb->get_var("SELECT COUNT(*) FROM $installations WHERE status = 'active'"),
-            'customers' => (int) $wpdb->get_var("SELECT COUNT(*) FROM $customers"),
-            'payments' => 0,
-            'revenue' => 0,
-            'pending' => 0,
-            'partial' => 0,
-        );
+		if ( ! self::valid_date( $date_to ) ) {
+			$date_to = $today;
+		}
 
-        $result['payments'] = (int) $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM $payments WHERE created_at BETWEEN %s AND %s",
-            $date_from,
-            $date_to
-        ));
+		if ( $date_from > $date_to ) {
+			$swap      = $date_from;
+			$date_from = $date_to;
+			$date_to   = $swap;
+		}
 
-        $result['revenue'] = (float) $wpdb->get_var($wpdb->prepare(
-            "SELECT COALESCE(SUM(received_amount), 0) FROM $payments WHERE created_at BETWEEN %s AND %s",
-            $date_from,
-            $date_to
-        ));
+		return array(
+			$ date_from = $date_from . ' 00:00:00',
+			$date_to . ' 23:59:59',
+		);
+	}
 
-        $result['pending'] = (int) $wpdb->get_var(
-            "SELECT COUNT(*) FROM $payments WHERE payment_status = 'pending'"
-        );
+	/**
+	 * Validate a YYYY-MM-DD date.
+	 *
+	 * @param string $date Date.
+	 * @return bool
+	 */
+	private static function valid_date( $date ) {
+		if ( ! is_string( $date ) || ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) ) {
+			return false;
+		}
 
-        $result['partial'] = (int) $wpdb->get_var(
-            "SELECT COUNT(*) FROM $payments WHERE payment_status = 'partial'"
-        );
+		$parts = explode( '-', $date );
 
-        return $result;
-    }
+		return checkdate(
+			(int) $parts[1],
+			(int) $parts[2],
+			(int) $parts[0]
+		);
+	}
 
-    public static function get_project_statistics($project_id) {
-        global $wpdb;
+	/**
+	 * Get overview statistics.
+	 *
+	 * @param string $date_from Start date.
+	 * @param string $date_to   End date.
+	 * @return array
+	 */
+	public static function get_overview( $date_from = '', $date_to = '' ) {
+		global $wpdb;
 
-        $project_id = absint($project_id);
+		$dates = self::normalize_dates( $date_from, $date_to );
 
-        if (!$project_id) {
-            return array();
-        }
+		$payments      = self::table( 'payments' );
+		$installations = self::table( 'installations' );
+		$projects      = self::table( 'projects' );
+		$customers     = self::table( 'customers' );
 
-        $payments = self::table('payments');
-        $installations = self::table('installations');
-        $downloads = self::table('downloads');
+		$result = array(
+			'projects'      => self::table_exists( $projects ) ? (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$projects}" ) : 0,
+			'installations' => self::table_exists( $installations ) ? (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$installations} WHERE status = 'active'" ) : 0,
+			'customers'     => self::table_exists( $customers ) ? (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$customers}" ) : 0,
+			'payments'      => 0,
+			'revenue'       => 0,
+			'pending'       => 0,
+			'partial'       => 0,
+		);
 
-        return array(
-            'installations' => (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM $installations WHERE project_id = %d",
-                $project_id
-            )),
-            'active_installations' => (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM $installations WHERE project_id = %d AND status = 'active'",
-                $project_id
-            )),
-            'payments' => (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM $payments WHERE project_id = %d",
-                $project_id
-            )),
-            'revenue' => (float) $wpdb->get_var($wpdb->prepare(
-                "SELECT COALESCE(SUM(received_amount), 0) FROM $payments WHERE project_id = %d",
-                $project_id
-            )),
-            'downloads' => self::table_exists($downloads)
-                ? (int) $wpdb->get_var($wpdb->prepare(
-                    "SELECT COUNT(*) FROM $downloads WHERE project_id = %d",
-                    $project_id
-                ))
-                : 0,
-        );
-    }
+		if ( ! self::table_exists( $payments ) ) {
+			return $result;
+		}
 
-    public static function get_revenue_by_currency($date_from = '', $date_to = '') {
-        global $wpdb;
+		$result['payments'] = (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(*) FROM {$payments} WHERE created_at BETWEEN %s AND %s",
+				$dates[0],
+				$dates[1]
+			)
+		);
 
-        $payments = self::table('payments');
+		$result['revenue'] = (float) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COALESCE(SUM(received_amount), 0) FROM {$payments} WHERE created_at BETWEEN %s AND %s",
+				$dates[0],
+				$dates[1]
+			)
+		);
 
-        $date_from = $date_from ?: date('Y-m-01 00:00:00');
-        $date_to = $date_to ?: date('Y-m-d 23:59:59');
+		$result['pending'] = (int) $wpdb->get_var(
+			"SELECT COUNT(*) FROM {$payments} WHERE payment_status = 'pending'"
+		);
 
-        return $wpdb->get_results($wpdb->prepare(
-            "SELECT currency, SUM(received_amount) AS revenue
-             FROM $payments
-             WHERE created_at BETWEEN %s AND %s
-             GROUP BY currency
-             ORDER BY currency ASC",
-            $date_from,
-            $date_to
-        ));
-    }
+		$result['partial'] = (int) $wpdb->get_var(
+			"SELECT COUNT(*) FROM {$payments} WHERE payment_status = 'partial'"
+		);
 
-    public static function get_monthly_revenue($months = 12) {
-        global $wpdb;
+		return $result;
+	}
 
-        $payments = self::table('payments');
-        $months = min(60, max(1, absint($months)));
+	/**
+	 * Get project statistics.
+	 *
+	 * @param int $project_id Project ID.
+	 * @return array
+	 */
+	public static function get_project_statistics( $project_id ) {
+		global $wpdb;
 
-        return $wpdb->get_results($wpdb->prepare(
-            "SELECT DATE_FORMAT(created_at, '%%Y-%%m') AS month,
-                    currency,
-                    SUM(received_amount) AS revenue,
-                    COUNT(*) AS payment_count
-             FROM $payments
-             WHERE created_at >= DATE_SUB(CURRENT_DATE(), INTERVAL %d MONTH)
-             GROUP BY month, currency
-             ORDER BY month ASC",
-            $months
-        ));
-    }
+		$project_id = absint( $project_id );
 
-    public static function get_top_projects($limit = 10) {
-        global $wpdb;
+		if ( ! $project_id ) {
+			return array();
+		}
 
-        $projects = self::table('projects');
-        $payments = self::table('payments');
+		$payments      = self::table( 'payments' );
+		$installations = self::table( 'installations' );
+		$downloads     = self::table( 'downloads' );
 
-        $limit = min(100, max(1, absint($limit)));
+		$stats = array(
+			'installations'        => 0,
+			'active_installations' => 0,
+			'payments'             => 0,
+			'revenue'              => 0,
+			'downloads'            => 0,
+		);
 
-        return $wpdb->get_results($wpdb->prepare(
-            "SELECT p.id, p.name, p.slug,
-                    COUNT(pay.id) AS payment_count,
-                    COALESCE(SUM(pay.received_amount), 0) AS revenue
-             FROM $projects p
-             LEFT JOIN $payments pay ON pay.project_id = p.id
-             GROUP BY p.id
-             ORDER BY revenue DESC
-             LIMIT %d",
-            $limit
-        ));
-    }
+		if ( self::table_exists( $installations ) ) {
+			$stats['installations'] = (int) $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT COUNT(*) FROM {$installations} WHERE project_id = %d",
+					$project_id
+				)
+			);
 
-    public static function get_recent_activity($limit = 20) {
-        global $wpdb;
+			$stats['active_installations'] = (int) $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT COUNT(*) FROM {$installations} WHERE project_id = %d AND status = 'active'",
+					$project_id
+				)
+			);
+		}
 
-        $table = self::table('activity_log');
-        $limit = min(100, max(1, absint($limit)));
+		if ( self::table_exists( $payments ) ) {
+			$stats['payments'] = (int) $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT COUNT(*) FROM {$payments} WHERE project_id = %d",
+					$project_id
+				)
+			);
 
-        return $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM $table ORDER BY created_at DESC LIMIT %d",
-            $limit
-        ));
-    }
+			$stats['revenue'] = (float) $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT COALESCE(SUM(received_amount), 0) FROM {$payments} WHERE project_id = %d",
+					$project_id
+				)
+			);
+		}
 
-    private static function table_exists($table) {
-        global $wpdb;
+		if ( self::table_exists( $downloads ) ) {
+			$stats['downloads'] = (int) $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT COUNT(*) FROM {$downloads} WHERE project_id = %d",
+					$project_id
+				)
+			);
+		}
 
-        return $wpdb->get_var($wpdb->prepare(
-            'SHOW TABLES LIKE %s',
-            $wpdb->esc_like($table)
-        )) === $table;
-    }
+		return $stats;
+	}
 
-    public static function log_activity($event, $object_type = '', $object_id = 0, $description = '', $meta = array()) {
-        global $wpdb;
+	/**
+	 * Get revenue grouped by currency.
+	 *
+	 * @param string $date_from Start date.
+	 * @param string $date_to   End date.
+	 * @return array
+	 */
+	public static function get_revenue_by_currency( $date_from = '', $date_to = '' ) {
+		global $wpdb;
 
-        $wpdb->insert(
-            self::table('activity_log'),
-            array(
-                'user_id' => get_current_user_id(),
-                'event' => sanitize_key($event),
-                'object_type' => sanitize_key($object_type),
-                'object_id' => absint($object_id),
-                'description' => sanitize_textarea_field($description),
-                'meta' => wp_json_encode($meta),
-                'created_at' => current_time('mysql'),
-            ),
-            array('%d', '%s', '%s', '%d', '%s', '%s', '%s')
-        );
-    }
+		$payments = self::table( 'payments' );
 
-    public static function export_csv() {
-        if (!current_user_can('uapm_manage_projects')) {
-            wp_die('Недостатньо прав.');
-        }
+		if ( ! self::table_exists( $payments ) ) {
+			return array();
+		}
 
-        check_admin_referer('uapm_export_analytics');
+		$dates = self::normalize_dates( $date_from, $date_to );
 
-        $from = sanitize_text_field($_GET['date_from'] ?? '');
-        $to = sanitize_text_field($_GET['date_to'] ?? '');
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT currency, SUM(received_amount) AS revenue
+				FROM {$payments}
+				WHERE created_at BETWEEN %s AND %s
+				GROUP BY currency
+				ORDER BY currency ASC",
+				$dates[0],
+				$dates[1]
+			)
+		);
+	}
 
-        $data = self::get_overview($from, $to);
+	/**
+	 * Get monthly revenue.
+	 *
+	 * @param int $months Number of months.
+	 * @return array
+	 */
+	public static function get_monthly_revenue( $months = 12 ) {
+		global $wpdb;
 
-        nocache_headers();
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename=uapm-analytics.csv');
+		$payments = self::table( 'payments' );
+		$months   = min( 60, max( 1, absint( $months ) ) );
 
-        $output = fopen('php://output', 'w');
+		if ( ! self::table_exists( $payments ) ) {
+			return array();
+		}
 
-        fprintf($output, chr(0xEF) . chr(0xBB) . chr(0xBF));
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT DATE_FORMAT(created_at, '%%Y-%%m') AS month,
+					currency,
+					SUM(received_amount) AS revenue,
+					COUNT(*) AS payment_count
+				FROM {$payments}
+				WHERE created_at >= DATE_SUB(CURRENT_DATE(), INTERVAL %d MONTH)
+				GROUP BY month, currency
+				ORDER BY month ASC",
+				$months
+			)
+		);
+	}
 
-        fputcsv($output, array('Показник', 'Значення'));
-        fputcsv($output, array('Проєкти', $data['projects']));
-        fputcsv($output, array('Активні встановлення', $data['installations']));
-        fputcsv($output, array('Клієнти', $data['customers']));
-        fputcsv($output, array('Платежі за період', $data['payments']));
-        fputcsv($output, array('Отримано коштів', $data['revenue']));
-        fputcsv($output, array('Очікують підтвердження', $data['pending']));
-        fputcsv($output, array('Часткові платежі', $data['partial']));
+	/**
+	 * Get top projects by received revenue.
+	 *
+	 * @param int $limit Number of projects.
+	 * @return array
+	 */
+	public static function get_top_projects( $limit = 10 ) {
+		global $wpdb;
 
-        fclose($output);
-        exit;
-    }
+		$projects = self::table( 'projects' );
+		$payments = self::table( 'payments' );
+		$limit    = min( 100, max( 1, absint( $limit ) ) );
 
-    public static function render_page() {
-        if (!current_user_can('uapm_manage_projects')) {
-            wp_die('Недостатньо прав.');
-        }
+		if ( ! self::table_exists( $projects ) ) {
+			return array();
+		}
 
-        $data = self::get_overview();
+		if ( ! self::table_exists( $payments ) ) {
+			return $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT id, name, slug, 0 AS payment_count, 0 AS revenue
+					FROM {$projects}
+					ORDER BY name ASC
+					LIMIT %d",
+					$limit
+				)
+			);
+		}
 
-        echo '<div class="wrap uapm-admin">';
-        echo '<h1>Аналітика UA Project Manager</h1>';
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT p.id, p.name, p.slug,
+					COUNT(pay.id) AS payment_count,
+					COALESCE(SUM(pay.received_amount), 0) AS revenue
+				FROM {$projects} p
+				LEFT JOIN {$payments} pay ON pay.project_id = p.id
+				GROUP BY p.id, p.name, p.slug
+				ORDER BY revenue DESC
+				LIMIT %d",
+				$limit
+			)
+		);
+	}
 
-        echo '<div class="uapm-stats-grid">';
+	/**
+	 * Get recent activity.
+	 *
+	 * @param int $limit Number of records.
+	 * @return array
+	 */
+	public static function get_recent_activity( $limit = 20 ) {
+		global $wpdb;
 
-        self::render_stat('Проєкти', $data['projects']);
-        self::render_stat('Активні встановлення', $data['installations']);
-        self::render_stat('Клієнти', $data['customers']);
-        self::render_stat('Платежі', $data['payments']);
-        self::render_stat('Отримано коштів', number_format_i18n($data['revenue'], 2) . ' грн');
-        self::render_stat('Очікують підтвердження', $data['pending']);
-        self::render_stat('Часткові платежі', $data['partial']);
+		$table = self::table( 'activity_log' );
+		$limit = min( 100, max( 1, absint( $limit ) ) );
 
-        echo '</div>';
+		if ( ! self::table_exists( $table ) ) {
+			return array();
+		}
 
-        echo '<h2>Дохід за валютами</h2>';
-        $currencies = self::get_revenue_by_currency();
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT * FROM {$table} ORDER BY created_at DESC LIMIT %d",
+				$limit
+			)
+		);
+	}
 
-        if ($currencies) {
-            echo '<table class="widefat striped"><thead><tr><th>Валюта</th><th>Отримано</th></tr></thead><tbody>';
+	/**
+	 * Check whether a database table exists.
+	 *
+	 * @param string $table Table name.
+	 * @return bool
+	 */
+	private static function table_exists( $table ) {
+		global $wpdb;
 
-            foreach ($currencies as $currency) {
-                echo '<tr>';
-                echo '<td>' . esc_html($currency->currency) . '</td>';
-                echo '<td>' . esc_html(number_format_i18n((float) $currency->revenue, 2)) . '</td>';
-                echo '</tr>';
-            }
+		return $wpdb->get_var(
+			$wpdb->prepare(
+				'SHOW TABLES LIKE %s',
+				$wpdb->esc_like( $table )
+			)
+		) === $table;
+	}
 
-            echo '</tbody></table>';
-        } else {
-            echo '<p>Платежів поки немає.</p>';
-        }
+	/**
+	 * Write an activity record.
+	 *
+	 * @param string $event       Event key.
+	 * @param string $object_type Object type.
+	 * @param int    $object_id   Object ID.
+	 * @param string $description Description.
+	 * @param array  $meta        Additional metadata.
+	 * @return void
+	 */
+	public static function log_activity( $event, $object_type = '', $object_id = 0, $description = '', $meta = array() ) {
+		global $wpdb;
 
-        echo '<h2>Топ проєктів за отриманими платежами</h2>';
+		$table = self::table( 'activity_log' );
 
-        $top = self::get_top_projects();
+		if ( ! self::table_exists( $table ) ) {
+			return;
+		}
 
-        if ($top) {
-            echo '<table class="widefat striped"><thead><tr><th>Проєкт</th><th>Платежі</th><th>Отримано</th></tr></thead><tbody>';
+		$wpdb->insert(
+			$table,
+			array(
+				'user_id'     => get_current_user_id(),
+				'event'       => sanitize_key( $event ),
+				'object_type' => sanitize_key( $object_type ),
+				'object_id'   => absint( $object_id ),
+				'description' => sanitize_textarea_field( $description ),
+				'meta'        => wp_json_encode( is_array( $meta ) ? $meta : array() ),
+				'created_at'  => current_time( 'mysql' ),
+			),
+			array( '%d', '%s', '%s', '%d', '%s', '%s', '%s' )
+		);
+	}
 
-            foreach ($top as $project) {
-                echo '<tr>';
-                echo '<td>' . esc_html($project->name) . '</td>';
-                echo '<td>' . esc_html($project->payment_count) . '</td>';
-                echo '<td>' . esc_html(number_format_i18n((float) $project->revenue, 2)) . '</td>';
-                echo '</tr>';
-            }
+	/**
+	 * Export analytics as CSV.
+	 *
+	 * @return void
+	 */
+	public static function export_csv() {
+		if ( ! self::can_view() ) {
+			wp_die(
+				esc_html__( 'You do not have permission to export analytics.', 'ua-project-manager' ),
+				esc_html__( 'Access denied', 'ua-project-manager' ),
+				array( 'response' => 403 )
+			);
+		}
 
-            echo '</tbody></table>';
-        }
+		check_admin_referer( 'uapm_export_analytics' );
 
-        $export_url = wp_nonce_url(
-            admin_url('admin-post.php?action=uapm_export_analytics'),
-            'uapm_export_analytics'
-        );
+		$date_from = isset( $_GET['date_from'] )
+			? sanitize_text_field( wp_unslash( $_GET['date_from'] ) )
+			: '';
 
-        echo '<p><a class="button button-primary" href="' . esc_url($export_url) . '">Експортувати CSV</a></p>';
-        echo '</div>';
-    }
+		$date_to = isset( $_GET['date_to'] )
+			? sanitize_text_field( wp_unslash( $_GET['date_to'] ) )
+			: '';
 
-    private static function render_stat($label, $value) {
-        echo '<div class="uapm-stat-card">';
-        echo '<span>' . esc_html($label) . '</span>';
-        echo '<strong>' . esc_html($value) . '</strong>';
-        echo '</div>';
-    }
+		$data = self::get_overview( $date_from, $date_to );
+
+		nocache_headers();
+
+		header( 'Content-Type: text/csv; charset=utf-8' );
+		header( 'Content-Disposition: attachment; filename=uapm-analytics.csv' );
+
+		$output = fopen( 'php://output', 'w' );
+
+		if ( false === $output ) {
+			wp_die( esc_html__( 'Could not create the CSV export.', 'ua-project-manager' ) );
+		}
+
+		fprintf( $output, chr( 0xEF ) . chr( 0xBB ) . chr( 0xBF ) );
+
+		fputcsv( $output, array( __( 'Metric', 'ua-project-manager' ), __( 'Value', 'ua-project-manager' ) ) );
+		fputcsv( $output, array( __( 'Projects', 'ua-project-manager' ), $data['projects'] ) );
+		fputcsv( $output, array( __( 'Active installations', 'ua-project-manager' ), $data['installations'] ) );
+		fputcsv( $output, array( __( 'Customers', 'ua-project-manager' ), $data['customers'] ) );
+		fputcsv( $output, array( __( 'Payments in period', 'ua-project-manager' ), $data['payments'] ) );
+		fputcsv( $output, array( __( 'Received revenue', 'ua-project-manager' ), $data['revenue'] ) );
+		fputcsv( $output, array( __( 'Pending payments', 'ua-project-manager' ), $data['pending'] ) );
+		fputcsv( $output, array( __( 'Partial payments', 'ua-project-manager' ), $data['partial'] ) );
+
+		fclose( $output );
+		exit;
+	}
+
+	/**
+	 * Render analytics page.
+	 *
+	 * @return void
+	 */
+	public static function render_page() {
+		if ( ! self::can_view() ) {
+			wp_die(
+				esc_html__( 'You do not have permission to view analytics.', 'ua-project-manager' ),
+				esc_html__( 'Access denied', 'ua-project-manager' ),
+				array( 'response' => 403 )
+			);
+		}
+
+		$data       = self::get_overview();
+		$currencies = self::get_revenue_by_currency();
+		$top        = self::get_top_projects();
+
+		$export_url = wp_nonce_url(
+			admin_url( 'admin-post.php?action=uapm_export_analytics' ),
+			'uapm_export_analytics'
+		);
+		?>
+		<div class="wrap uapm-wrap">
+			<div class="uapm-header">
+				<div class="uapm-header-content">
+					<div class="uapm-header-icon">
+						<span class="dashicons dashicons-chart-area"></span>
+					</div>
+					<div>
+						<h1><?php esc_html_e( 'Analytics', 'ua-project-manager' ); ?></h1>
+						<p><?php esc_html_e( 'Overview of projects, installations, customers and received payments.', 'ua-project-manager' ); ?></p>
+					</div>
+				</div>
+				<div class="uapm-header-actions">
+					<a class="button button-primary" href="<?php echo esc_url( $export_url ); ?>">
+						<span class="dashicons dashicons-download"></span>
+						<?php esc_html_e( 'Export CSV', 'ua-project-manager' ); ?>
+					</a>
+				</div>
+			</div>
+
+			<div class="uapm-grid uapm-grid-3">
+				<?php
+				self::render_stat( __( 'Projects', 'ua-project-manager' ), $data['projects'], 'dashicons-portfolio' );
+				self::render_stat( __( 'Active installations', 'ua-project-manager' ), $data['installations'], 'dashicons-admin-plugins' );
+				self::render_stat( __( 'Customers', 'ua-project-manager' ), $data['customers'], 'dashicons-groups' );
+				self::render_stat( __( 'Payments', 'ua-project-manager' ), $data['payments'], 'dashicons-money-alt' );
+				self::render_stat( __( 'Received revenue', 'ua-project-manager' ), number_format_i18n( $data['revenue'], 2 ), 'dashicons-chart-line' );
+				self::render_stat( __( 'Pending payments', 'ua-project-manager' ), $data['pending'], 'dashicons-clock' );
+				self::render_stat( __( 'Partial payments', 'ua-project-manager' ), $data['partial'], 'dashicons-editor-break' );
+				?>
+			</div>
+
+			<div class="uapm-grid uapm-grid-2">
+				<div class="uapm-card">
+					<div class="uapm-card-header">
+						<h2><?php esc_html_e( 'Revenue by currency', 'ua-project-manager' ); ?></h2>
+					</div>
+					<div class="uapm-card-body">
+						<?php if ( ! empty( $currencies ) ) : ?>
+							<table class="widefat striped uapm-table">
+								<thead>
+									<tr>
+										<th><?php esc_html_e( 'Currency', 'ua-project-manager' ); ?></th>
+										<th><?php esc_html_e( 'Received', 'ua-project-manager' ); ?></th>
+									</tr>
+								</thead>
+								<tbody>
+									<?php foreach ( $currencies as $currency ) : ?>
+										<tr>
+											<td><?php echo esc_html( $currency->currency ); ?></td>
+											<td><?php echo esc_html( number_format_i18n( (float) $currency->revenue, 2 ) ); ?></td>
+										</tr>
+									<?php endforeach; ?>
+								</tbody>
+							</table>
+						<?php else : ?>
+							<p><?php esc_html_e( 'There are no payments for this period yet.', 'ua-project-manager' ); ?></p>
+						<?php endif; ?>
+					</div>
+				</div>
+
+				<div class="uapm-card">
+					<div class="uapm-card-header">
+						<h2><?php esc_html_e( 'Top projects by received payments', 'ua-project-manager' ); ?></h2>
+					</div>
+					<div class="uapm-card-body">
+						<?php if ( ! empty( $top ) ) : ?>
+							<table class="widefat striped uapm-table">
+								<thead>
+									<tr>
+										<th><?php esc_html_e( 'Project', 'ua-project-manager' ); ?></th>
+										<th><?php esc_html_e( 'Payments', 'ua-project-manager' ); ?></th>
+										<th><?php esc_html_e( 'Received', 'ua-project-manager' ); ?></th>
+									</tr>
+								</thead>
+								<tbody>
+									<?php foreach ( $top as $project ) : ?>
+										<tr>
+											<td><?php echo esc_html( $project->name ); ?></td>
+											<td><?php echo esc_html( $project->payment_count ); ?></td>
+											<td><?php echo esc_html( number_format_i18n( (float) $project->revenue, 2 ) ); ?></td>
+										</tr>
+									<?php endforeach; ?>
+								</tbody>
+							</table>
+						<?php else : ?>
+							<p><?php esc_html_e( 'No project data is available yet.', 'ua-project-manager' ); ?></p>
+						<?php endif; ?>
+					</div>
+				</div>
+			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Render a statistic card.
+	 *
+	 * @param string $label Label.
+	 * @param mixed  $value Value.
+	 * @param string $icon  Dashicon class.
+	 * @return void
+	 */
+	private static function render_stat( $label, $value, $icon = 'dashicons-chart-bar' ) {
+		?>
+		<div class="uapm-stat-card">
+			<div class="uapm-stat-icon">
+				<span class="dashicons <?php echo esc_attr( $icon ); ?>"></span>
+			</div>
+			<div class="uapm-stat-content">
+				<span><?php echo esc_html( $label ); ?></span>
+				<strong><?php echo esc_html( $value ); ?></strong>
+			</div>
+		</div>
+		<?php
+	}
 }
