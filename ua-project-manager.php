@@ -21,7 +21,7 @@ if (!defined('UAPM_VERSION')) {
 }
 
 if (!defined('UAPM_DB_VERSION')) {
-    define('UAPM_DB_VERSION', '1.0.0');
+    define('UAPM_DB_VERSION', '1.1.0');
 }
 
 if (!defined('UAPM_FILE')) {
