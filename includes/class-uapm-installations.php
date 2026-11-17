@@ -1,9 +1,16 @@
 <?php
+/**
+ * UA Project Manager
+ * Installation registration and monitoring.
+ *
+ * @package UA_Project_Manager
+ */
+
 if (!defined('ABSPATH')) {
     exit;
 }
 
-class UAPM_Installations {
+final class UAPM_Installations {
 
     private static $table = 'uapm_installations';
 
@@ -19,64 +26,38 @@ class UAPM_Installations {
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
-        $table = $wpdb->prefix . self::$table;
+        $table = self::table_name();
         $charset = $wpdb->get_charset_collate();
 
-        $sql = "CREATE TABLE $table (
-            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-            project_id BIGINT UNSIGNED NOT NULL,
-            customer_id BIGINT UNSIGNED DEFAULT 0,
-            site_url VARCHAR(500) DEFAULT '',
-            site_name VARCHAR(255) DEFAULT '',
-            plugin_slug VARCHAR(191) DEFAULT '',
-            plugin_version VARCHAR(100) DEFAULT '',
-            wordpress_version VARCHAR(50) DEFAULT '',
-            php_version VARCHAR(50) DEFAULT '',
-            platform VARCHAR(50) DEFAULT 'wordpress',
-            install_token_hash VARCHAR(255) DEFAULT '',
-            status VARCHAR(30) DEFAULT 'active',
-            first_seen DATETIME DEFAULT NULL,
-            last_seen DATETIME DEFAULT NULL,
-            deactivated_at DATETIME DEFAULT NULL,
-            created_at DATETIME NOT NULL,
-            updated_at DATETIME NOT NULL,
+        $sql = "CREATE TABLE {$table} (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            project_id bigint(20) unsigned NOT NULL,
+            customer_id bigint(20) unsigned DEFAULT 0,
+            site_url varchar(500) DEFAULT '',
+            site_name varchar(255) DEFAULT '',
+            plugin_slug varchar(191) DEFAULT '',
+            plugin_version varchar(100) DEFAULT '',
+            wordpress_version varchar(50) DEFAULT '',
+            php_version varchar(50) DEFAULT '',
+            platform varchar(50) DEFAULT 'wordpress',
+            install_token_hash varchar(255) DEFAULT '',
+            status varchar(30) DEFAULT 'active',
+            consent_given tinyint(1) NOT NULL DEFAULT 0,
+            consent_at datetime NULL,
+            first_seen datetime NULL,
+            last_seen datetime NULL,
+            deactivated_at datetime NULL,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
             PRIMARY KEY  (id),
             KEY project_id (project_id),
             KEY customer_id (customer_id),
             KEY status (status),
             KEY last_seen (last_seen),
             KEY site_url (site_url(191))
-        ) $charset;";
+        ) {$charset};";
 
         dbDelta($sql);
-    }
-
-    public static function register_routes() {
-        register_rest_route('uapm/v1', '/installation/register', array(
-            'methods' => 'POST',
-            'callback' => array(__CLASS__, 'register_installation'),
-            'permission_callback' => '__return_true',
-        ));
-
-        register_rest_route('uapm/v1', '/installation/heartbeat', array(
-            'methods' => 'POST',
-            'callback' => array(__CLASS__, 'heartbeat'),
-            'permission_callback' => '__return_true',
-        ));
-
-        register_rest_route('uapm/v1', '/installation/deactivate', array(
-            'methods' => 'POST',
-            'callback' => array(__CLASS__, 'deactivate'),
-            'permission_callback' => '__return_true',
-        ));
-
-        register_rest_route('uapm/v1', '/installations', array(
-            'methods' => 'GET',
-            'callback' => array(__CLASS__, 'rest_list'),
-            'permission_callback' => function () {
-                return current_user_can('uapm_manage_projects');
-            },
-        ));
     }
 
     private static function table_name() {
@@ -84,23 +65,68 @@ class UAPM_Installations {
         return $wpdb->prefix . self::$table;
     }
 
-    private static function verify_token($installation_id, $token) {
-        global $wpdb;
-
-        if (!$installation_id || !$token) {
-            return false;
-        }
-
-        $hash = $wpdb->get_var($wpdb->prepare(
-            "SELECT install_token_hash FROM " . self::table_name() . " WHERE id = %d",
-            $installation_id
+    public static function register_routes() {
+        register_rest_route('uapm/v1', '/installation/register', array(
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback' => array(__CLASS__, 'register_installation'),
+            'permission_callback' => '__return_true',
         ));
 
-        return $hash && wp_check_password($token, $hash);
+        register_rest_route('uapm/v1', '/installation/heartbeat', array(
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback' => array(__CLASS__, 'heartbeat'),
+            'permission_callback' => '__return_true',
+        ));
+
+        register_rest_route('uapm/v1', '/installation/deactivate', array(
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback' => array(__CLASS__, 'deactivate'),
+            'permission_callback' => '__return_true',
+        ));
+
+        register_rest_route('uapm/v1', '/installations', array(
+            'methods' => WP_REST_Server::READABLE,
+            'callback' => array(__CLASS__, 'rest_list'),
+            'permission_callback' => array(__CLASS__, 'can_view_installations'),
+        ));
     }
 
+    public static function can_view_installations() {
+        return current_user_can('uapm_manage_projects') ||
+            current_user_can('manage_options');
+    }
+
+    /**
+     * Registration requires:
+     * X-UAPM-Token integration token.
+     * consent = 1.
+     */
     public static function register_installation($request) {
         global $wpdb;
+
+        if (!class_exists('UAPM_Integrations')) {
+            return new WP_Error(
+                'uapm_integrations_unavailable',
+                'Модуль інтеграцій недоступний.',
+                array('status' => 503)
+            );
+        }
+
+        $integration = UAPM_Integrations::authenticate($request);
+
+        if (is_wp_error($integration)) {
+            return $integration;
+        }
+
+        $consent = $request->get_param('consent');
+
+        if (!in_array($consent, array(true, 1, '1', 'yes'), true)) {
+            return new WP_Error(
+                'uapm_consent_required',
+                'Для реєстрації потрібно надати згоду на передачу даних встановлення.',
+                array('status' => 403)
+            );
+        }
 
         $project_id = absint($request->get_param('project_id'));
         $site_url = esc_url_raw($request->get_param('site_url'));
@@ -116,17 +142,31 @@ class UAPM_Installations {
             );
         }
 
-        if (!class_exists('UAPM_Projects') || !UAPM_Projects::get($project_id)) {
+        if (!class_exists('UAPM_Projects')) {
+            return new WP_Error(
+                'uapm_projects_unavailable',
+                'Модуль проєктів недоступний.',
+                array('status' => 503)
+            );
+        }
+
+        $project = UAPM_Projects::get($project_id);
+
+        if (!$project || $project->status !== 'active') {
             return new WP_Error(
                 'uapm_project_not_found',
-                'Проєкт не знайдено.',
+                'Активний проєкт не знайдено.',
                 array('status' => 404)
             );
         }
 
-        $site_host = wp_parse_url($site_url, PHP_URL_HOST);
+        $scheme = wp_parse_url($site_url, PHP_URL_SCHEME);
+        $host = wp_parse_url($site_url, PHP_URL_HOST);
 
-        if (!$site_host || !in_array(wp_parse_url($site_url, PHP_URL_SCHEME), array('http', 'https'), true)) {
+        if (
+            !$host ||
+            !in_array(strtolower((string) $scheme), array('http', 'https'), true)
+        ) {
             return new WP_Error(
                 'uapm_invalid_site',
                 'Некоректна адреса сайту.',
@@ -134,13 +174,28 @@ class UAPM_Installations {
             );
         }
 
-        $existing = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM " . self::table_name() . " WHERE project_id = %d AND site_url = %s LIMIT 1",
-            $project_id,
-            $site_url
-        ));
+        $site_url = untrailingslashit($site_url);
 
-        $token = wp_generate_password(48, false, false);
+        $existing = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT * FROM " . self::table_name() . "
+                 WHERE project_id = %d AND site_url = %s
+                 LIMIT 1",
+                $project_id,
+                $site_url
+            )
+        );
+
+        try {
+            $token = bin2hex(random_bytes(32));
+        } catch (Exception $exception) {
+            return new WP_Error(
+                'uapm_token_generation_failed',
+                'Не вдалося створити токен встановлення.',
+                array('status' => 500)
+            );
+        }
+
         $now = current_time('mysql');
 
         $data = array(
@@ -149,24 +204,46 @@ class UAPM_Installations {
             'site_name' => $site_name,
             'plugin_slug' => $plugin_slug,
             'plugin_version' => $plugin_version,
-            'wordpress_version' => sanitize_text_field($request->get_param('wordpress_version')),
-            'php_version' => sanitize_text_field($request->get_param('php_version')),
-            'platform' => sanitize_key($request->get_param('platform') ?: 'wordpress'),
+            'wordpress_version' => sanitize_text_field(
+                $request->get_param('wordpress_version')
+            ),
+            'php_version' => sanitize_text_field(
+                $request->get_param('php_version')
+            ),
+            'platform' => sanitize_key(
+                $request->get_param('platform') ?: 'wordpress'
+            ),
             'install_token_hash' => wp_hash_password($token),
             'status' => 'active',
+            'consent_given' => 1,
+            'consent_at' => $now,
             'last_seen' => $now,
             'updated_at' => $now,
         );
 
         if ($existing) {
-            $wpdb->update(self::table_name(), $data, array('id' => $existing->id));
-            $installation_id = (int) $existing->id;
+            $data['first_seen'] = $existing->first_seen
+                ? $existing->first_seen
+                : $now;
+
+            $result = $wpdb->update(
+                self::table_name(),
+                $data,
+                array('id' => absint($existing->id))
+            );
+
+            $installation_id = false === $result
+                ? 0
+                : absint($existing->id);
         } else {
             $data['created_at'] = $now;
             $data['first_seen'] = $now;
 
-            $wpdb->insert(self::table_name(), $data);
-            $installation_id = (int) $wpdb->insert_id;
+            $result = $wpdb->insert(self::table_name(), $data);
+
+            $installation_id = $result
+                ? absint($wpdb->insert_id)
+                : 0;
         }
 
         if (!$installation_id) {
@@ -177,6 +254,16 @@ class UAPM_Installations {
             );
         }
 
+        UAPM_Integrations::log_event(
+            $integration->id,
+            'installation_registered',
+            array(
+                'project_id' => $project_id,
+                'installation_id' => $installation_id,
+                'platform' => $data['platform'],
+            )
+        );
+
         return rest_ensure_response(array(
             'success' => true,
             'installation_id' => $installation_id,
@@ -185,11 +272,34 @@ class UAPM_Installations {
         ));
     }
 
+    private static function verify_token($installation_id, $token) {
+        global $wpdb;
+
+        if (
+            !$installation_id ||
+            !is_string($token) ||
+            strlen($token) < 32 ||
+            strlen($token) > 128
+        ) {
+            return false;
+        }
+
+        $hash = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT install_token_hash FROM " . self::table_name() . "
+                 WHERE id = %d AND status = 'active'",
+                $installation_id
+            )
+        );
+
+        return $hash && wp_check_password($token, $hash);
+    }
+
     public static function heartbeat($request) {
         global $wpdb;
 
         $id = absint($request->get_param('installation_id'));
-        $token = sanitize_text_field($request->get_param('installation_token'));
+        $token = $request->get_param('installation_token');
 
         if (!self::verify_token($id, $token)) {
             return new WP_Error(
@@ -202,7 +312,6 @@ class UAPM_Installations {
         $data = array(
             'last_seen' => current_time('mysql'),
             'updated_at' => current_time('mysql'),
-            'status' => 'active',
         );
 
         $version = sanitize_text_field($request->get_param('plugin_version'));
@@ -220,7 +329,19 @@ class UAPM_Installations {
             $data['php_version'] = $php_version;
         }
 
-        $wpdb->update(self::table_name(), $data, array('id' => $id));
+        $updated = $wpdb->update(
+            self::table_name(),
+            $data,
+            array('id' => $id)
+        );
+
+        if (false === $updated) {
+            return new WP_Error(
+                'uapm_heartbeat_failed',
+                'Не вдалося оновити зв’язок.',
+                array('status' => 500)
+            );
+        }
 
         return rest_ensure_response(array(
             'success' => true,
@@ -232,7 +353,7 @@ class UAPM_Installations {
         global $wpdb;
 
         $id = absint($request->get_param('installation_id'));
-        $token = sanitize_text_field($request->get_param('installation_token'));
+        $token = $request->get_param('installation_token');
 
         if (!self::verify_token($id, $token)) {
             return new WP_Error(
@@ -244,7 +365,7 @@ class UAPM_Installations {
 
         $now = current_time('mysql');
 
-        $wpdb->update(
+        $updated = $wpdb->update(
             self::table_name(),
             array(
                 'status' => 'deactivated',
@@ -253,6 +374,14 @@ class UAPM_Installations {
             ),
             array('id' => $id)
         );
+
+        if (false === $updated) {
+            return new WP_Error(
+                'uapm_deactivation_failed',
+                'Не вдалося деактивувати встановлення.',
+                array('status' => 500)
+            );
+        }
 
         return rest_ensure_response(array(
             'success' => true,
@@ -295,7 +424,7 @@ class UAPM_Installations {
         }
 
         $limit = min(500, max(1, absint($args['limit'])));
-        $offset = absint($args['offset']);
+        $offset = max(0, absint($args['offset']));
 
         $sql = "SELECT * FROM " . self::table_name()
             . " WHERE " . implode(' AND ', $where)
@@ -350,7 +479,7 @@ class UAPM_Installations {
     }
 
     public static function handle_admin_action() {
-        if (!current_user_can('uapm_manage_projects')) {
+        if (!self::can_view_installations()) {
             wp_die('Недостатньо прав.');
         }
 
@@ -358,8 +487,13 @@ class UAPM_Installations {
 
         global $wpdb;
 
-        $id = absint($_POST['installation_id'] ?? 0);
-        $action = sanitize_key($_POST['installation_action'] ?? '');
+        $id = isset($_POST['installation_id'])
+            ? absint($_POST['installation_id'])
+            : 0;
+
+        $action = isset($_POST['installation_action'])
+            ? sanitize_key($_POST['installation_action'])
+            : '';
 
         if ($id && $action === 'deactivate') {
             $wpdb->update(
@@ -389,3 +523,5 @@ class UAPM_Installations {
         exit;
     }
 }
+
+UAPM_Installations::init();
