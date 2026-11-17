@@ -1,11 +1,20 @@
+
 <?php
+/**
+ * UA Project Manager — notifications.
+ *
+ * @package UA_Project_Manager
+ */
+
 if (!defined('ABSPATH')) {
     exit;
 }
 
-class UAPM_Notifications {
+final class UAPM_Notifications {
 
     public static function init() {
+        self::install_schema();
+
         add_action('uapm_pro_access_changed', array(__CLASS__, 'handle_pro_change'), 10, 4);
         add_action('uapm_payment_received', array(__CLASS__, 'handle_payment_received'), 10, 2);
         add_action('uapm_integration_event', array(__CLASS__, 'handle_integration_event'), 10, 3);
@@ -44,87 +53,62 @@ class UAPM_Notifications {
     public static function create($data) {
         global $wpdb;
 
-        $table = $wpdb->prefix . 'uapm_notifications';
-
-        $user_id = isset($data['user_id'])
-            ? absint($data['user_id'])
-            : 0;
-
-        $title = isset($data['title'])
-            ? sanitize_text_field($data['title'])
-            : '';
-
-        $message = isset($data['message'])
-            ? sanitize_textarea_field($data['message'])
-            : '';
+        $title = isset($data['title']) ? sanitize_text_field($data['title']) : '';
+        $message = isset($data['message']) ? sanitize_textarea_field($data['message']) : '';
 
         if (!$title || !$message) {
             return false;
         }
 
-        $result = $wpdb->insert(
-            $table,
+        $user_id = isset($data['user_id']) ? absint($data['user_id']) : 0;
+
+        $inserted = $wpdb->insert(
+            $wpdb->prefix . 'uapm_notifications',
             array(
                 'user_id' => $user_id,
-                'notification_type' => isset($data['type'])
-                    ? sanitize_key($data['type'])
-                    : 'info',
+                'notification_type' => isset($data['type']) ? sanitize_key($data['type']) : 'info',
                 'title' => $title,
                 'message' => $message,
-                'related_type' => isset($data['related_type'])
-                    ? sanitize_key($data['related_type'])
-                    : '',
-                'related_id' => isset($data['related_id'])
-                    ? absint($data['related_id'])
-                    : 0,
+                'related_type' => isset($data['related_type']) ? sanitize_key($data['related_type']) : '',
+                'related_id' => isset($data['related_id']) ? absint($data['related_id']) : 0,
                 'is_read' => 0,
-                'created_at' => current_time('mysql')
+                'created_at' => current_time('mysql'),
             )
         );
 
-        if (!$result) {
+        if (!$inserted) {
             return false;
         }
 
-        $notification_id = absint($wpdb->insert_id);
+        $id = absint($wpdb->insert_id);
 
-        do_action('uapm_notification_created', $notification_id, $data);
+        do_action('uapm_notification_created', $id, $data);
 
-        if ($user_id > 0) {
+        if ($user_id) {
             self::send_email($user_id, $title, $message);
         }
 
-        return $notification_id;
+        return $id;
     }
 
     public static function get_all($user_id = 0, $limit = 50) {
         global $wpdb;
 
         $table = $wpdb->prefix . 'uapm_notifications';
-
         $limit = max(1, min(200, absint($limit)));
 
-        if ($user_id > 0) {
-            return $wpdb->get_results(
-                $wpdb->prepare(
-                    "SELECT * FROM {$table}
-                     WHERE user_id = %d
-                     ORDER BY created_at DESC
-                     LIMIT %d",
-                    absint($user_id),
-                    $limit
-                )
-            );
+        if ($user_id) {
+            return $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM {$table} WHERE user_id = %d ORDER BY created_at DESC LIMIT %d",
+                absint($user_id),
+                $limit
+            ));
         }
 
-        return $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT * FROM {$table}
-                 ORDER BY created_at DESC
-                 LIMIT %d",
-                $limit
-            )
-        );
+        return $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$table} ORDER BY created_at DESC LIMIT %d",
+            $limit
+        ));
     }
 
     public static function get_unread_count($user_id = 0) {
@@ -132,87 +116,55 @@ class UAPM_Notifications {
 
         $table = $wpdb->prefix . 'uapm_notifications';
 
-        if ($user_id > 0) {
-            return absint($wpdb->get_var(
-                $wpdb->prepare(
-                    "SELECT COUNT(*) FROM {$table}
-                     WHERE user_id = %d AND is_read = 0",
-                    absint($user_id)
-                )
-            ));
+        if ($user_id) {
+            return absint($wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table} WHERE user_id = %d AND is_read = 0",
+                absint($user_id)
+            )));
         }
 
-        return absint(
-            $wpdb->get_var(
-                "SELECT COUNT(*) FROM {$table} WHERE is_read = 0"
-            )
-        );
+        return absint($wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE is_read = 0"));
     }
 
     public static function mark_read($id, $user_id = 0) {
         global $wpdb;
 
-        $table = $wpdb->prefix . 'uapm_notifications';
-
         $where = array('id' => absint($id));
-
-        if ($user_id > 0) {
+        if ($user_id) {
             $where['user_id'] = absint($user_id);
         }
 
-        return $wpdb->update(
-            $table,
-            array('is_read' => 1),
-            $where
-        );
+        return $wpdb->update($wpdb->prefix . 'uapm_notifications', array('is_read' => 1), $where);
     }
 
     public static function delete($id, $user_id = 0) {
         global $wpdb;
 
-        $table = $wpdb->prefix . 'uapm_notifications';
-
         $where = array('id' => absint($id));
-
-        if ($user_id > 0) {
+        if ($user_id) {
             $where['user_id'] = absint($user_id);
         }
 
-        return $wpdb->delete($table, $where);
+        return $wpdb->delete($wpdb->prefix . 'uapm_notifications', $where);
     }
 
     public static function send_email($user_id, $title, $message) {
         $user = get_user_by('id', absint($user_id));
 
-        if (!$user || !is_email($user->user_email)) {
+        if (!$user || !is_email($user->user_email) || !get_option('uapm_notifications_enabled', 1)) {
             return false;
         }
-
-        $enabled = get_option('uapm_notifications_enabled', 1);
-
-        if (!$enabled) {
-            return false;
-        }
-
-        $subject = '[UA Project Manager] ' . sanitize_text_field($title);
-
-        $body = wpautop(
-            esc_html($message)
-        );
 
         return wp_mail(
             $user->user_email,
-            $subject,
-            $body,
+            '[UA Project Manager] ' . sanitize_text_field($title),
+            wpautop(esc_html($message)),
             array('Content-Type: text/html; charset=UTF-8')
         );
     }
 
     public static function notify_administrators($title, $message, $related_type = '', $related_id = 0) {
-        $users = get_users(array(
-            'role' => 'administrator',
-            'fields' => array('ID')
-        ));
+        $users = get_users(array('role' => 'administrator', 'fields' => array('ID')));
 
         foreach ($users as $user) {
             self::create(array(
@@ -221,24 +173,15 @@ class UAPM_Notifications {
                 'message' => $message,
                 'type' => 'info',
                 'related_type' => $related_type,
-                'related_id' => $related_id
+                'related_id' => $related_id,
             ));
         }
     }
 
     public static function handle_pro_change($target, $type, $status, $payment_id = 0) {
-        $title = 'Зміна статусу PRO';
-
-        $message = sprintf(
-            'Для %s змінено статус PRO: %s. Платіж #%d.',
-            sanitize_text_field($target),
-            sanitize_text_field($status),
-            absint($payment_id)
-        );
-
         self::notify_administrators(
-            $title,
-            $message,
+            'Зміна статусу PRO',
+            sprintf('Для %s змінено статус PRO: %s. Платіж #%d.', sanitize_text_field($target), sanitize_text_field($status), absint($payment_id)),
             'payment',
             $payment_id
         );
@@ -247,11 +190,7 @@ class UAPM_Notifications {
     public static function handle_payment_received($payment_id, $amount) {
         self::notify_administrators(
             'Надходження платежу',
-            sprintf(
-                'Зафіксовано надходження %.2f. Платіж #%d очікує перевірки.',
-                (float) $amount,
-                absint($payment_id)
-            ),
+            sprintf('Зафіксовано надходження %.2f. Платіж #%d очікує перевірки.', (float) $amount, absint($payment_id)),
             'payment',
             $payment_id
         );
@@ -264,11 +203,7 @@ class UAPM_Notifications {
 
         self::notify_administrators(
             'Подія інтеграції UPM',
-            sprintf(
-                'Інтеграція #%d повідомила про подію: %s.',
-                absint($integration_id),
-                sanitize_text_field($event)
-            ),
+            sprintf('Інтеграція #%d повідомила про подію: %s.', absint($integration_id), sanitize_text_field($event)),
             'integration',
             $integration_id
         );
@@ -279,10 +214,7 @@ class UAPM_Notifications {
             wp_die('Потрібна авторизація.');
         }
 
-        $id = isset($_POST['notification_id'])
-            ? absint($_POST['notification_id'])
-            : 0;
-
+        $id = absint($_POST['notification_id'] ?? 0);
         check_admin_referer('uapm_mark_notification_' . $id);
 
         self::mark_read($id, get_current_user_id());
@@ -296,10 +228,7 @@ class UAPM_Notifications {
             wp_die('Потрібна авторизація.');
         }
 
-        $id = isset($_POST['notification_id'])
-            ? absint($_POST['notification_id'])
-            : 0;
-
+        $id = absint($_POST['notification_id'] ?? 0);
         check_admin_referer('uapm_delete_notification_' . $id);
 
         self::delete($id, get_current_user_id());
@@ -315,51 +244,28 @@ class UAPM_Notifications {
 
         $notifications = self::get_all(0, 100);
 
-        ?>
-        <div class="wrap">
-            <h1>Сповіщення UPM</h1>
+        echo '<div class="wrap"><h1>Сповіщення UPM</h1>';
+        echo '<p>Непрочитаних: <strong>' . esc_html(self::get_unread_count()) . '</strong></p>';
+        echo '<table class="widefat striped"><thead><tr><th>ID</th><th>Тип</th><th>Заголовок</th><th>Повідомлення</th><th>Користувач</th><th>Дата</th><th>Статус</th></tr></thead><tbody>';
 
-            <p>
-                Непрочитаних:
-                <strong><?php echo esc_html(self::get_unread_count()); ?></strong>
-            </p>
+        foreach ($notifications as $item) {
+            echo '<tr>';
+            echo '<td>' . absint($item->id) . '</td>';
+            echo '<td>' . esc_html($item->notification_type) . '</td>';
+            echo '<td>' . esc_html($item->title) . '</td>';
+            echo '<td>' . esc_html($item->message) . '</td>';
+            echo '<td>' . absint($item->user_id) . '</td>';
+            echo '<td>' . esc_html($item->created_at) . '</td>';
+            echo '<td>' . ($item->is_read ? 'Прочитано' : 'Нове') . '</td>';
+            echo '</tr>';
+        }
 
-            <table class="widefat striped">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Тип</th>
-                        <th>Заголовок</th>
-                        <th>Повідомлення</th>
-                        <th>Користувач</th>
-                        <th>Дата</th>
-                        <th>Статус</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($notifications as $item) : ?>
-                        <tr>
-                            <td><?php echo esc_html($item->id); ?></td>
-                            <td><?php echo esc_html($item->notification_type); ?></td>
-                            <td><?php echo esc_html($item->title); ?></td>
-                            <td><?php echo esc_html($item->message); ?></td>
-                            <td><?php echo esc_html($item->user_id); ?></td>
-                            <td><?php echo esc_html($item->created_at); ?></td>
-                            <td><?php echo $item->is_read ? 'Прочитано' : 'Нове'; ?></td>
-                        </tr>
-                    <?php endforeach; ?>
+        if (!$notifications) {
+            echo '<tr><td colspan="7">Сповіщень поки немає.</td></tr>';
+        }
 
-                    <?php if (empty($notifications)) : ?>
-                        <tr>
-                            <td colspan="7">Сповіщень поки немає.</td>
-                        </tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
-        <?php
+        echo '</tbody></table></div>';
     }
 }
 
-UAPM_Notifications::install_schema();
 UAPM_Notifications::init();
