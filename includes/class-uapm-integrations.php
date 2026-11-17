@@ -1,3 +1,4 @@
+
 <?php
 /**
  * UA Project Manager
@@ -69,6 +70,16 @@ final class UAPM_Integrations {
             current_user_can('manage_options');
     }
 
+    private static function integrations_table() {
+        global $wpdb;
+        return $wpdb->prefix . 'uapm_integrations';
+    }
+
+    private static function events_table() {
+        global $wpdb;
+        return $wpdb->prefix . 'uapm_integration_events';
+    }
+
     public static function register_routes() {
         register_rest_route('uapm/v1', '/integrations/heartbeat', array(
             'methods' => WP_REST_Server::CREATABLE,
@@ -86,13 +97,11 @@ final class UAPM_Integrations {
     public static function get_all() {
         global $wpdb;
 
-        $table = $wpdb->prefix . 'uapm_integrations';
-
         return $wpdb->get_results(
             "SELECT id, integration_key, name, description,
                     integration_type, status, last_seen,
                     created_at, updated_at
-             FROM {$table}
+             FROM " . self::integrations_table() . "
              ORDER BY name ASC"
         );
     }
@@ -102,7 +111,7 @@ final class UAPM_Integrations {
 
         return $wpdb->get_row(
             $wpdb->prepare(
-                "SELECT * FROM {$wpdb->prefix}uapm_integrations
+                "SELECT * FROM " . self::integrations_table() . "
                  WHERE id = %d LIMIT 1",
                 absint($id)
             )
@@ -114,7 +123,7 @@ final class UAPM_Integrations {
 
         return $wpdb->get_row(
             $wpdb->prepare(
-                "SELECT * FROM {$wpdb->prefix}uapm_integrations
+                "SELECT * FROM " . self::integrations_table() . "
                  WHERE integration_key = %s LIMIT 1",
                 sanitize_key($key)
             )
@@ -150,10 +159,17 @@ final class UAPM_Integrations {
             );
         }
 
-        $token = bin2hex(random_bytes(32));
+        try {
+            $token = bin2hex(random_bytes(32));
+        } catch (Exception $exception) {
+            return new WP_Error(
+                'uapm_token_generation_failed',
+                'Не вдалося створити захищений токен.'
+            );
+        }
 
         $result = $wpdb->insert(
-            $wpdb->prefix . 'uapm_integrations',
+            self::integrations_table(),
             array(
                 'integration_key' => $key,
                 'name' => $name,
@@ -186,6 +202,7 @@ final class UAPM_Integrations {
         return array(
             'id' => $id,
             'integration_key' => $key,
+            'name' => $name,
             'access_token' => $token,
         );
     }
@@ -215,7 +232,7 @@ final class UAPM_Integrations {
         }
 
         $result = $wpdb->update(
-            $wpdb->prefix . 'uapm_integrations',
+            self::integrations_table(),
             array(
                 'name' => isset($data['name'])
                     ? sanitize_text_field($data['name'])
@@ -250,13 +267,13 @@ final class UAPM_Integrations {
         self::log_event($id, 'deleted', array());
 
         $wpdb->delete(
-            $wpdb->prefix . 'uapm_integration_events',
+            self::events_table(),
             array('integration_id' => $id),
             array('%d')
         );
 
         return false !== $wpdb->delete(
-            $wpdb->prefix . 'uapm_integrations',
+            self::integrations_table(),
             array('id' => $id),
             array('%d')
         );
@@ -267,7 +284,12 @@ final class UAPM_Integrations {
 
         $token = $request->get_header('x-uapm-token');
 
-        if (!$token || !is_string($token) || strlen($token) < 32 || strlen($token) > 128) {
+        if (
+            !$token ||
+            !is_string($token) ||
+            strlen($token) < 32 ||
+            strlen($token) > 128
+        ) {
             return new WP_Error(
                 'uapm_missing_token',
                 'Не передано дійсний токен інтеграції.',
@@ -279,7 +301,7 @@ final class UAPM_Integrations {
 
         $integration = $wpdb->get_row(
             $wpdb->prepare(
-                "SELECT * FROM {$wpdb->prefix}uapm_integrations
+                "SELECT * FROM " . self::integrations_table() . "
                  WHERE access_token_hash = %s
                  AND status = 'active'
                  LIMIT 1",
@@ -321,7 +343,7 @@ final class UAPM_Integrations {
         }
 
         $wpdb->update(
-            $wpdb->prefix . 'uapm_integrations',
+            self::integrations_table(),
             array(
                 'last_seen' => current_time('mysql'),
                 'updated_at' => current_time('mysql'),
@@ -429,7 +451,7 @@ final class UAPM_Integrations {
         global $wpdb;
 
         $result = $wpdb->insert(
-            $wpdb->prefix . 'uapm_integration_events',
+            self::events_table(),
             array(
                 'integration_id' => absint($integration_id),
                 'event_type' => sanitize_key($event),
@@ -448,9 +470,65 @@ final class UAPM_Integrations {
         }
 
         $integrations = self::get_all();
+        $user_id = get_current_user_id();
+
+        $new_token = get_transient(
+            'uapm_integration_new_token_' . $user_id
+        );
+
+        $admin_message = get_transient(
+            'uapm_integration_admin_message_' . $user_id
+        );
+
+        if ($new_token) {
+            delete_transient('uapm_integration_new_token_' . $user_id);
+        }
+
+        if ($admin_message) {
+            delete_transient('uapm_integration_admin_message_' . $user_id);
+        }
+
         ?>
         <div class="wrap">
             <h1>Інтеграції UPM</h1>
+
+            <?php if ($admin_message) : ?>
+                <div class="notice notice-error">
+                    <p><?php echo esc_html($admin_message); ?></p>
+                </div>
+            <?php endif; ?>
+
+            <?php if (is_array($new_token) && !empty($new_token['access_token'])) : ?>
+                <div class="notice notice-success" style="padding:12px 15px;">
+                    <h2>Інтеграцію створено</h2>
+                    <p>
+                        Токен показується лише один раз.
+                        Скопіюйте та збережіть його — після закриття цієї сторінки
+                        повторно переглянути токен буде неможливо.
+                    </p>
+                    <p><strong>Назва:</strong>
+                        <?php echo esc_html($new_token['name']); ?>
+                    </p>
+                    <p><strong>Ключ:</strong>
+                        <code><?php echo esc_html($new_token['integration_key']); ?></code>
+                    </p>
+                    <p><strong>Токен:</strong></p>
+                    <input
+                        type="text"
+                        readonly
+                        class="large-text"
+                        value="<?php echo esc_attr($new_token['access_token']); ?>"
+                        onclick="this.select();"
+                    >
+                    <p>
+                        <button
+                            type="button"
+                            class="button button-primary"
+                            onclick="var f=this.parentNode.previousElementSibling.querySelector('input');f.select();document.execCommand('copy');this.textContent='Скопійовано';"
+                        >Скопіювати токен</button>
+                    </p>
+                </div>
+            <?php endif; ?>
 
             <h2>Додати інтеграцію</h2>
 
@@ -461,7 +539,15 @@ final class UAPM_Integrations {
                 <table class="form-table">
                     <tr>
                         <th>Ключ інтеграції</th>
-                        <td><input type="text" name="integration_key" required></td>
+                        <td>
+                            <input
+                                type="text"
+                                name="integration_key"
+                                required
+                                pattern="[a-zA-Z0-9_-]+"
+                            >
+                            <p class="description">Наприклад: ua-click-counter</p>
+                        </td>
                     </tr>
                     <tr>
                         <th>Назва</th>
@@ -513,7 +599,15 @@ final class UAPM_Integrations {
                                 <td><code><?php echo esc_html($item->integration_key); ?></code></td>
                                 <td><?php echo esc_html($item->integration_type); ?></td>
                                 <td><?php echo esc_html($item->status); ?></td>
-                                <td><?php echo esc_html($item->last_seen ? $item->last_seen : 'Ще не підключалась'); ?></td>
+                                <td>
+                                    <?php
+                                    echo esc_html(
+                                        $item->last_seen
+                                            ? $item->last_seen
+                                            : 'Ще не підключалась'
+                                    );
+                                    ?>
+                                </td>
                                 <td>
                                     <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-block">
                                         <input type="hidden" name="action" value="uapm_toggle_integration">
@@ -543,7 +637,9 @@ final class UAPM_Integrations {
             </table>
 
             <p class="description">
-                Токен інтеграції показується лише під час її створення. Зберігайте його в безпечному місці.
+                Токен інтеграції зберігається у вигляді хешу.
+                Повторно переглянути його після створення неможливо.
+                Для заміни токена потрібно створити нову інтеграцію.
             </p>
         </div>
         <?php
@@ -591,6 +687,7 @@ final class UAPM_Integrations {
                 admin_url('admin.php')
             )
         );
+
         exit;
     }
 
@@ -605,15 +702,24 @@ final class UAPM_Integrations {
 
         check_admin_referer('uapm_toggle_integration_' . $id);
 
-        self::update($id, array(
+        $result = self::update($id, array(
             'status' => isset($_POST['new_status'])
                 ? sanitize_key($_POST['new_status'])
                 : 'inactive',
         ));
 
+        if (is_wp_error($result)) {
+            set_transient(
+                'uapm_integration_admin_message_' . get_current_user_id(),
+                $result->get_error_message(),
+                60
+            );
+        }
+
         wp_safe_redirect(
             add_query_arg('page', 'uapm-integrations', admin_url('admin.php'))
         );
+
         exit;
     }
 
@@ -633,6 +739,7 @@ final class UAPM_Integrations {
         wp_safe_redirect(
             add_query_arg('page', 'uapm-integrations', admin_url('admin.php'))
         );
+
         exit;
     }
 }
