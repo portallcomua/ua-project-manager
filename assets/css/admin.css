@@ -1,0 +1,546 @@
+/* UA Project Manager — Admin UI */
+:root {
+    --uapm-primary: #2463eb;
+    --uapm-primary-dark: #1749bd;
+    --uapm-navy: #172b4d;
+    --uapm-text: #25324b;
+    --uapm-muted: #718096;
+    --uapm-border: #e5eaf2;
+    --uapm-bg: #f4f7fb;
+    --uapm-white: #fff;
+    --uapm-green: #159b68;
+    --uapm-orange: #d88918;
+    --uapm-red: #d94b55;
+    --uapm-radius: 14px;
+    --uapm-shadow: 0 5px 22px rgba(28, 48, 82, .055);
+}
+
+body[class*="uapm"] #wpcontent,
+body.toplevel_page_uapm #wpcontent,
+body[class*="uapm_page_"] #wpcontent {
+    background: var(--uapm-bg);
+}
+
+.uapm-wrap,
+.uapm-admin,
+body[class*="uapm"] .wrap {
+    max-width: 1480px;
+    margin: 24px 28px 40px 8px;
+    color: var(--uapm-text);
+}
+
+.uapm-wrap *,
+.uapm-admin *,
+body[class*="uapm"] .wrap * {
+    box-sizing: border-box;
+}
+
+.uapm-header {
+    position: relative;
+    overflow: hidden;
+    padding: 30px 34px;
+    margin: 0 0 24px;
+    border: 0;
+    border-radius: 18px;
+    color: #fff;
+    background: linear-gradient(120deg, #172f59 0%, #2059a8 58%, #347ee8 100%);
+    box-shadow: 0 10px 28px rgba(27, 74, 142, .16);
+}
+
+.uapm-header:after {
+    content: "";
+    position: absolute;
+    width: 260px;
+    height: 260px;
+    right: -75px;
+    top: -145px;
+    border: 35px solid rgba(255,255,255,.08);
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.uapm-header h1,
+.uapm-header h1.wp-heading-inline {
+    position: relative;
+    z-index: 1;
+    margin: 0 0 8px;
+    padding: 0;
+    color: #fff;
+    font-size: 27px;
+    line-height: 1.25;
+    font-weight: 750;
+    letter-spacing: -.35px;
+}
+
+.uapm-header p {
+    position: relative;
+    z-index: 1;
+    max-width: 780px;
+    margin: 0;
+    color: rgba(255,255,255,.82);
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.uapm-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 17px;
+    margin: 20px 0 25px;
+}
+
+.uapm-card,
+.uapm-stat-card,
+.uapm-form,
+.uapm-panel,
+.uapm-widget-card {
+    min-width: 0;
+    padding: 22px;
+    border: 1px solid var(--uapm-border);
+    border-radius: var(--uapm-radius);
+    background: var(--uapm-white);
+    box-shadow: var(--uapm-shadow);
+}
+
+.uapm-card h2,
+.uapm-card h3,
+.uapm-form h2,
+.uapm-panel h2 {
+    margin: 0 0 13px;
+    color: var(--uapm-navy);
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.uapm-card p {
+    color: var(--uapm-muted);
+    line-height: 1.65;
+}
+
+.uapm-number {
+    display: block;
+    margin: 8px 0 3px;
+    color: var(--uapm-primary);
+    font-size: 34px;
+    line-height: 1.15;
+    font-weight: 800;
+    letter-spacing: -.8px;
+}
+
+.uapm-muted,
+.uapm-card .description {
+    color: var(--uapm-muted);
+}
+
+.uapm-section-title {
+    margin: 30px 0 14px;
+    color: var(--uapm-navy);
+    font-size: 19px;
+    font-weight: 750;
+}
+
+.uapm-table-wrap {
+    overflow-x: auto;
+    margin: 16px 0 24px;
+    border: 1px solid var(--uapm-border);
+    border-radius: var(--uapm-radius);
+    background: #fff;
+    box-shadow: var(--uapm-shadow);
+}
+
+.uapm-table {
+    width: 100%;
+    min-width: 720px;
+    border: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: #fff;
+}
+
+.uapm-table th,
+.uapm-table td {
+    padding: 14px 16px;
+    border: 0;
+    border-bottom: 1px solid #edf0f5;
+    text-align: left;
+    vertical-align: middle;
+    line-height: 1.5;
+}
+
+.uapm-table th {
+    color: #52627a;
+    background: #f8faff;
+    font-size: 12px;
+    font-weight: 750;
+    letter-spacing: .035em;
+    text-transform: uppercase;
+}
+
+.uapm-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.uapm-table tbody tr:hover {
+    background: #f8faff;
+}
+
+.uapm-table a {
+    color: var(--uapm-primary);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.uapm-table a:hover {
+    color: var(--uapm-primary-dark);
+    text-decoration: underline;
+}
+
+.uapm-form {
+    margin: 20px 0;
+}
+
+.uapm-form h2 {
+    padding-bottom: 13px;
+    border-bottom: 1px solid var(--uapm-border);
+}
+
+.uapm-field {
+    margin: 0 0 19px;
+}
+
+.uapm-field label {
+    display: block;
+    margin: 0 0 7px;
+    color: #34445e;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.uapm-field input,
+.uapm-field textarea,
+.uapm-field select,
+.uapm-wrap input[type="text"],
+.uapm-wrap input[type="email"],
+.uapm-wrap input[type="url"],
+.uapm-wrap input[type="number"],
+.uapm-wrap input[type="password"],
+.uapm-wrap input[type="search"],
+.uapm-wrap select,
+.uapm-wrap textarea {
+    max-width: 100%;
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 1px solid #d8e0ec;
+    border-radius: 8px;
+    background: #fff;
+    color: var(--uapm-text);
+    box-shadow: none;
+}
+
+.uapm-field input:focus,
+.uapm-field textarea:focus,
+.uapm-field select:focus,
+.uapm-wrap input:focus,
+.uapm-wrap select:focus,
+.uapm-wrap textarea:focus {
+    border-color: var(--uapm-primary);
+    outline: 0;
+    box-shadow: 0 0 0 3px rgba(36,99,235,.12);
+}
+
+.uapm-field input,
+.uapm-field textarea,
+.uapm-field select {
+    width: 100%;
+    max-width: 680px;
+}
+
+.uapm-field textarea {
+    min-height: 110px;
+}
+
+.uapm-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.uapm-wrap .button,
+.uapm-admin .button {
+    min-height: 36px;
+    padding: 5px 14px;
+    border-radius: 8px;
+    font-weight: 650;
+}
+
+.uapm-wrap .button-primary,
+.uapm-admin .button-primary {
+    border-color: var(--uapm-primary);
+    background: var(--uapm-primary);
+    color: #fff;
+    box-shadow: 0 3px 8px rgba(36,99,235,.16);
+}
+
+.uapm-wrap .button-primary:hover,
+.uapm-admin .button-primary:hover {
+    border-color: var(--uapm-primary-dark);
+    background: var(--uapm-primary-dark);
+}
+
+.uapm-status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 25px;
+    padding: 4px 10px;
+    border-radius: 30px;
+    background: #edf1f7;
+    color: #53627a;
+    font-size: 11px;
+    font-weight: 750;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.uapm-status-active,
+.uapm-status-paid,
+.uapm-status-success {
+    background: #e4f7ef;
+    color: #13784f;
+}
+
+.uapm-status-pending,
+.uapm-status-partial,
+.uapm-status-warning {
+    background: #fff4dc;
+    color: #98620b;
+}
+
+.uapm-status-revoked,
+.uapm-status-archived,
+.uapm-status-error {
+    background: #ffebed;
+    color: #b52f3b;
+}
+
+.uapm-notice {
+    padding: 14px 17px;
+    margin: 16px 0;
+    border: 1px solid #d9e7fa;
+    border-left: 4px solid var(--uapm-primary);
+    border-radius: 9px;
+    background: #f5f9ff;
+    color: #34445e;
+}
+
+.uapm-notice.success {
+    border-color: #c8eddb;
+    border-left-color: var(--uapm-green);
+    background: #f0fbf5;
+}
+
+.uapm-notice.error {
+    border-color: #f3d1d4;
+    border-left-color: var(--uapm-red);
+    background: #fff5f5;
+}
+
+.uapm-notice.warning {
+    border-color: #f4e2bb;
+    border-left-color: var(--uapm-orange);
+    background: #fffaf0;
+}
+
+.uapm-inline-form {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 2px;
+}
+
+.uapm-inline-form input[type="number"] {
+    width: 105px;
+}
+
+.uapm-language-switcher {
+    display: inline-flex;
+    align-items: center;
+    margin: 0 0 16px;
+}
+
+.uapm-language-switcher select {
+    min-height: 34px;
+    border: 1px solid var(--uapm-border);
+    border-radius: 8px;
+    background: #fff;
+}
+
+.uapm-wrap .widefat,
+.uapm-admin .widefat {
+    overflow: hidden;
+    border: 1px solid var(--uapm-border);
+    border-radius: 12px;
+    box-shadow: var(--uapm-shadow);
+}
+
+.uapm-wrap .widefat thead th,
+.uapm-admin .widefat thead th {
+    background: #f8faff;
+    color: #52627a;
+    font-weight: 700;
+}
+
+.uapm-wrap .form-table th {
+    width: 240px;
+    color: #34445e;
+    font-weight: 650;
+}
+
+.uapm-wrap .form-table td {
+    padding: 16px 10px;
+}
+
+.uapm-wrap .notice,
+.uapm-admin .notice {
+    border-radius: 8px;
+}
+
+.uapm-wrap pre,
+.uapm-wrap code,
+.uapm-wrap textarea.code {
+    max-width: 100%;
+    overflow: auto;
+    border-radius: 8px;
+}
+
+.uapm-wrap .nav-tab-wrapper {
+    margin: 18px 0;
+    border-bottom-color: var(--uapm-border);
+}
+
+.uapm-wrap .nav-tab {
+    padding: 9px 15px;
+    border-color: var(--uapm-border);
+    border-radius: 8px 8px 0 0;
+    background: #f8faff;
+    color: #52627a;
+}
+
+.uapm-wrap .nav-tab-active {
+    border-bottom-color: #fff;
+    background: #fff;
+    color: var(--uapm-primary);
+}
+
+.uapm-wrap .pagination,
+.uapm-wrap .tablenav {
+    margin: 14px 0;
+}
+
+.uapm-wrap .button-link-delete {
+    color: var(--uapm-red);
+}
+
+.uapm-wrap .description,
+.uapm-wrap p.description {
+    color: var(--uapm-muted);
+    font-size: 12px;
+}
+
+.uapm-wrap .uapm-stat-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.uapm-wrap .uapm-stat-card span {
+    color: var(--uapm-muted);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.uapm-wrap .uapm-stat-card strong {
+    color: var(--uapm-primary);
+    font-size: 28px;
+    font-weight: 800;
+}
+
+@media (max-width: 1100px) {
+    .uapm-wrap,
+    .uapm-admin,
+    body[class*="uapm"] .wrap {
+        margin-right: 18px;
+    }
+
+    .uapm-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 782px) {
+    .uapm-wrap,
+    .uapm-admin,
+    body[class*="uapm"] .wrap {
+        margin: 14px 12px 28px 0;
+    }
+
+    .uapm-header {
+        padding: 22px;
+        border-radius: 13px;
+    }
+
+    .uapm-header h1,
+    .uapm-header h1.wp-heading-inline {
+        font-size: 22px;
+    }
+
+    .uapm-card,
+    .uapm-stat-card,
+    .uapm-form,
+    .uapm-panel {
+        padding: 16px;
+    }
+
+    .uapm-grid {
+        gap: 11px;
+    }
+
+    .uapm-number {
+        font-size: 27px;
+    }
+
+    .uapm-wrap .form-table th,
+    .uapm-wrap .form-table td {
+        display: block;
+        width: 100%;
+        padding: 8px 0;
+    }
+
+    .uapm-wrap .form-table th {
+        padding-top: 17px;
+    }
+
+    .uapm-actions .button {
+        margin: 0 4px 4px 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .uapm-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .uapm-header {
+        padding: 19px;
+    }
+
+    .uapm-number {
+        font-size: 25px;
+    }
+
+    .uapm-wrap .button,
+    .uapm-admin .button {
+        max-width: 100%;
+        white-space: normal;
+    }
+}
