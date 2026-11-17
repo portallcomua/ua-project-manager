@@ -20,6 +20,7 @@ class UAPM_Roles {
     public static function manager_capabilities() {
         return array(
             'read' => true,
+            'uapm_access_manager' => true,
             'uapm_view_own_projects' => true,
             'uapm_view_own_clients' => true,
             'uapm_manage_own_clients' => true,
@@ -51,7 +52,7 @@ class UAPM_Roles {
         if (!$manager) {
             add_role(
                 self::ROLE_MANAGER,
-                'Gmaps manager',
+                'Менеджер UPM',
                 self::manager_capabilities()
             );
 
@@ -59,20 +60,49 @@ class UAPM_Roles {
         }
 
         if ($manager) {
-            foreach (self::manager_capabilities() as $cap => $grant) {
+            foreach (self::manager_capabilities() as $capability => $grant) {
                 if ($grant) {
-                    $manager->add_cap($cap);
+                    $manager->add_cap($capability);
                 }
             }
         }
 
+        self::update_manager_role_name();
+
         $admin = get_role('administrator');
 
         if ($admin) {
-            foreach (self::admin_capabilities() as $cap) {
-                $admin->add_cap($cap);
+            foreach (self::admin_capabilities() as $capability) {
+                $admin->add_cap($capability);
             }
         }
+    }
+
+    private static function update_manager_role_name() {
+        if (!function_exists('wp_roles')) {
+            return;
+        }
+
+        $roles = wp_roles();
+
+        if (
+            !is_object($roles) ||
+            empty($roles->roles[self::ROLE_MANAGER])
+        ) {
+            return;
+        }
+
+        if (
+            isset($roles->roles[self::ROLE_MANAGER]['name']) &&
+            $roles->roles[self::ROLE_MANAGER]['name'] === 'Менеджер UPM'
+        ) {
+            return;
+        }
+
+        $roles->roles[self::ROLE_MANAGER]['name'] = 'Менеджер UPM';
+        $roles->role_names[self::ROLE_MANAGER] = 'Менеджер UPM';
+
+        update_option($roles->role_key, $roles->roles);
     }
 
     public static function remove_roles() {
@@ -85,8 +115,8 @@ class UAPM_Roles {
         $admin = get_role('administrator');
 
         if ($admin) {
-            foreach (self::admin_capabilities() as $cap) {
-                $admin->remove_cap($cap);
+            foreach (self::admin_capabilities() as $capability) {
+                $admin->remove_cap($capability);
             }
         }
     }
