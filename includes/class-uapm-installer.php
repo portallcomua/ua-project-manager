@@ -1,7 +1,7 @@
+
 <?php
 /**
- * UA Project Manager
- * Database installer and role setup.
+ * UA Project Manager — database installer.
  *
  * @package UA_Project_Manager
  */
@@ -26,26 +26,13 @@ final class UAPM_Installer {
         self::create_roles();
         self::create_default_settings();
 
-        if (class_exists('UAPM_Queue')) {
-            UAPM_Queue::install_schema();
+        foreach (array('UAPM_Queue', 'UAPM_Integrations', 'UAPM_Downloads', 'UAPM_Payments', 'UAPM_Installations', 'UAPM_Notifications', 'UAPM_Activity_Log', 'UAPM_Customers') as $class) {
+            if (class_exists($class) && method_exists($class, 'install_schema')) {
+                call_user_func(array($class, 'install_schema'));
+            }
         }
 
-        if (class_exists('UAPM_Integrations')) {
-            UAPM_Integrations::install_schema();
-        }
-
-        if (class_exists('UAPM_Downloads')) {
-            UAPM_Downloads::install_schema();
-        }
-
-        if (class_exists('UAPM_Payments')) {
-            UAPM_Payments::install_schema();
-        }
-
-        update_option(
-            'uapm_db_version',
-            defined('UAPM_DB_VERSION') ? UAPM_DB_VERSION : '1.1.0'
-        );
+        update_option('uapm_db_version', defined('UAPM_DB_VERSION') ? UAPM_DB_VERSION : '1.2.0');
     }
 
     private static function get_table_definitions($charset) {
@@ -54,7 +41,6 @@ final class UAPM_Installer {
         $prefix = $wpdb->prefix . 'uapm_';
 
         return array(
-
             "CREATE TABLE {$prefix}projects (
                 id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
                 name varchar(255) NOT NULL,
@@ -167,20 +153,29 @@ final class UAPM_Installer {
             "CREATE TABLE {$prefix}installations (
                 id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
                 project_id bigint(20) unsigned NOT NULL,
-                customer_id bigint(20) unsigned NULL,
-                site_url text NOT NULL,
-                site_domain varchar(191) NOT NULL,
-                product_version varchar(50) NULL,
-                plan_type varchar(30) NOT NULL DEFAULT 'free',
-                installation_token varchar(191) NULL,
-                installation_status varchar(30) NOT NULL DEFAULT 'active',
+                customer_id bigint(20) unsigned DEFAULT 0,
+                site_url varchar(500) DEFAULT '',
+                site_name varchar(255) DEFAULT '',
+                plugin_slug varchar(191) DEFAULT '',
+                plugin_version varchar(100) DEFAULT '',
+                wordpress_version varchar(50) DEFAULT '',
+                php_version varchar(50) DEFAULT '',
+                platform varchar(50) DEFAULT 'wordpress',
+                install_token_hash varchar(255) DEFAULT '',
+                status varchar(30) DEFAULT 'active',
+                consent_given tinyint(1) NOT NULL DEFAULT 0,
+                consent_at datetime NULL,
+                first_seen datetime NULL,
                 last_seen datetime NULL,
+                deactivated_at datetime NULL,
                 created_at datetime NOT NULL,
                 updated_at datetime NOT NULL,
                 PRIMARY KEY  (id),
                 KEY project_id (project_id),
-                KEY site_domain (site_domain),
-                KEY installation_status (installation_status)
+                KEY customer_id (customer_id),
+                KEY status (status),
+                KEY last_seen (last_seen),
+                KEY site_url (site_url(191))
             ) {$charset};",
 
             "CREATE TABLE {$prefix}releases (
@@ -222,14 +217,19 @@ final class UAPM_Installer {
                 id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
                 user_id bigint(20) unsigned NULL,
                 project_id bigint(20) unsigned NULL,
-                event_type varchar(100) NOT NULL,
+                event_type varchar(100) NOT NULL DEFAULT '',
                 description text NULL,
                 context longtext NULL,
+                event varchar(100) NOT NULL DEFAULT '',
+                object_type varchar(50) NOT NULL DEFAULT '',
+                object_id bigint(20) unsigned NOT NULL DEFAULT 0,
+                meta longtext NULL,
                 created_at datetime NOT NULL,
                 PRIMARY KEY  (id),
                 KEY user_id (user_id),
                 KEY project_id (project_id),
                 KEY event_type (event_type),
+                KEY event (event),
                 KEY created_at (created_at)
             ) {$charset};",
 
@@ -268,10 +268,12 @@ final class UAPM_Installer {
 
             "CREATE TABLE {$prefix}notifications (
                 id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-                user_id bigint(20) unsigned NULL,
-                notification_type varchar(50) NOT NULL,
+                user_id bigint(20) unsigned NOT NULL DEFAULT 0,
+                notification_type varchar(50) NOT NULL DEFAULT 'info',
                 title varchar(255) NOT NULL,
                 message text NOT NULL,
+                related_type varchar(50) NOT NULL DEFAULT '',
+                related_id bigint(20) unsigned NOT NULL DEFAULT 0,
                 is_read tinyint(1) NOT NULL DEFAULT 0,
                 created_at datetime NOT NULL,
                 PRIMARY KEY  (id),
@@ -295,14 +297,10 @@ final class UAPM_Installer {
         $manager_role = get_role('uapm_manager');
 
         if (!$manager_role) {
-            add_role(
-                'uapm_manager',
-                'Менеджер UPM',
-                array(
-                    'read' => true,
-                    'uapm_access_manager' => true,
-                )
-            );
+            add_role('uapm_manager', 'Менеджер UPM', array(
+                'read' => true,
+                'uapm_access_manager' => true,
+            ));
         } else {
             $manager_role->add_cap('read');
             $manager_role->add_cap('uapm_access_manager');
@@ -311,15 +309,13 @@ final class UAPM_Installer {
         $admin = get_role('administrator');
 
         if ($admin) {
-            $capabilities = array(
+            foreach (array(
                 'uapm_manage_projects',
                 'uapm_manage_payments',
                 'uapm_manage_integrations',
                 'uapm_manage_settings',
                 'uapm_inspect_code',
-            );
-
-            foreach ($capabilities as $capability) {
+            ) as $capability) {
                 $admin->add_cap($capability);
             }
         }
