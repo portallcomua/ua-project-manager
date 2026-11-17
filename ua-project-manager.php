@@ -165,6 +165,7 @@ final class UAPM_Plugin {
          * UAPM_Clients
          * UAPM_GitHub
          * UAPM_Downloads
+         * UAPM_Installations
          * UAPM_Integrations
          * UAPM_Notifications
          * UAPM_Code_Inspector
@@ -173,7 +174,7 @@ final class UAPM_Plugin {
          * UAPM_Portal
          * UAPM_Admin_Sections
          *
-         * They must not be initialized again here.
+         * Do not initialize them again here.
          */
 
         $classes = array(
@@ -185,7 +186,6 @@ final class UAPM_Plugin {
             'UAPM_License_Manager',
             'UAPM_License_Sites',
             'UAPM_Updater',
-            'UAPM_Installations',
             'UAPM_Email_Templates',
             'UAPM_Queue',
             'UAPM_Cron',
