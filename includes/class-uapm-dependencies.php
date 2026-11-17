@@ -1,3 +1,4 @@
+
 <?php
 if (!defined('ABSPATH')) {
     exit;
@@ -12,6 +13,17 @@ class UAPM_Dependencies {
     }
 
     public static function get_requirements() {
+        global $wpdb;
+
+        $uploads = wp_upload_dir();
+        $mysql_version = 'Невідомо';
+
+        if (isset($wpdb) && method_exists($wpdb, 'db_version')) {
+            $mysql_version = $wpdb->db_version();
+        }
+
+        $wp_version = get_bloginfo('version');
+
         return array(
             'php' => array(
                 'label' => 'PHP',
@@ -22,26 +34,21 @@ class UAPM_Dependencies {
             'wordpress' => array(
                 'label' => 'WordPress',
                 'required' => '6.0',
-                'current' => get_bloginfo('version'),
-                'ok' => version_compare(get_bloginfo('version'), '6.0', '>='),
+                'current' => $wp_version,
+                'ok' => version_compare($wp_version, '6.0', '>='),
             ),
             'mysql' => array(
                 'label' => 'MySQL',
                 'required' => '5.7',
-                'current' => self::get_database_version(),
-                'ok' => version_compare(self::get_database_version(), '5.7', '>='),
+                'current' => $mysql_version,
+                'ok' => $mysql_version !== 'Невідомо'
+                    && version_compare($mysql_version, '5.7', '>='),
             ),
             'https' => array(
                 'label' => 'HTTPS',
                 'required' => 'Увімкнено',
                 'current' => is_ssl() ? 'Увімкнено' : 'Вимкнено',
                 'ok' => is_ssl(),
-            ),
-            'curl' => array(
-                'label' => 'cURL',
-                'required' => 'Увімкнено',
-                'current' => function_exists('curl_init') ? 'Увімкнено' : 'Вимкнено',
-                'ok' => function_exists('curl_init'),
             ),
             'json' => array(
                 'label' => 'JSON',
@@ -58,66 +65,55 @@ class UAPM_Dependencies {
             'uploads' => array(
                 'label' => 'Папка завантажень',
                 'required' => 'Доступна для запису',
-                'current' => wp_is_writable(wp_upload_dir()['basedir'])
+                'current' => !empty($uploads['basedir']) && wp_is_writable($uploads['basedir'])
                     ? 'Доступна'
                     : 'Недоступна',
-                'ok' => wp_is_writable(wp_upload_dir()['basedir']),
+                'ok' => !empty($uploads['basedir']) && wp_is_writable($uploads['basedir']),
             ),
         );
-    }
-
-    private static function get_database_version() {
-        global $wpdb;
-
-        return isset($wpdb->db_version)
-            ? $wpdb->db_version()
-            : '0';
     }
 
     public static function check_modules() {
         $modules = array(
             'UAPM_Installer' => 'Інсталятор',
+            'UAPM_Security' => 'Безпека',
+            'UAPM_Roles' => 'Ролі користувачів',
+            'UAPM_Settings' => 'Налаштування',
             'UAPM_Projects' => 'Проєкти',
+            'UAPM_Customers' => 'Замовники',
+            'UAPM_Clients' => 'Клієнти',
             'UAPM_Payments' => 'Платежі',
-            'UAPM_Admin' => 'Адміністративна панель',
-            'UAPM_Code_Generator' => 'Генератор коду',
-            'UAPM_Code_Inspector' => 'Перевірка коду',
+            'UAPM_License_Manager' => 'Ліцензії',
+            'UAPM_License_Sites' => 'Сайти ліцензій',
             'UAPM_GitHub' => 'Репозиторії та релізи',
-            'UAPM_REST_API' => 'REST API',
+            'UAPM_Updater' => 'Оновлення',
             'UAPM_Downloads' => 'Завантаження',
+            'UAPM_Installations' => 'Встановлення',
             'UAPM_Integrations' => 'Інтеграції',
             'UAPM_Notifications' => 'Сповіщення',
-            'UAPM_Clients' => 'Клієнти',
-            'UAPM_Installations' => 'Встановлення',
+            'UAPM_Email_Templates' => 'Шаблони листів',
+            'UAPM_Queue' => 'Черга завдань',
+            'UAPM_Webhooks' => 'Webhook',
+            'UAPM_Code_Generator' => 'Генератор коду',
+            'UAPM_Code_Inspector' => 'Перевірка коду',
             'UAPM_Analytics' => 'Аналітика',
+            'UAPM_Reports' => 'Звіти',
             'UAPM_Mailings' => 'Розсилки',
             'UAPM_Buttons' => 'Кнопки',
             'UAPM_API' => 'API',
-            'UAPM_Settings' => 'Налаштування',
             'UAPM_Activity_Log' => 'Журнал активності',
-            'UAPM_Updater' => 'Оновлення',
-            'UAPM_Backups' => 'Резервні копії',
-            'UAPM_Customers' => 'Замовники',
-            'UAPM_License_Manager' => 'Ліцензії',
-            'UAPM_License_Sites' => 'Сайти ліцензій',
-            'UAPM_Webhooks' => 'Webhook',
-            'UAPM_Queue' => 'Черга завдань',
-            'UAPM_Reports' => 'Звіти',
-            'UAPM_Localization' => 'Локалізація',
             'UAPM_Activity_Monitor' => 'Монітор активності',
-            'UAPM_System_Health' => 'Стан системи',
-            'UAPM_Diagnostics' => 'Діагностика',
-            'UAPM_Export' => 'Експорт',
-            'UAPM_Import' => 'Імпорт',
+            'UAPM_Activity_Feed' => 'Стрічка активності',
             'UAPM_Audit' => 'Аудит',
             'UAPM_Logs' => 'Системні журнали',
             'UAPM_Privacy' => 'Конфіденційність',
-            'UAPM_Roles' => 'Ролі користувачів',
+            'UAPM_Backups' => 'Резервні копії',
+            'UAPM_Export' => 'Експорт',
+            'UAPM_Import' => 'Імпорт',
+            'UAPM_Diagnostics' => 'Діагностика',
+            'UAPM_System_Health' => 'Стан системи',
             'UAPM_Dashboard_Widgets' => 'Віджети панелі',
-            'UAPM_Security' => 'Безпека',
-            'UAPM_Email_Templates' => 'Шаблони листів',
-            'UAPM_Cron' => 'Планувальник',
-            'UAPM_Activity_Feed' => 'Стрічка активності',
+            'UAPM_Localization' => 'Локалізація',
             'UAPM_Search' => 'Пошук',
             'UAPM_Notes' => 'Нотатки',
             'UAPM_Tasks' => 'Завдання',
@@ -126,6 +122,8 @@ class UAPM_Dependencies {
             'UAPM_Activity_Calendar' => 'Календар',
             'UAPM_Project_Activity' => 'Активність проєктів',
             'UAPM_Milestones' => 'Етапи',
+            'UAPM_Dependencies' => 'Перевірка залежностей',
+            'UAPM_Admin' => 'Адміністративна панель',
         );
 
         $result = array();
@@ -181,8 +179,15 @@ class UAPM_Dependencies {
 
         if ($report['requirements_ok'] < $report['requirements_total']) {
             echo '<div class="notice notice-warning"><p>';
-            echo '<strong>UA Project Manager:</strong> виявлено невиконані системні вимоги. ';
+            echo '<strong>UA Project Manager:</strong> є невиконані системні вимоги. ';
             echo '<a href="' . esc_url(admin_url('admin.php?page=uapm-dependencies')) . '">Переглянути перевірку</a>.';
+            echo '</p></div>';
+        }
+
+        if ($report['modules_loaded'] < $report['modules_total']) {
+            echo '<div class="notice notice-error"><p>';
+            echo '<strong>UA Project Manager:</strong> не всі внутрішні модулі завантажені. ';
+            echo '<a href="' . esc_url(admin_url('admin.php?page=uapm-dependencies')) . '">Переглянути список модулів</a>.';
             echo '</p></div>';
         }
     }
@@ -198,6 +203,26 @@ class UAPM_Dependencies {
         );
     }
 
+    public static function handle_check() {
+        if (!current_user_can('manage_options')) {
+            wp_die('Недостатньо прав.');
+        }
+
+        check_admin_referer('uapm_check_dependencies');
+
+        $report = self::get_report();
+        update_option('uapm_dependencies_last_report', $report, false);
+
+        wp_safe_redirect(
+            add_query_arg(
+                'uapm_checked',
+                '1',
+                admin_url('admin.php?page=uapm-dependencies')
+            )
+        );
+        exit;
+    }
+
     public static function render_page() {
         if (!current_user_can('manage_options')) {
             wp_die('Недостатньо прав.');
@@ -206,9 +231,12 @@ class UAPM_Dependencies {
         $report = self::get_report();
 
         echo '<div class="wrap">';
-        echo '<h1>Системні залежності UA Project Manager</h1>';
+        echo '<h1>Залежності UA Project Manager</h1>';
+        echo '<p>Перевірка системних вимог і внутрішніх модулів плагіна.</p>';
 
-        echo '<p>Перевірка середовища WordPress, серверних компонентів та підключених модулів.</p>';
+        if (isset($_GET['uapm_checked'])) {
+            echo '<div class="notice notice-success"><p>Перевірку завершено.</p></div>';
+        }
 
         echo '<h2>Системні вимоги</h2>';
         echo '<table class="widefat striped">';
@@ -222,9 +250,9 @@ class UAPM_Dependencies {
             echo '<td>';
 
             if ($item['ok']) {
-                echo '<span style="color:green;font-weight:bold">OK</span>';
+                echo '<strong style="color:green">OK</strong>';
             } else {
-                echo '<span style="color:#b32d2e;font-weight:bold">Проблема</span>';
+                echo '<strong style="color:#b32d2e">Проблема</strong>';
             }
 
             echo '</td></tr>';
@@ -232,7 +260,7 @@ class UAPM_Dependencies {
 
         echo '</tbody></table>';
 
-        echo '<h2>Підключені модулі</h2>';
+        echo '<h2>Внутрішні модулі</h2>';
         echo '<p>Завантажено: <strong>' . esc_html($report['modules_loaded']) . '</strong> із ' . esc_html($report['modules_total']) . '</p>';
 
         echo '<table class="widefat striped">';
@@ -245,9 +273,9 @@ class UAPM_Dependencies {
             echo '<td>';
 
             if ($module['loaded']) {
-                echo '<span style="color:green">Завантажено</span>';
+                echo '<strong style="color:green">Завантажено</strong>';
             } else {
-                echo '<span style="color:#b32d2e">Не завантажено</span>';
+                echo '<strong style="color:#b32d2e">Не завантажено</strong>';
             }
 
             echo '</td></tr>';
@@ -255,37 +283,22 @@ class UAPM_Dependencies {
 
         echo '</tbody></table>';
 
-        echo '<h2>Підсумок</h2>';
-
-        if ($report['ready']) {
-            echo '<div class="notice notice-success inline"><p>Усі перевірені вимоги виконані, усі модулі завантажені.</p></div>';
-        } else {
-            echo '<div class="notice notice-warning inline"><p>Система ще не готова до повноцінної роботи. Перевірте відсутні компоненти та системні вимоги.</p></div>';
-        }
+        echo '<p><strong>Загальний стан:</strong> ';
+        echo $report['ready']
+            ? '<span style="color:green">Усі перевірки пройдено</span>'
+            : '<span style="color:#b32d2e">Потрібне виправлення</span>';
+        echo '</p>';
 
         echo '<p>Остання перевірка: ' . esc_html($report['checked_at']) . '</p>';
 
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         echo '<input type="hidden" name="action" value="uapm_check_dependencies">';
         wp_nonce_field('uapm_check_dependencies');
-        submit_button('Повторити перевірку');
+        echo '<button type="submit" class="button button-primary">Перевірити ще раз</button>';
         echo '</form>';
 
         echo '</div>';
     }
-
-    public static function handle_check() {
-        if (!current_user_can('manage_options')) {
-            wp_die('Недостатньо прав.');
-        }
-
-        check_admin_referer('uapm_check_dependencies');
-
-        $report = self::get_report();
-
-        update_option('uapm_dependencies_last_report', $report, false);
-
-        wp_safe_redirect(admin_url('admin.php?page=uapm-dependencies&checked=1'));
-        exit;
-    }
 }
+
+UAPM_Dependencies::init();
