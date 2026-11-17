@@ -1,4 +1,10 @@
 <?php
+/**
+ * UA Project Manager — Clients.
+ *
+ * @package UA_Project_Manager
+ */
+
 if (!defined('ABSPATH')) {
     exit;
 }
@@ -10,6 +16,9 @@ class UAPM_Clients {
 
         add_action('admin_post_uapm_save_client', array(__CLASS__, 'handle_save'));
         add_action('admin_post_uapm_delete_client', array(__CLASS__, 'handle_delete'));
+
+        add_action('admin_post_uapm_manager_save_client', array(__CLASS__, 'handle_manager_save'));
+        add_action('admin_post_uapm_manager_archive_client', array(__CLASS__, 'handle_manager_archive'));
 
         add_action('rest_api_init', array(__CLASS__, 'register_routes'));
     }
@@ -43,29 +52,56 @@ class UAPM_Clients {
         dbDelta($sql);
     }
 
-    public static function create($data) {
+    private static function table() {
         global $wpdb;
+        return $wpdb->prefix . 'uapm_clients';
+    }
 
-        $table = $wpdb->prefix . 'uapm_clients';
+    private static function clean_data($data) {
+        return array(
+            'name' => isset($data['name'])
+                ? sanitize_text_field($data['name'])
+                : '',
+            'email' => isset($data['email'])
+                ? strtolower(sanitize_email($data['email']))
+                : '',
+            'company' => isset($data['company'])
+                ? sanitize_text_field($data['company'])
+                : '',
+            'phone' => isset($data['phone'])
+                ? sanitize_text_field($data['phone'])
+                : '',
+            'country' => isset($data['country'])
+                ? sanitize_text_field($data['country'])
+                : '',
+            'notes' => isset($data['notes'])
+                ? sanitize_textarea_field($data['notes'])
+                : '',
+        );
+    }
 
-        $name = isset($data['name'])
-            ? sanitize_text_field($data['name'])
-            : '';
-
-        $email = isset($data['email'])
-            ? sanitize_email($data['email'])
-            : '';
-
-        if (!$name || !is_email($email)) {
+    private static function validate_data($data) {
+        if (empty($data['name']) || !is_email($data['email'])) {
             return new WP_Error(
                 'uapm_invalid_client',
                 'Вкажіть ім’я клієнта та коректну електронну адресу.'
             );
         }
 
-        $existing = self::get_by_email($email);
+        return true;
+    }
 
-        if ($existing) {
+    public static function create($data) {
+        global $wpdb;
+
+        $data = self::clean_data($data);
+        $valid = self::validate_data($data);
+
+        if (is_wp_error($valid)) {
+            return $valid;
+        }
+
+        if (self::get_by_email($data['email'])) {
             return new WP_Error(
                 'uapm_client_exists',
                 'Клієнт із такою електронною адресою вже існує.'
@@ -73,28 +109,20 @@ class UAPM_Clients {
         }
 
         $result = $wpdb->insert(
-            $table,
+            self::table(),
             array(
                 'user_id' => isset($data['user_id'])
                     ? absint($data['user_id'])
                     : 0,
-                'name' => $name,
-                'email' => strtolower($email),
-                'company' => isset($data['company'])
-                    ? sanitize_text_field($data['company'])
-                    : '',
-                'phone' => isset($data['phone'])
-                    ? sanitize_text_field($data['phone'])
-                    : '',
-                'country' => isset($data['country'])
-                    ? sanitize_text_field($data['country'])
-                    : '',
-                'notes' => isset($data['notes'])
-                    ? sanitize_textarea_field($data['notes'])
-                    : '',
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'company' => $data['company'],
+                'phone' => $data['phone'],
+                'country' => $data['country'],
+                'notes' => $data['notes'],
                 'status' => 'active',
                 'created_at' => current_time('mysql'),
-                'updated_at' => current_time('mysql')
+                'updated_at' => current_time('mysql'),
             )
         );
 
@@ -115,63 +143,80 @@ class UAPM_Clients {
     public static function update($id, $data) {
         global $wpdb;
 
-        $table = $wpdb->prefix . 'uapm_clients';
+        $id = absint($id);
+        $client = self::get($id);
 
-        $name = isset($data['name'])
-            ? sanitize_text_field($data['name'])
-            : '';
-
-        $email = isset($data['email'])
-            ? sanitize_email($data['email'])
-            : '';
-
-        if (!$name || !is_email($email)) {
+        if (!$client) {
             return new WP_Error(
-                'uapm_invalid_client',
-                'Вкажіть ім’я клієнта та коректну електронну адресу.'
+                'uapm_client_not_found',
+                'Клієнта не знайдено.'
             );
         }
 
-        $existing = self::get_by_email($email);
+        $data = self::clean_data($data);
+        $valid = self::validate_data($data);
 
-        if ($existing && absint($existing->id) !== absint($id)) {
+        if (is_wp_error($valid)) {
+            return $valid;
+        }
+
+        $existing = self::get_by_email($data['email']);
+
+        if ($existing && absint($existing->id) !== $id) {
             return new WP_Error(
                 'uapm_client_exists',
                 'Інший клієнт уже використовує цю електронну адресу.'
             );
         }
 
-        return $wpdb->update(
-            $table,
+        $result = $wpdb->update(
+            self::table(),
             array(
-                'name' => $name,
-                'email' => strtolower($email),
-                'company' => isset($data['company'])
-                    ? sanitize_text_field($data['company'])
-                    : '',
-                'phone' => isset($data['phone'])
-                    ? sanitize_text_field($data['phone'])
-                    : '',
-                'country' => isset($data['country'])
-                    ? sanitize_text_field($data['country'])
-                    : '',
-                'notes' => isset($data['notes'])
-                    ? sanitize_textarea_field($data['notes'])
-                    : '',
-                'updated_at' => current_time('mysql')
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'company' => $data['company'],
+                'phone' => $data['phone'],
+                'country' => $data['country'],
+                'notes' => $data['notes'],
+                'updated_at' => current_time('mysql'),
             ),
-            array('id' => absint($id))
+            array('id' => $id)
         );
+
+        if (false === $result) {
+            return new WP_Error(
+                'uapm_client_update_failed',
+                'Не вдалося оновити клієнта.'
+            );
+        }
+
+        do_action('uapm_client_updated', $id, $data);
+
+        return true;
+    }
+
+    /**
+     * Update only a client owned by the specified manager.
+     */
+    public static function update_for_manager($id, $manager_id, $data) {
+        $client = self::get($id);
+
+        if (!$client || absint($client->user_id) !== absint($manager_id)) {
+            return new WP_Error(
+                'uapm_client_forbidden',
+                'Цей клієнт не належить вашому обліковому запису.'
+            );
+        }
+
+        return self::update($id, $data);
     }
 
     public static function get($id) {
         global $wpdb;
 
-        $table = $wpdb->prefix . 'uapm_clients';
-
         return $wpdb->get_row(
             $wpdb->prepare(
-                "SELECT * FROM {$table} WHERE id = %d LIMIT 1",
+                'SELECT * FROM ' . self::table() . ' WHERE id = %d LIMIT 1',
                 absint($id)
             )
         );
@@ -180,11 +225,9 @@ class UAPM_Clients {
     public static function get_by_email($email) {
         global $wpdb;
 
-        $table = $wpdb->prefix . 'uapm_clients';
-
         return $wpdb->get_row(
             $wpdb->prepare(
-                "SELECT * FROM {$table} WHERE email = %s LIMIT 1",
+                'SELECT * FROM ' . self::table() . ' WHERE email = %s LIMIT 1',
                 strtolower(sanitize_email($email))
             )
         );
@@ -193,16 +236,15 @@ class UAPM_Clients {
     public static function get_all($args = array()) {
         global $wpdb;
 
-        $table = $wpdb->prefix . 'uapm_clients';
-
         $args = wp_parse_args($args, array(
             'search' => '',
             'status' => '',
+            'user_id' => null,
             'limit' => 100,
-            'offset' => 0
+            'offset' => 0,
         ));
 
-        $where = 'WHERE 1=1';
+        $where = array('1=1');
         $params = array();
 
         if ($args['search'] !== '') {
@@ -210,56 +252,68 @@ class UAPM_Clients {
                 sanitize_text_field($args['search'])
             ) . '%';
 
-            $where .= ' AND (name LIKE %s OR email LIKE %s OR company LIKE %s)';
+            $where[] = '(name LIKE %s OR email LIKE %s OR company LIKE %s)';
             $params[] = $search;
             $params[] = $search;
             $params[] = $search;
         }
 
         if ($args['status'] !== '') {
-            $where .= ' AND status = %s';
+            $where[] = 'status = %s';
             $params[] = sanitize_key($args['status']);
+        }
+
+        if (null !== $args['user_id']) {
+            $where[] = 'user_id = %d';
+            $params[] = absint($args['user_id']);
         }
 
         $limit = max(1, min(500, absint($args['limit'])));
         $offset = absint($args['offset']);
 
-        $sql = "SELECT * FROM {$table}
-                {$where}
-                ORDER BY created_at DESC
-                LIMIT %d OFFSET %d";
+        $sql = 'SELECT * FROM ' . self::table() .
+            ' WHERE ' . implode(' AND ', $where) .
+            ' ORDER BY created_at DESC LIMIT %d OFFSET %d';
 
         $params[] = $limit;
         $params[] = $offset;
 
-        return $wpdb->get_results(
-            $wpdb->prepare($sql, $params)
-        );
+        return $wpdb->get_results($wpdb->prepare($sql, $params));
     }
 
-    public static function count($status = '') {
+    public static function get_manager_clients($manager_id, $args = array()) {
+        $args['user_id'] = absint($manager_id);
+        return self::get_all($args);
+    }
+
+    public static function count($status = '', $user_id = null) {
         global $wpdb;
 
-        $table = $wpdb->prefix . 'uapm_clients';
+        $where = array('1=1');
+        $params = array();
 
         if ($status !== '') {
-            return absint($wpdb->get_var(
-                $wpdb->prepare(
-                    "SELECT COUNT(*) FROM {$table} WHERE status = %s",
-                    sanitize_key($status)
-                )
-            ));
+            $where[] = 'status = %s';
+            $params[] = sanitize_key($status);
         }
 
-        return absint(
-            $wpdb->get_var("SELECT COUNT(*) FROM {$table}")
-        );
+        if (null !== $user_id) {
+            $where[] = 'user_id = %d';
+            $params[] = absint($user_id);
+        }
+
+        $sql = 'SELECT COUNT(*) FROM ' . self::table() .
+            ' WHERE ' . implode(' AND ', $where);
+
+        if (!empty($params)) {
+            return absint($wpdb->get_var($wpdb->prepare($sql, $params)));
+        }
+
+        return absint($wpdb->get_var($sql));
     }
 
     public static function delete($id) {
         global $wpdb;
-
-        $table = $wpdb->prefix . 'uapm_clients';
 
         $client = self::get($id);
 
@@ -268,38 +322,52 @@ class UAPM_Clients {
         }
 
         return $wpdb->update(
-            $table,
+            self::table(),
             array(
                 'status' => 'archived',
-                'updated_at' => current_time('mysql')
+                'updated_at' => current_time('mysql'),
             ),
             array('id' => absint($id))
         );
+    }
+
+    public static function archive_for_manager($id, $manager_id) {
+        $client = self::get($id);
+
+        if (!$client || absint($client->user_id) !== absint($manager_id)) {
+            return new WP_Error(
+                'uapm_client_forbidden',
+                'Цей клієнт не належить вашому обліковому запису.'
+            );
+        }
+
+        return self::delete($id);
     }
 
     public static function register_routes() {
         register_rest_route('uapm/v1', '/clients', array(
             'methods' => WP_REST_Server::READABLE,
             'callback' => array(__CLASS__, 'api_list'),
-            'permission_callback' => array(__CLASS__, 'api_permission')
+            'permission_callback' => array(__CLASS__, 'api_permission'),
         ));
 
         register_rest_route('uapm/v1', '/clients/(?P<id>\d+)', array(
             'methods' => WP_REST_Server::READABLE,
             'callback' => array(__CLASS__, 'api_get'),
-            'permission_callback' => array(__CLASS__, 'api_permission')
+            'permission_callback' => array(__CLASS__, 'api_permission'),
         ));
     }
 
     public static function api_permission() {
-        return current_user_can('uapm_manage_projects');
+        return current_user_can('uapm_manage_projects') ||
+            current_user_can('manage_options');
     }
 
     public static function api_list($request) {
         $items = self::get_all(array(
             'search' => $request->get_param('search'),
             'status' => $request->get_param('status'),
-            'limit' => $request->get_param('limit') ?: 100
+            'limit' => $request->get_param('limit') ?: 100,
         ));
 
         $result = array();
@@ -311,7 +379,7 @@ class UAPM_Clients {
         return rest_ensure_response(array(
             'success' => true,
             'count' => count($result),
-            'clients' => $result
+            'clients' => $result,
         ));
     }
 
@@ -328,7 +396,7 @@ class UAPM_Clients {
 
         return rest_ensure_response(array(
             'success' => true,
-            'client' => self::public_data($client)
+            'client' => self::public_data($client),
         ));
     }
 
@@ -341,7 +409,7 @@ class UAPM_Clients {
             'phone' => $client->phone,
             'country' => $client->country,
             'status' => $client->status,
-            'created_at' => $client->created_at
+            'created_at' => $client->created_at,
         );
     }
 
@@ -352,15 +420,7 @@ class UAPM_Clients {
 
         check_admin_referer('uapm_save_client');
 
-        $data = array(
-            'name' => isset($_POST['name']) ? wp_unslash($_POST['name']) : '',
-            'email' => isset($_POST['email']) ? wp_unslash($_POST['email']) : '',
-            'company' => isset($_POST['company']) ? wp_unslash($_POST['company']) : '',
-            'phone' => isset($_POST['phone']) ? wp_unslash($_POST['phone']) : '',
-            'country' => isset($_POST['country']) ? wp_unslash($_POST['country']) : '',
-            'notes' => isset($_POST['notes']) ? wp_unslash($_POST['notes']) : ''
-        );
-
+        $data = self::posted_data();
         $id = isset($_POST['client_id']) ? absint($_POST['client_id']) : 0;
 
         if ($id) {
@@ -373,7 +433,6 @@ class UAPM_Clients {
             array('page' => 'uapm-clients'),
             admin_url('admin.php')
         ));
-
         exit;
     }
 
@@ -394,8 +453,108 @@ class UAPM_Clients {
             array('page' => 'uapm-clients'),
             admin_url('admin.php')
         ));
-
         exit;
+    }
+
+    public static function handle_manager_save() {
+        if (
+            !is_user_logged_in() ||
+            !current_user_can('uapm_manage_own_clients') ||
+            current_user_can('uapm_manage_projects')
+        ) {
+            wp_die('Недостатньо прав.');
+        }
+
+        check_admin_referer('uapm_manager_save_client');
+
+        $manager_id = get_current_user_id();
+        $data = self::posted_data();
+
+        $id = isset($_POST['client_id'])
+            ? absint($_POST['client_id'])
+            : 0;
+
+        if ($id) {
+            $result = self::update_for_manager($id, $manager_id, $data);
+        } else {
+            $data['user_id'] = $manager_id;
+            $result = self::create($data);
+        }
+
+        $url = add_query_arg(
+            'uapm_client_notice',
+            is_wp_error($result) ? 'error' : 'saved',
+            home_url('/gpm/')
+        );
+
+        if (is_wp_error($result)) {
+            $url = add_query_arg(
+                'uapm_client_message',
+                rawurlencode($result->get_error_message()),
+                $url
+            );
+        }
+
+        wp_safe_redirect($url);
+        exit;
+    }
+
+    public static function handle_manager_archive() {
+        if (
+            !is_user_logged_in() ||
+            !current_user_can('uapm_manage_own_clients') ||
+            current_user_can('uapm_manage_projects')
+        ) {
+            wp_die('Недостатньо прав.');
+        }
+
+        $id = isset($_POST['client_id'])
+            ? absint($_POST['client_id'])
+            : 0;
+
+        check_admin_referer('uapm_manager_archive_client_' . $id);
+
+        $result = self::archive_for_manager($id, get_current_user_id());
+
+        $url = add_query_arg(
+            'uapm_client_notice',
+            is_wp_error($result) ? 'error' : 'archived',
+            home_url('/gpm/')
+        );
+
+        if (is_wp_error($result)) {
+            $url = add_query_arg(
+                'uapm_client_message',
+                rawurlencode($result->get_error_message()),
+                $url
+            );
+        }
+
+        wp_safe_redirect($url);
+        exit;
+    }
+
+    private static function posted_data() {
+        return array(
+            'name' => isset($_POST['name'])
+                ? wp_unslash($_POST['name'])
+                : '',
+            'email' => isset($_POST['email'])
+                ? wp_unslash($_POST['email'])
+                : '',
+            'company' => isset($_POST['company'])
+                ? wp_unslash($_POST['company'])
+                : '',
+            'phone' => isset($_POST['phone'])
+                ? wp_unslash($_POST['phone'])
+                : '',
+            'country' => isset($_POST['country'])
+                ? wp_unslash($_POST['country'])
+                : '',
+            'notes' => isset($_POST['notes'])
+                ? wp_unslash($_POST['notes'])
+                : '',
+        );
     }
 
     public static function render_page() {
