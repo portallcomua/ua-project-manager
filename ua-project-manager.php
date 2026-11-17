@@ -16,18 +16,39 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('UAPM_VERSION', '1.0.0');
-define('UAPM_DB_VERSION', '1.0.0');
-define('UAPM_FILE', __FILE__);
-define('UAPM_PATH', plugin_dir_path(__FILE__));
-define('UAPM_URL', plugin_dir_url(__FILE__));
-define('UAPM_BASENAME', plugin_basename(__FILE__));
+if (!defined('UAPM_VERSION')) {
+    define('UAPM_VERSION', '1.0.0');
+}
+
+if (!defined('UAPM_DB_VERSION')) {
+    define('UAPM_DB_VERSION', '1.0.0');
+}
+
+if (!defined('UAPM_FILE')) {
+    define('UAPM_FILE', __FILE__);
+}
+
+if (!defined('UAPM_PATH')) {
+    define('UAPM_PATH', plugin_dir_path(__FILE__));
+}
+
+if (!defined('UAPM_URL')) {
+    define('UAPM_URL', plugin_dir_url(__FILE__));
+}
+
+if (!defined('UAPM_BASENAME')) {
+    define('UAPM_BASENAME', plugin_basename(__FILE__));
+}
 
 final class UAPM_Plugin {
 
     private static $instance = null;
+
     private $loaded = array();
+
     private $errors = array();
+
+    private $initialized = false;
 
     public static function instance() {
         if (self::$instance === null) {
@@ -42,28 +63,31 @@ final class UAPM_Plugin {
     }
 
     public function load_plugin() {
-        $this->load_modules();
-
-        if (class_exists('UAPM_Localization')) {
-            if (method_exists('UAPM_Localization', 'init')) {
-                UAPM_Localization::init();
-            }
+        if ($this->initialized) {
+            return;
         }
 
+        $this->initialized = true;
+
+        $this->load_modules();
+
         if (class_exists('UAPM_Installer')) {
-            if (get_option('uapm_db_version') !== UAPM_DB_VERSION) {
+            $installed_version = get_option('uapm_db_version', '');
+
+            if (version_compare($installed_version, UAPM_DB_VERSION, '<')) {
                 UAPM_Installer::activate();
+
                 update_option('uapm_db_version', UAPM_DB_VERSION);
             }
         }
 
-        $this->initialize_modules();
         $this->register_dependency_notices();
 
         do_action('uapm_loaded', $this);
     }
 
     private function load_modules() {
+
         $files = array(
             'class-uapm-security.php',
             'class-uapm-installer.php',
@@ -83,6 +107,7 @@ final class UAPM_Plugin {
             'class-uapm-notifications.php',
             'class-uapm-email-templates.php',
             'class-uapm-queue.php',
+            'class-uapm-cron.php',
             'class-uapm-webhooks.php',
             'class-uapm-code-generator.php',
             'class-uapm-code-inspector.php',
@@ -90,6 +115,7 @@ final class UAPM_Plugin {
             'class-uapm-reports.php',
             'class-uapm-mailings.php',
             'class-uapm-buttons.php',
+            'class-uapm-rest-api.php',
             'class-uapm-api.php',
             'class-uapm-activity-log.php',
             'class-uapm-activity-monitor.php',
@@ -117,124 +143,84 @@ final class UAPM_Plugin {
         );
 
         foreach ($files as $file) {
+
             $path = UAPM_PATH . 'includes/' . $file;
 
             if (!file_exists($path)) {
-                $this->errors[] = 'Відсутній файл: includes/' . $file;
+                $this->errors[] = $file;
                 continue;
             }
 
             require_once $path;
+
             $this->loaded[] = $file;
         }
     }
 
-    private function initialize_modules() {
-        $classes = array(
-            'UAPM_Roles',
-            'UAPM_Settings',
-            'UAPM_Projects',
-            'UAPM_Customers',
-            'UAPM_Clients',
-            'UAPM_Payments',
-            'UAPM_License_Manager',
-            'UAPM_License_Sites',
-            'UAPM_GitHub',
-            'UAPM_Updater',
-            'UAPM_Downloads',
-            'UAPM_Installations',
-            'UAPM_Integrations',
-            'UAPM_Notifications',
-            'UAPM_Email_Templates',
-            'UAPM_Queue',
-            'UAPM_Webhooks',
-            'UAPM_Code_Generator',
-            'UAPM_Code_Inspector',
-            'UAPM_Analytics',
-            'UAPM_Reports',
-            'UAPM_Mailings',
-            'UAPM_Buttons',
-            'UAPM_API',
-            'UAPM_Activity_Log',
-            'UAPM_Activity_Monitor',
-            'UAPM_Activity_Feed',
-            'UAPM_Audit',
-            'UAPM_Logs',
-            'UAPM_Privacy',
-            'UAPM_Backups',
-            'UAPM_Export',
-            'UAPM_Import',
-            'UAPM_Diagnostics',
-            'UAPM_System_Health',
-            'UAPM_Dashboard_Widgets',
-            'UAPM_Search',
-            'UAPM_Notes',
-            'UAPM_Tasks',
-            'UAPM_Comments',
-            'UAPM_Attachments',
-            'UAPM_Activity_Calendar',
-            'UAPM_Project_Activity',
-            'UAPM_Milestones',
-            'UAPM_Dependencies',
-            'UAPM_Admin',
-        );
+    public function get_loaded_modules() {
+        return $this->loaded;
+    }
 
-        foreach ($classes as $class) {
-            if (!class_exists($class)) {
-                continue;
-            }
-
-            if (method_exists($class, 'init')) {
-                call_user_func(array($class, 'init'));
-            }
-        }
+    public function get_loading_errors() {
+        return $this->errors;
     }
 
     private function register_dependency_notices() {
-        add_action('admin_notices', array($this, 'render_dependency_notices'));
+        add_action(
+            'admin_notices',
+            array($this, 'render_dependency_notices')
+        );
     }
 
     public function render_dependency_notices() {
+
         if (!current_user_can('manage_options')) {
             return;
         }
 
         if (!empty($this->errors)) {
-            echo '<div class="notice notice-error"><p><strong>UA Project Manager:</strong> Не всі файли плагіна знайдені.</p><ul>';
 
-            foreach ($this->errors as $error) {
-                echo '<li>' . esc_html($error) . '</li>';
+            echo '<div class="notice notice-error"><p>';
+            echo '<strong>UA Project Manager:</strong> Не знайдено такі файли модулів:</p><ul>';
+
+            foreach ($this->errors as $file) {
+                echo '<li>' . esc_html($file) . '</li>';
             }
 
             echo '</ul></div>';
         }
 
+        if (!function_exists('is_plugin_active')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+
         $dependencies = array(
             'UA Pay Box' => array(
                 'slug' => 'ua-pay-box/ua-pay-box.php',
-                'required' => true,
                 'description' => 'Платежі та керування PRO-доступом.',
+                'required' => false,
             ),
             'UA Click Counter' => array(
                 'slug' => 'ua-click-counter/ua-click-counter.php',
-                'required' => false,
                 'description' => 'Облік натискань на кнопки та посилання.',
+                'required' => false,
             ),
             'UA Plugins Monitor' => array(
                 'slug' => 'ua-plugins-monitor/ua-plugins-monitor.php',
+                'description' => 'Моніторинг встановлень та оновлень.',
                 'required' => false,
-                'description' => 'Моніторинг встановлень та оновлень плагінів.',
             ),
             'CMS Web Finder' => array(
                 'slug' => 'cms-web-finder/cms-web-finder.php',
+                'description' => 'Передача списків сайтів та кампаній.',
                 'required' => false,
-                'description' => 'Передача списків сайтів і кампаній.',
             ),
         );
 
         $missing = array();
 
         foreach ($dependencies as $name => $dependency) {
+
             if (!is_plugin_active($dependency['slug'])) {
                 $missing[$name] = $dependency;
             }
@@ -244,22 +230,30 @@ final class UAPM_Plugin {
             return;
         }
 
-        echo '<div class="notice notice-warning"><p><strong>UA Project Manager:</strong> Доступні додаткові інтеграції.</p><ul>';
+        echo '<div class="notice notice-warning">';
+        echo '<p><strong>UA Project Manager:</strong> доступні додаткові інтеграції.</p>';
+        echo '<ul>';
 
         foreach ($missing as $name => $dependency) {
-            echo '<li><strong>' . esc_html($name) . '</strong> — ' . esc_html($dependency['description']);
 
-            if ($dependency['required']) {
-                echo ' <strong>(потрібен для платіжного функціоналу)</strong>';
-            } else {
-                echo ' (необов’язковий)';
-            }
+            echo '<li><strong>' . esc_html($name) . '</strong>';
+
+            echo ' — ' . esc_html($dependency['description']);
+
+            echo ' (необов’язкова інтеграція)';
 
             echo '</li>';
         }
 
-        echo '</ul><p>Основні функції UA Project Manager працюють незалежно від цих плагінів.</p>';
-        echo '<p><a href="' . esc_url(admin_url('plugins.php')) . '">Переглянути встановлені плагіни</a></p></div>';
+        echo '</ul>';
+
+        echo '<p>Основні функції UA Project Manager не повинні залежати від наявності цих плагінів.</p>';
+
+        echo '<p><a href="' . esc_url(admin_url('plugins.php')) . '">';
+        echo 'Переглянути встановлені плагіни';
+        echo '</a></p>';
+
+        echo '</div>';
     }
 }
 
@@ -268,6 +262,7 @@ function uapm() {
 }
 
 function uapm_is_plugin_active($plugin_file) {
+
     if (!function_exists('is_plugin_active')) {
         require_once ABSPATH . 'wp-admin/includes/plugin.php';
     }
@@ -275,13 +270,16 @@ function uapm_is_plugin_active($plugin_file) {
     return is_plugin_active($plugin_file);
 }
 
-register_activation_hook(__FILE__, 'uapm_activate_plugin');
-
 function uapm_activate_plugin() {
-    require_once UAPM_PATH . 'includes/class-uapm-installer.php';
 
-    if (class_exists('UAPM_Installer')) {
-        UAPM_Installer::activate();
+    $installer = UAPM_PATH . 'includes/class-uapm-installer.php';
+
+    if (file_exists($installer)) {
+        require_once $installer;
+
+        if (class_exists('UAPM_Installer')) {
+            UAPM_Installer::activate();
+        }
     }
 
     update_option('uapm_db_version', UAPM_DB_VERSION);
@@ -290,10 +288,18 @@ function uapm_activate_plugin() {
     flush_rewrite_rules();
 }
 
-register_deactivation_hook(__FILE__, 'uapm_deactivate_plugin');
-
 function uapm_deactivate_plugin() {
     flush_rewrite_rules();
 }
+
+register_activation_hook(
+    __FILE__,
+    'uapm_activate_plugin'
+);
+
+register_deactivation_hook(
+    __FILE__,
+    'uapm_deactivate_plugin'
+);
 
 uapm();
