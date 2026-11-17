@@ -1,9 +1,16 @@
 <?php
+/**
+ * UA Project Manager
+ * GitHub repository and releases integration.
+ *
+ * @package UA_Project_Manager
+ */
+
 if (!defined('ABSPATH')) {
     exit;
 }
 
-class UAPM_GitHub {
+final class UAPM_GitHub {
 
     const API_URL = 'https://api.github.com';
 
@@ -15,12 +22,15 @@ class UAPM_GitHub {
     public static function get_settings() {
         $settings = get_option('uapm_github_settings', array());
 
-        return wp_parse_args($settings, array(
-            'enabled' => 0,
-            'username' => 'portallcomua',
-            'token' => '',
-            'timeout' => 20
-        ));
+        return wp_parse_args(
+            is_array($settings) ? $settings : array(),
+            array(
+                'enabled' => 0,
+                'username' => 'portallcomua',
+                'token' => '',
+                'timeout' => 20,
+            )
+        );
     }
 
     public static function save_settings($settings) {
@@ -31,10 +41,10 @@ class UAPM_GitHub {
             'username' => isset($settings['username'])
                 ? sanitize_text_field($settings['username'])
                 : $current['username'],
-            'token' => isset($settings['token']) && $settings['token'] !== ''
+            'token' => isset($settings['token']) && trim($settings['token']) !== ''
                 ? sanitize_text_field($settings['token'])
                 : $current['token'],
-            'timeout' => 20
+            'timeout' => 20,
         );
 
         update_option('uapm_github_settings', $updated, false);
@@ -54,41 +64,45 @@ class UAPM_GitHub {
 
         $endpoint = ltrim((string) $endpoint, '/');
 
-        if (strpos($endpoint, '..') !== false) {
+        $valid_endpoint =
+            preg_match('#^user$#', $endpoint) ||
+            preg_match('#^repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$#', $endpoint) ||
+            preg_match('#^repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/releases(\?per_page=[0-9]{1,3})?$#', $endpoint) ||
+            preg_match('#^repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/releases/latest$#', $endpoint) ||
+            preg_match('#^repos/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/tags(\?per_page=[0-9]{1,3})?$#', $endpoint);
+
+        if (!$valid_endpoint) {
             return new WP_Error(
                 'uapm_github_endpoint',
                 'Некоректний GitHub API endpoint.'
             );
         }
 
-        $url = self::API_URL . '/' . $endpoint;
-
-        $headers = array(
-            'Accept' => 'application/vnd.github+json',
-            'X-GitHub-Api-Version' => '2022-11-28',
-            'User-Agent' => 'UA-Project-Manager'
+        $response = wp_remote_get(
+            self::API_URL . '/' . $endpoint,
+            array(
+                'headers' => array(
+                    'Accept' => 'application/vnd.github+json',
+                    'X-GitHub-Api-Version' => '2022-11-28',
+                    'User-Agent' => 'UA-Project-Manager',
+                    'Authorization' => !empty($settings['token'])
+                        ? 'Bearer ' . $settings['token']
+                        : '',
+                ),
+                'timeout' => 20,
+                'redirection' => 0,
+            )
         );
-
-        if (!empty($settings['token'])) {
-            $headers['Authorization'] = 'Bearer ' . $settings['token'];
-        }
-
-        $response = wp_remote_get($url, array(
-            'headers' => $headers,
-            'timeout' => absint($settings['timeout']),
-            'redirection' => 3
-        ));
 
         if (is_wp_error($response)) {
             return $response;
         }
 
         $status = wp_remote_retrieve_response_code($response);
-        $body = wp_remote_retrieve_body($response);
-        $data = json_decode($body, true);
+        $data = json_decode(wp_remote_retrieve_body($response), true);
 
         if ($status < 200 || $status >= 300) {
-            $message = isset($data['message'])
+            $message = is_array($data) && isset($data['message'])
                 ? sanitize_text_field($data['message'])
                 : 'GitHub API повернув помилку.';
 
@@ -107,6 +121,31 @@ class UAPM_GitHub {
         }
 
         return $data;
+    }
+
+    public static function normalize_repository($repository) {
+        $repository = trim((string) $repository);
+
+        $repository = preg_replace(
+            '#^https?://github\.com/#i',
+            '',
+            $repository
+        );
+
+        $repository = preg_replace('/\.git$/i', '', $repository);
+        $repository = trim($repository, "/ \t\n\r\0\x0B");
+
+        if (!preg_match(
+            '/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/',
+            $repository
+        )) {
+            return new WP_Error(
+                'uapm_invalid_repository',
+                'Вкажіть GitHub-репозиторій у форматі username/repository.'
+            );
+        }
+
+        return $repository;
     }
 
     public static function get_repository($repository) {
@@ -159,21 +198,6 @@ class UAPM_GitHub {
         );
     }
 
-    public static function normalize_repository($repository) {
-        $repository = trim((string) $repository);
-        $repository = preg_replace('#^https?://github\.com/#i', '', $repository);
-        $repository = trim($repository, "/ \t\n\r\0\x0B");
-
-        if (!preg_match('/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/', $repository)) {
-            return new WP_Error(
-                'uapm_invalid_repository',
-                'Вкажіть GitHub-репозиторій у форматі username/repository.'
-            );
-        }
-
-        return $repository;
-    }
-
     public static function get_release_assets($release) {
         if (empty($release['assets']) || !is_array($release['assets'])) {
             return array();
@@ -197,14 +221,16 @@ class UAPM_GitHub {
                 'name' => isset($asset['name'])
                     ? sanitize_file_name($asset['name'])
                     : '',
-                'size' => isset($asset['size']) ? absint($asset['size']) : 0,
+                'size' => isset($asset['size'])
+                    ? absint($asset['size'])
+                    : 0,
                 'download_count' => isset($asset['download_count'])
                     ? absint($asset['download_count'])
                     : 0,
                 'download_url' => $url,
                 'content_type' => isset($asset['content_type'])
                     ? sanitize_text_field($asset['content_type'])
-                    : ''
+                    : '',
             );
         }
 
@@ -212,6 +238,8 @@ class UAPM_GitHub {
     }
 
     public static function sync_project($project_id) {
+        global $wpdb;
+
         if (!class_exists('UAPM_Projects')) {
             return new WP_Error(
                 'uapm_projects_missing',
@@ -219,7 +247,8 @@ class UAPM_GitHub {
             );
         }
 
-        $project = UAPM_Projects::get(absint($project_id));
+        $project_id = absint($project_id);
+        $project = UAPM_Projects::get($project_id);
 
         if (!$project) {
             return new WP_Error(
@@ -228,166 +257,201 @@ class UAPM_GitHub {
             );
         }
 
-        if (empty($project->github_repo)) {
+        if (empty($project->github_repository)) {
             return new WP_Error(
                 'uapm_repository_missing',
                 'Для проєкту не вказано GitHub-репозиторій.'
             );
         }
 
-        $releases = self::get_releases($project->github_repo, 50);
+        $releases = self::get_releases(
+            $project->github_repository,
+            50
+        );
 
         if (is_wp_error($releases)) {
             return $releases;
         }
 
-        global $wpdb;
-
         $table = $wpdb->prefix . 'uapm_releases';
+
         $synced = 0;
+        $errors = 0;
 
         foreach ($releases as $release) {
-            if (empty($release['tag_name'])) {
+            if (
+                !is_array($release) ||
+                empty($release['tag_name'])
+            ) {
                 continue;
             }
 
             $tag = sanitize_text_field($release['tag_name']);
 
-            $existing = $wpdb->get_var(
+            $existing_id = $wpdb->get_var(
                 $wpdb->prepare(
-                    "SELECT id FROM {$table} WHERE project_id = %d AND tag_name = %s LIMIT 1",
-                    absint($project_id),
+                    "SELECT id FROM {$table}
+                     WHERE project_id = %d AND release_tag = %s
+                     LIMIT 1",
+                    $project_id,
                     $tag
                 )
             );
 
             $assets = self::get_release_assets($release);
 
+            $download_url = '';
+
+            if (!empty($assets)) {
+                $download_url = $assets[0]['download_url'];
+            } elseif (!empty($release['zipball_url'])) {
+                $candidate = esc_url_raw($release['zipball_url']);
+
+                if (strpos($candidate, 'https://api.github.com/') === 0) {
+                    $download_url = $candidate;
+                }
+            }
+
+            $version = ltrim($tag, 'vV');
+
             $data = array(
-                'project_id' => absint($project_id),
-                'tag_name' => $tag,
-                'name' => isset($release['name'])
-                    ? sanitize_text_field($release['name'])
-                    : $tag,
-                'body' => isset($release['body'])
-                    ? wp_kses_post($release['body'])
-                    : '',
-                'html_url' => isset($release['html_url'])
+                'project_id' => $project_id,
+                'version' => sanitize_text_field($version),
+                'release_tag' => $tag,
+                'release_url' => isset($release['html_url'])
                     ? esc_url_raw($release['html_url'])
                     : '',
-                'zipball_url' => isset($release['zipball_url'])
-                    ? esc_url_raw($release['zipball_url'])
+                'download_url' => $download_url,
+                'changelog' => isset($release['body'])
+                    ? wp_kses_post($release['body'])
                     : '',
-                'published_at' => isset($release['published_at'])
-                    ? sanitize_text_field($release['published_at'])
-                    : null,
-                'is_prerelease' => !empty($release['prerelease']) ? 1 : 0,
-                'is_draft' => !empty($release['draft']) ? 1 : 0,
-                'assets_json' => wp_json_encode($assets),
-                'github_release_id' => isset($release['id'])
-                    ? absint($release['id'])
+                'is_stable' => empty($release['prerelease']) && empty($release['draft'])
+                    ? 1
                     : 0,
-                'updated_at' => current_time('mysql')
             );
 
-            if ($existing) {
-                $wpdb->update(
+            if ($existing_id) {
+                $result = $wpdb->update(
                     $table,
                     $data,
-                    array('id' => absint($existing))
+                    array('id' => absint($existing_id))
                 );
             } else {
                 $data['created_at'] = current_time('mysql');
-                $wpdb->insert($table, $data);
+
+                $result = $wpdb->insert($table, $data);
+            }
+
+            if (false === $result) {
+                $errors++;
+                continue;
             }
 
             $synced++;
         }
 
-        update_post_meta(0, '_uapm_unused', '');
-
-        do_action('uapm_github_releases_synced', $project_id, $synced);
+        do_action(
+            'uapm_github_releases_synced',
+            $project_id,
+            $synced
+        );
 
         return array(
-            'project_id' => absint($project_id),
+            'project_id' => $project_id,
             'synced' => $synced,
-            'checked_at' => current_time('mysql')
+            'errors' => $errors,
+            'checked_at' => current_time('mysql'),
         );
     }
 
     public static function handle_save() {
-        if (!current_user_can('uapm_manage_settings')) {
+        if (
+            !current_user_can('uapm_manage_settings') &&
+            !current_user_can('manage_options')
+        ) {
             wp_die('Недостатньо прав.');
         }
 
         check_admin_referer('uapm_github_save');
 
-        self::save_settings(array(
-            'enabled' => isset($_POST['enabled']),
-            'username' => isset($_POST['username'])
-                ? wp_unslash($_POST['username'])
-                : '',
-            'token' => isset($_POST['token'])
-                ? wp_unslash($_POST['token'])
-                : ''
-        ));
-
-        wp_safe_redirect(add_query_arg(
+        self::save_settings(
             array(
-                'page' => 'uapm-github',
-                'saved' => 1
-            ),
-            admin_url('admin.php')
-        ));
+                'enabled' => isset($_POST['enabled']),
+                'username' => isset($_POST['username'])
+                    ? wp_unslash($_POST['username'])
+                    : '',
+                'token' => isset($_POST['token'])
+                    ? wp_unslash($_POST['token'])
+                    : '',
+            )
+        );
+
+        wp_safe_redirect(
+            add_query_arg(
+                array(
+                    'page' => 'uapm-github',
+                    'saved' => 1,
+                ),
+                admin_url('admin.php')
+            )
+        );
 
         exit;
     }
 
     public static function handle_check() {
-        if (!current_user_can('uapm_manage_settings')) {
+        if (
+            !current_user_can('uapm_manage_settings') &&
+            !current_user_can('manage_options')
+        ) {
             wp_die('Недостатньо прав.');
         }
 
         check_admin_referer('uapm_github_check');
 
-        $settings = self::get_settings();
-
         $result = self::request('user');
+
+        $message = is_wp_error($result)
+            ? $result->get_error_message()
+            : 'Підключення успішне. GitHub-користувач: ' .
+                (isset($result['login']) ? sanitize_text_field($result['login']) : 'невідомий');
 
         set_transient(
             'uapm_github_connection_' . get_current_user_id(),
-            is_wp_error($result)
-                ? $result->get_error_message()
-                : 'Підключення успішне. GitHub-користувач: ' . (
-                    isset($result['login']) ? $result['login'] : 'невідомий'
-                ),
+            $message,
             MINUTE_IN_SECONDS * 5
         );
 
-        wp_safe_redirect(add_query_arg(
-            array(
-                'page' => 'uapm-github',
-                'checked' => 1
-            ),
-            admin_url('admin.php')
-        ));
+        wp_safe_redirect(
+            add_query_arg(
+                array(
+                    'page' => 'uapm-github',
+                    'checked' => 1,
+                ),
+                admin_url('admin.php')
+            )
+        );
 
         exit;
     }
 
     public static function render_page() {
-        if (!current_user_can('uapm_manage_settings')) {
+        if (
+            !current_user_can('uapm_manage_settings') &&
+            !current_user_can('manage_options')
+        ) {
             wp_die('Недостатньо прав.');
         }
 
         $settings = self::get_settings();
+
         $message = get_transient(
             'uapm_github_connection_' . get_current_user_id()
         );
 
         ?>
         <div class="wrap">
-            <h1>GitHub Integration</h1>
+            <h1>Інтеграція GitHub</h1>
 
             <?php if (isset($_GET['saved'])) : ?>
                 <div class="notice notice-success">
@@ -454,7 +518,7 @@ class UAPM_GitHub {
                                 ); ?>"
                             >
                             <p class="description">
-                                Для приватних репозиторіїв потрібен токен із мінімальними правами читання.
+                                Для приватних репозиторіїв використовуйте токен із мінімальними правами читання.
                             </p>
                         </td>
                     </tr>
