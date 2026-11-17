@@ -48,6 +48,7 @@ final class UAPM_Plugin {
     private $initialized = false;
 
     public static function instance() {
+
         if (self::$instance === null) {
             self::$instance = new self();
         }
@@ -72,6 +73,7 @@ final class UAPM_Plugin {
         $this->initialize_modules();
 
         if (class_exists('UAPM_Installer')) {
+
             $installed_version = get_option('uapm_db_version', '');
 
             if (version_compare($installed_version, UAPM_DB_VERSION, '<')) {
@@ -139,6 +141,7 @@ final class UAPM_Plugin {
             'class-uapm-milestones.php',
             'class-uapm-dependencies.php',
             'class-uapm-admin.php',
+            'class-uapm-portal.php',
         );
 
         foreach ($files as $file) {
@@ -169,6 +172,7 @@ final class UAPM_Plugin {
          * UAPM_Code_Inspector
          * UAPM_REST_API
          * UAPM_Dependencies
+         * UAPM_Portal
          *
          * They must not be initialized again here.
          */
@@ -345,6 +349,21 @@ function uapm_activate_plugin() {
 
         if (class_exists('UAPM_Installer')) {
             UAPM_Installer::activate();
+        }
+    }
+
+    /*
+     * Register the /gpm/ portal rewrite rule before flushing rules.
+     * The portal module is also loaded normally on regular requests.
+     */
+    $portal = UAPM_PATH . 'includes/class-uapm-portal.php';
+
+    if (file_exists($portal)) {
+
+        require_once $portal;
+
+        if (class_exists('UAPM_Portal') && is_callable(array('UAPM_Portal', 'register_rewrite'))) {
+            UAPM_Portal::register_rewrite();
         }
     }
 
