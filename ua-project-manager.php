@@ -43,11 +43,8 @@ if (!defined('UAPM_BASENAME')) {
 final class UAPM_Plugin {
 
     private static $instance = null;
-
     private $loaded = array();
-
     private $errors = array();
-
     private $initialized = false;
 
     public static function instance() {
@@ -63,6 +60,7 @@ final class UAPM_Plugin {
     }
 
     public function load_plugin() {
+
         if ($this->initialized) {
             return;
         }
@@ -71,12 +69,13 @@ final class UAPM_Plugin {
 
         $this->load_modules();
 
+        $this->initialize_modules();
+
         if (class_exists('UAPM_Installer')) {
             $installed_version = get_option('uapm_db_version', '');
 
             if (version_compare($installed_version, UAPM_DB_VERSION, '<')) {
                 UAPM_Installer::activate();
-
                 update_option('uapm_db_version', UAPM_DB_VERSION);
             }
         }
@@ -147,13 +146,86 @@ final class UAPM_Plugin {
             $path = UAPM_PATH . 'includes/' . $file;
 
             if (!file_exists($path)) {
-                $this->errors[] = $file;
+                $this->errors[] = 'includes/' . $file;
                 continue;
             }
 
             require_once $path;
 
             $this->loaded[] = $file;
+        }
+    }
+
+    private function initialize_modules() {
+
+        /*
+         * These modules initialize themselves when loaded:
+         *
+         * UAPM_Clients
+         * UAPM_GitHub
+         * UAPM_Downloads
+         * UAPM_Integrations
+         * UAPM_Notifications
+         * UAPM_Code_Inspector
+         * UAPM_REST_API
+         * UAPM_Dependencies
+         *
+         * They must not be initialized again here.
+         */
+
+        $classes = array(
+            'UAPM_Roles',
+            'UAPM_Settings',
+            'UAPM_Projects',
+            'UAPM_Customers',
+            'UAPM_Payments',
+            'UAPM_License_Manager',
+            'UAPM_License_Sites',
+            'UAPM_Updater',
+            'UAPM_Installations',
+            'UAPM_Email_Templates',
+            'UAPM_Queue',
+            'UAPM_Cron',
+            'UAPM_Webhooks',
+            'UAPM_Code_Generator',
+            'UAPM_Analytics',
+            'UAPM_Reports',
+            'UAPM_Mailings',
+            'UAPM_API',
+            'UAPM_Activity_Log',
+            'UAPM_Activity_Monitor',
+            'UAPM_Activity_Feed',
+            'UAPM_Audit',
+            'UAPM_Logs',
+            'UAPM_Privacy',
+            'UAPM_Backups',
+            'UAPM_Export',
+            'UAPM_Import',
+            'UAPM_Diagnostics',
+            'UAPM_System_Health',
+            'UAPM_Dashboard_Widgets',
+            'UAPM_Search',
+            'UAPM_Notes',
+            'UAPM_Tasks',
+            'UAPM_Comments',
+            'UAPM_Attachments',
+            'UAPM_Activity_Calendar',
+            'UAPM_Project_Activity',
+            'UAPM_Milestones',
+            'UAPM_Admin',
+        );
+
+        foreach ($classes as $class) {
+
+            if (!class_exists($class)) {
+                continue;
+            }
+
+            if (!is_callable(array($class, 'init'))) {
+                continue;
+            }
+
+            call_user_func(array($class, 'init'));
         }
     }
 
@@ -180,8 +252,9 @@ final class UAPM_Plugin {
 
         if (!empty($this->errors)) {
 
-            echo '<div class="notice notice-error"><p>';
-            echo '<strong>UA Project Manager:</strong> Не знайдено такі файли модулів:</p><ul>';
+            echo '<div class="notice notice-error">';
+            echo '<p><strong>UA Project Manager:</strong> Не знайдено файли модулів:</p>';
+            echo '<ul>';
 
             foreach ($this->errors as $file) {
                 echo '<li>' . esc_html($file) . '</li>';
@@ -198,22 +271,18 @@ final class UAPM_Plugin {
             'UA Pay Box' => array(
                 'slug' => 'ua-pay-box/ua-pay-box.php',
                 'description' => 'Платежі та керування PRO-доступом.',
-                'required' => false,
             ),
             'UA Click Counter' => array(
                 'slug' => 'ua-click-counter/ua-click-counter.php',
                 'description' => 'Облік натискань на кнопки та посилання.',
-                'required' => false,
             ),
             'UA Plugins Monitor' => array(
                 'slug' => 'ua-plugins-monitor/ua-plugins-monitor.php',
                 'description' => 'Моніторинг встановлень та оновлень.',
-                'required' => false,
             ),
             'CMS Web Finder' => array(
                 'slug' => 'cms-web-finder/cms-web-finder.php',
                 'description' => 'Передача списків сайтів та кампаній.',
-                'required' => false,
             ),
         );
 
@@ -237,17 +306,13 @@ final class UAPM_Plugin {
         foreach ($missing as $name => $dependency) {
 
             echo '<li><strong>' . esc_html($name) . '</strong>';
-
             echo ' — ' . esc_html($dependency['description']);
-
-            echo ' (необов’язкова інтеграція)';
-
-            echo '</li>';
+            echo ' (необов’язкова інтеграція)</li>';
         }
 
         echo '</ul>';
 
-        echo '<p>Основні функції UA Project Manager не повинні залежати від наявності цих плагінів.</p>';
+        echo '<p>Основні функції UA Project Manager повинні працювати незалежно від цих плагінів.</p>';
 
         echo '<p><a href="' . esc_url(admin_url('plugins.php')) . '">';
         echo 'Переглянути встановлені плагіни';
@@ -275,6 +340,7 @@ function uapm_activate_plugin() {
     $installer = UAPM_PATH . 'includes/class-uapm-installer.php';
 
     if (file_exists($installer)) {
+
         require_once $installer;
 
         if (class_exists('UAPM_Installer')) {
