@@ -1,3 +1,4 @@
+
 <?php
 /**
  * UA Project Manager
@@ -78,17 +79,20 @@ final class UAPM_GitHub {
             );
         }
 
+        $headers = array(
+            'Accept' => 'application/vnd.github+json',
+            'X-GitHub-Api-Version' => '2022-11-28',
+            'User-Agent' => 'UA-Project-Manager',
+        );
+
+        if (!empty($settings['token'])) {
+            $headers['Authorization'] = 'Bearer ' . $settings['token'];
+        }
+
         $response = wp_remote_get(
             self::API_URL . '/' . $endpoint,
             array(
-                'headers' => array(
-                    'Accept' => 'application/vnd.github+json',
-                    'X-GitHub-Api-Version' => '2022-11-28',
-                    'User-Agent' => 'UA-Project-Manager',
-                    'Authorization' => !empty($settings['token'])
-                        ? 'Bearer ' . $settings['token']
-                        : '',
-                ),
+                'headers' => $headers,
                 'timeout' => 20,
                 'redirection' => 0,
             )
@@ -206,7 +210,10 @@ final class UAPM_GitHub {
         $assets = array();
 
         foreach ($release['assets'] as $asset) {
-            if (empty($asset['browser_download_url'])) {
+            if (
+                !is_array($asset) ||
+                empty($asset['browser_download_url'])
+            ) {
                 continue;
             }
 
@@ -216,8 +223,16 @@ final class UAPM_GitHub {
                 continue;
             }
 
+            $asset_id = isset($asset['id'])
+                ? absint($asset['id'])
+                : 0;
+
+            if (!$asset_id) {
+                continue;
+            }
+
             $assets[] = array(
-                'id' => isset($asset['id']) ? absint($asset['id']) : 0,
+                'id' => $asset_id,
                 'name' => isset($asset['name'])
                     ? sanitize_file_name($asset['name'])
                     : '',
@@ -300,16 +315,24 @@ final class UAPM_GitHub {
 
             $assets = self::get_release_assets($release);
 
+            /*
+             * Зберігаємо повний перелік файлів релізу.
+             * Модуль Downloads використовує ID активу
+             * для створення безпечного посилання на завантаження.
+             */
+            $assets_json = wp_json_encode(
+                $assets,
+                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+            );
+
+            if (!is_string($assets_json)) {
+                $assets_json = '[]';
+            }
+
             $download_url = '';
 
             if (!empty($assets)) {
                 $download_url = $assets[0]['download_url'];
-            } elseif (!empty($release['zipball_url'])) {
-                $candidate = esc_url_raw($release['zipball_url']);
-
-                if (strpos($candidate, 'https://api.github.com/') === 0) {
-                    $download_url = $candidate;
-                }
             }
 
             $version = ltrim($tag, 'vV');
@@ -322,6 +345,7 @@ final class UAPM_GitHub {
                     ? esc_url_raw($release['html_url'])
                     : '',
                 'download_url' => $download_url,
+                'assets_json' => $assets_json,
                 'changelog' => isset($release['body'])
                     ? wp_kses_post($release['body'])
                     : '',
@@ -414,7 +438,9 @@ final class UAPM_GitHub {
         $message = is_wp_error($result)
             ? $result->get_error_message()
             : 'Підключення успішне. GitHub-користувач: ' .
-                (isset($result['login']) ? sanitize_text_field($result['login']) : 'невідомий');
+                (isset($result['login'])
+                    ? sanitize_text_field($result['login'])
+                    : 'невідомий');
 
         set_transient(
             'uapm_github_connection_' . get_current_user_id(),
