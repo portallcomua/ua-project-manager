@@ -1,4 +1,10 @@
 <?php
+/**
+ * UA Project Manager — Security.
+ *
+ * @package UA_Project_Manager
+ */
+
 if (!defined('ABSPATH')) {
     exit;
 }
@@ -6,51 +12,26 @@ if (!defined('ABSPATH')) {
 class UAPM_Security {
 
     public static function init() {
-        add_filter('wp_headers', array(__CLASS__, 'security_headers'));
+        add_action('rest_api_init', array(__CLASS__, 'register_rest_permissions'));
     }
 
-    public static function nonce_field($action, $name = '_uapm_nonce') {
-        wp_nonce_field($action, $name);
-    }
-
-    public static function verify_admin_request($action, $nonce_name = '_uapm_nonce') {
-        if (!current_user_can('manage_options') &&
-            !current_user_can('uapm_manage_projects')) {
+    public static function verify_admin() {
+        if (!current_user_can('manage_options')) {
             wp_die(
-                esc_html__('Недостатньо прав для виконання цієї дії.', 'ua-project-manager'),
+                esc_html__('Недостатньо прав доступу.', 'ua-project-manager'),
                 '',
                 array('response' => 403)
             );
         }
-
-        $nonce = isset($_POST[$nonce_name])
-            ? sanitize_text_field(wp_unslash($_POST[$nonce_name]))
-            : '';
-
-        if (!$nonce || !wp_verify_nonce($nonce, $action)) {
-            wp_die(
-                esc_html__('Перевірка безпеки не пройдена. Оновіть сторінку та повторіть дію.', 'ua-project-manager'),
-                '',
-                array('response' => 403)
-            );
-        }
-
-        return true;
     }
 
-    public static function verify_rest_permission($request) {
-        if (!is_user_logged_in()) {
-            return new WP_Error(
-                'uapm_auth_required',
-                'Потрібна авторизація.',
-                array('status' => 401)
-            );
-        }
+    public static function verify_capability($capability) {
+        $capability = sanitize_key($capability);
 
-        if (!current_user_can('uapm_manage_projects')) {
+        if (!$capability || !current_user_can($capability)) {
             return new WP_Error(
                 'uapm_forbidden',
-                'Недостатньо прав.',
+                __('Недостатньо прав доступу.', 'ua-project-manager'),
                 array('status' => 403)
             );
         }
@@ -58,78 +39,102 @@ class UAPM_Security {
         return true;
     }
 
-    public static function generate_token($length = 48) {
-        $length = max(16, min(128, absint($length)));
+    public static function verify_nonce($nonce, $action = 'uapm_admin_action') {
+        return wp_verify_nonce(
+            sanitize_text_field(wp_unslash($nonce)),
+            $action
+        );
+    }
 
-        try {
-            return bin2hex(random_bytes((int) ceil($length / 2)));
-        } catch (Exception $exception) {
-            return wp_generate_password($length, false, false);
-        }
+    public static function create_token($length = 48) {
+        $length = max(16, min(128, absint($length)));
+        $bytes = random_bytes((int) ceil($length / 2));
+
+        return substr(bin2hex($bytes), 0, $length);
     }
 
     public static function hash_token($token) {
-        return hash('sha256', (string) $token);
+        return hash_hmac(
+            'sha256',
+            (string) $token,
+            wp_salt('auth')
+        );
     }
 
     public static function verify_token($token, $stored_hash) {
-        if (!$token || !$stored_hash) {
+        if (!is_string($token) || !is_string($stored_hash)) {
             return false;
         }
 
         return hash_equals(
-            (string) $stored_hash,
+            $stored_hash,
             self::hash_token($token)
         );
     }
 
-    public static function create_signature($payload, $secret) {
-        if (is_array($payload) || is_object($payload)) {
-            $payload = wp_json_encode($payload);
+    public static function generate_signature($data, $secret) {
+        if (!is_scalar($data) || !is_string($secret) || $secret === '') {
+            return '';
         }
 
-        return hash_hmac(
-            'sha256',
-            (string) $payload,
-            (string) $secret
-        );
+        return hash_hmac('sha256', (string) $data, $secret);
     }
 
-    public static function verify_signature($payload, $signature, $secret) {
-        if (!$signature || !$secret) {
+    public static function verify_signature($data, $signature, $secret) {
+        if (!is_string($signature) || $signature === '') {
             return false;
         }
 
-        $expected = self::create_signature($payload, $secret);
+        $expected = self::generate_signature($data, $secret);
 
-        return hash_equals($expected, (string) $signature);
+        return $expected !== '' && hash_equals($expected, $signature);
     }
 
-    public static function check_rate_limit($key, $limit = 10, $period = 60) {
+    public static function rate_limit($key, $limit = 10, $period = 60) {
         $key = sanitize_key($key);
 
         if (!$key) {
             return false;
         }
 
+        $user_id = get_current_user_id();
+        $ip = self::get_ip_address();
+
+        $identifier = hash(
+            'sha256',
+            $key . '|' . $user_id . '|' . $ip
+        );
+
+        $transient_key = 'uapm_rl_' . substr($identifier, 0, 40);
+        $data = get_transient($transient_key);
+
         $limit = max(1, absint($limit));
         $period = max(1, absint($period));
 
-        $transient_key = 'uapm_rl_' . md5($key);
-        $data = get_transient($transient_key);
-
         if (!is_array($data)) {
-            $data = array(
-                'count' => 0,
-                'started' => time(),
+            set_transient(
+                $transient_key,
+                array(
+                    'count' => 1,
+                    'started' => time(),
+                ),
+                $period
             );
+
+            return true;
         }
 
-        if ((time() - absint($data['started'])) >= $period) {
-            $data = array(
-                'count' => 0,
-                'started' => time(),
+        if (time() - absint($data['started']) >= $period) {
+            set_transient(
+                $transient_key,
+                array(
+                    'count' => 1,
+                    'started' => time(),
+                ),
+                $period
             );
+
+            return true;
         }
 
         if (absint($data['count']) >= $limit) {
@@ -143,124 +148,76 @@ class UAPM_Security {
         return true;
     }
 
-    public static function normalize_domain($value) {
-        $value = trim((string) $value);
+    public static function get_ip_address() {
+        $ip = isset($_SERVER['REMOTE_ADDR'])
+            ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR']))
+            : '';
 
-        if (!$value) {
-            return '';
-        }
-
-        if (strpos($value, '://') === false) {
-            $value = 'https://' . $value;
-        }
-
-        $host = wp_parse_url($value, PHP_URL_HOST);
-
-        if (!$host) {
-            return '';
-        }
-
-        $host = strtolower($host);
-        $host = preg_replace('/^www\./', '', $host);
-        $host = rtrim($host, '.');
-
-        if (strlen($host) > 253) {
-            return '';
-        }
-
-        if (filter_var($host, FILTER_VALIDATE_IP)) {
-            return '';
-        }
-
-        if (!preg_match('/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i', $host)) {
-            return '';
-        }
-
-        return $host;
+        return filter_var($ip, FILTER_VALIDATE_IP) ? $ip : '';
     }
 
-    public static function sanitize_target($target, $type) {
-        $target = trim((string) $target);
+    public static function sanitize_url($url) {
+        $url = esc_url_raw($url);
 
-        if ($type === 'email') {
-            return sanitize_email($target);
+        if (!$url) {
+            return '';
         }
 
-        if ($type === 'domain') {
-            return self::normalize_domain($target);
+        $scheme = wp_parse_url($url, PHP_URL_SCHEME);
+
+        if (!in_array(strtolower((string) $scheme), array('http', 'https'), true)) {
+            return '';
         }
 
-        return sanitize_text_field($target);
+        return $url;
     }
 
     public static function safe_redirect($url, $fallback = '') {
-        $url = wp_validate_redirect($url, $fallback);
+        $url = self::sanitize_url($url);
 
         if (!$url) {
-            $url = admin_url();
+            $url = $fallback ? self::sanitize_url($fallback) : admin_url();
         }
 
         wp_safe_redirect($url);
         exit;
     }
 
-    public static function security_headers($headers) {
-        if (is_admin()) {
-            return $headers;
-        }
-
-        $headers['X-Content-Type-Options'] = 'nosniff';
-        $headers['X-Frame-Options'] = 'SAMEORIGIN';
-        $headers['Referrer-Policy'] = 'strict-origin-when-cross-origin';
-
-        return $headers;
+    public static function register_rest_permissions() {
+        do_action('uapm_register_rest_permissions');
     }
 
-    public static function get_client_ip_hash() {
-        $ip = isset($_SERVER['REMOTE_ADDR'])
-            ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR']))
-            : '';
-
-        if (!$ip || !filter_var($ip, FILTER_VALIDATE_IP)) {
-            return '';
-        }
-
-        return hash_hmac('sha256', $ip, wp_salt('auth'));
+    public static function rest_admin_permission() {
+        return current_user_can('manage_options');
     }
 
-    public static function validate_external_url($url) {
-        $url = esc_url_raw(trim((string) $url));
+    public static function rest_manager_permission() {
+        return is_user_logged_in() &&
+            class_exists('UAPM_Roles') &&
+            UAPM_Roles::can_manage_own_clients();
+    }
 
-        if (!$url) {
-            return false;
+    public static function sanitize_payload($payload) {
+        if (!is_array($payload)) {
+            return array();
         }
 
-        $parts = wp_parse_url($url);
+        $clean = array();
 
-        if (empty($parts['scheme']) || empty($parts['host'])) {
-            return false;
-        }
+        foreach ($payload as $key => $value) {
+            $key = sanitize_key($key);
 
-        if (!in_array(strtolower($parts['scheme']), array('http', 'https'), true)) {
-            return false;
-        }
-
-        $host = strtolower($parts['host']);
-
-        if ($host === 'localhost' || substr($host, -10) === '.localhost') {
-            return false;
-        }
-
-        if (filter_var($host, FILTER_VALIDATE_IP)) {
-            if (!filter_var(
-                $host,
-                FILTER_VALIDATE_IP,
-                FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
-            )) {
-                return false;
+            if (is_array($value)) {
+                $clean[$key] = self::sanitize_payload($value);
+            } elseif (is_email($value)) {
+                $clean[$key] = sanitize_email($value);
+            } elseif (is_scalar($value)) {
+                $clean[$key] = sanitize_text_field((string) $value);
             }
         }
 
-        return $url;
+        return $clean;
     }
 }
+
+UAPM_Security::init();
