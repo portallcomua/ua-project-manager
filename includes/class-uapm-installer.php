@@ -26,7 +26,22 @@ final class UAPM_Installer {
         self::create_roles();
         self::create_default_settings();
 
-        update_option('uapm_db_version', defined('UAPM_DB_VERSION') ? UAPM_DB_VERSION : '1.0.0');
+        if (class_exists('UAPM_Integrations')) {
+            UAPM_Integrations::install_schema();
+        }
+
+        if (class_exists('UAPM_Downloads')) {
+            UAPM_Downloads::install_schema();
+        }
+
+        if (class_exists('UAPM_Payments')) {
+            UAPM_Payments::install_schema();
+        }
+
+        update_option(
+            'uapm_db_version',
+            defined('UAPM_DB_VERSION') ? UAPM_DB_VERSION : '1.1.0'
+        );
     }
 
     private static function get_table_definitions($charset) {
@@ -171,12 +186,32 @@ final class UAPM_Installer {
                 release_tag varchar(100) NOT NULL,
                 release_url text NULL,
                 download_url text NULL,
+                assets_json longtext NULL,
                 changelog longtext NULL,
                 is_stable tinyint(1) NOT NULL DEFAULT 1,
                 created_at datetime NOT NULL,
                 PRIMARY KEY  (id),
                 KEY project_id (project_id),
                 KEY version (version)
+            ) {$charset};",
+
+            "CREATE TABLE {$prefix}downloads (
+                id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+                project_id bigint(20) unsigned NOT NULL DEFAULT 0,
+                release_id bigint(20) unsigned NOT NULL DEFAULT 0,
+                asset_id bigint(20) unsigned NOT NULL DEFAULT 0,
+                asset_name varchar(255) NOT NULL DEFAULT '',
+                download_url text NOT NULL,
+                visitor_hash varchar(64) NOT NULL DEFAULT '',
+                user_id bigint(20) unsigned NOT NULL DEFAULT 0,
+                event_type varchar(30) NOT NULL DEFAULT 'click',
+                created_at datetime NOT NULL,
+                PRIMARY KEY  (id),
+                KEY project_id (project_id),
+                KEY release_id (release_id),
+                KEY asset_id (asset_id),
+                KEY event_type (event_type),
+                KEY created_at (created_at)
             ) {$charset};",
 
             "CREATE TABLE {$prefix}activity_log (
@@ -197,13 +232,34 @@ final class UAPM_Installer {
             "CREATE TABLE {$prefix}integrations (
                 id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
                 integration_key varchar(100) NOT NULL,
-                integration_name varchar(191) NOT NULL,
-                integration_status varchar(30) NOT NULL DEFAULT 'inactive',
+                name varchar(255) NOT NULL DEFAULT '',
+                description text NULL,
+                integration_type varchar(50) NOT NULL DEFAULT 'external',
+                status varchar(30) NOT NULL DEFAULT 'inactive',
+                access_token_hash varchar(64) NOT NULL DEFAULT '',
+                secret_key longtext NULL,
                 settings longtext NULL,
+                last_seen datetime NULL,
+                integration_name varchar(191) NOT NULL DEFAULT '',
+                integration_status varchar(30) NOT NULL DEFAULT 'inactive',
                 created_at datetime NOT NULL,
                 updated_at datetime NOT NULL,
                 PRIMARY KEY  (id),
-                UNIQUE KEY integration_key (integration_key)
+                UNIQUE KEY integration_key (integration_key),
+                KEY status (status),
+                KEY integration_type (integration_type)
+            ) {$charset};",
+
+            "CREATE TABLE {$prefix}integration_events (
+                id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+                integration_id bigint(20) unsigned NOT NULL,
+                event_type varchar(100) NOT NULL,
+                payload longtext NULL,
+                created_at datetime NOT NULL,
+                PRIMARY KEY  (id),
+                KEY integration_id (integration_id),
+                KEY event_type (event_type),
+                KEY created_at (created_at)
             ) {$charset};",
 
             "CREATE TABLE {$prefix}notifications (
@@ -246,13 +302,6 @@ final class UAPM_Installer {
         } else {
             $manager_role->add_cap('read');
             $manager_role->add_cap('uapm_access_manager');
-
-            $roles = wp_roles();
-
-            if (isset($roles->roles['uapm_manager'])) {
-                $roles->roles['uapm_manager']['name'] = 'Менеджер UPM';
-                update_option($roles->role_key, $roles->roles);
-            }
         }
 
         $admin = get_role('administrator');
