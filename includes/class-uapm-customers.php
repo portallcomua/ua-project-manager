@@ -13,51 +13,10 @@ class UAPM_Customers {
     }
 
     public static function init() {
-        self::install_schema();
-
         add_action('admin_post_uapm_save_customer', array(__CLASS__, 'handle_save'));
         add_action('admin_post_uapm_delete_customer', array(__CLASS__, 'handle_delete'));
     }
 
-    /**
-     * Перевіряє наявність колонки.
-     */
-    private static function column_exists($table, $column) {
-        global $wpdb;
-
-        return (bool) $wpdb->get_var(
-            $wpdb->prepare(
-                "SHOW COLUMNS FROM `{$table}` LIKE %s",
-                $column
-            )
-        );
-    }
-
-    /**
-     * Перевіряє наявність індексу.
-     */
-    private static function index_exists($table, $index) {
-        global $wpdb;
-
-        $indexes = $wpdb->get_results("SHOW INDEX FROM `{$table}`");
-
-        if (!$indexes) {
-            return false;
-        }
-
-        foreach ($indexes as $item) {
-            if ($item->Key_name === $index) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Безпечне оновлення структури таблиці.
-     * Не додає повторно наявні поля та індекси.
-     */
     public static function install_schema() {
         global $wpdb;
 
@@ -68,83 +27,49 @@ class UAPM_Customers {
         self::$schema_checked = true;
 
         $table = self::table();
+        $exists = $wpdb->get_var(
+            $wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table))
+        );
+
+        if ($exists === $table) {
+            return;
+        }
+
+        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
         $charset = $wpdb->get_charset_collate();
 
-        $exists = $wpdb->get_var(
-            $wpdb->prepare(
-                'SHOW TABLES LIKE %s',
-                $wpdb->esc_like($table)
-            )
-        );
+        $sql = "CREATE TABLE {$table} (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            user_id bigint(20) unsigned NOT NULL DEFAULT 0,
+            name varchar(190) NOT NULL DEFAULT '',
+            email varchar(190) NOT NULL DEFAULT '',
+            phone varchar(60) NOT NULL DEFAULT '',
+            company varchar(190) NOT NULL DEFAULT '',
+            country varchar(100) NOT NULL DEFAULT '',
+            customer_type varchar(30) NOT NULL DEFAULT 'individual',
+            status varchar(30) NOT NULL DEFAULT 'active',
+            mailing_consent tinyint(1) NOT NULL DEFAULT 0,
+            notes longtext NULL,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY  (id),
+            KEY user_id (user_id),
+            KEY email (email),
+            KEY status (status)
+        ) {$charset};";
 
-        if ($exists !== $table) {
-            require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-
-            $sql = "CREATE TABLE {$table} (
-                id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-                user_id bigint(20) unsigned NOT NULL DEFAULT 0,
-                name varchar(190) NOT NULL DEFAULT '',
-                email varchar(190) NOT NULL DEFAULT '',
-                phone varchar(60) NOT NULL DEFAULT '',
-                company varchar(190) NOT NULL DEFAULT '',
-                country varchar(100) NOT NULL DEFAULT '',
-                customer_type varchar(30) NOT NULL DEFAULT 'individual',
-                status varchar(30) NOT NULL DEFAULT 'active',
-                mailing_consent tinyint(1) NOT NULL DEFAULT 0,
-                notes longtext NULL,
-                created_at datetime NOT NULL,
-                updated_at datetime NOT NULL,
-                PRIMARY KEY  (id),
-                KEY user_id (user_id),
-                KEY email (email),
-                KEY status (status)
-            ) {$charset};";
-
-            dbDelta($sql);
-        }
-
-        $columns = array(
-            'user_id' => "bigint(20) unsigned NOT NULL DEFAULT 0",
-            'phone' => "varchar(60) NOT NULL DEFAULT ''",
-            'company' => "varchar(190) NOT NULL DEFAULT ''",
-            'country' => "varchar(100) NOT NULL DEFAULT ''",
-            'customer_type' => "varchar(30) NOT NULL DEFAULT 'individual'",
-            'status' => "varchar(30) NOT NULL DEFAULT 'active'",
-            'mailing_consent' => "tinyint(1) NOT NULL DEFAULT 0",
-            'notes' => "longtext NULL",
-        );
-
-        foreach ($columns as $column => $definition) {
-            if (!self::column_exists($table, $column)) {
-                $wpdb->query(
-                    "ALTER TABLE `{$table}` ADD COLUMN `{$column}` {$definition}"
-                );
-            }
-        }
-
-        $indexes = array(
-            'user_id' => 'user_id',
-            'status' => 'status',
-        );
-
-        foreach ($indexes as $index => $column) {
-            if (
-                !self::index_exists($table, $index) &&
-                self::column_exists($table, $column)
-            ) {
-                $wpdb->query(
-                    "ALTER TABLE `{$table}` ADD KEY `{$index}` (`{$column}`)"
-                );
-            }
-        }
+        dbDelta($sql);
     }
 
     public static function create($data) {
         global $wpdb;
 
+        self::install_schema();
+
         $data = self::sanitize_data($data);
 
-        if (empty($data['email']) || !is_email($data['email'])) {
+        if (!$data['email'] || !is_email($data['email'])) {
             return new WP_Error('invalid_email', 'Вкажіть коректну електронну адресу.');
         }
 
@@ -156,20 +81,23 @@ class UAPM_Customers {
 
         $now = current_time('mysql');
 
-        $inserted = $wpdb->insert(
-            self::table(),
-            array_merge($data, array(
-                'created_at' => $now,
-                'updated_at' => $now,
-            )),
-            array(
-                '%d', '%s', '%s', '%s', '%s', '%s',
-                '%s', '%s', '%s', '%d', '%s', '%s', '%s',
-            )
+        $insert_data = array_merge($data, array(
+            'created_at' => $now,
+            'updated_at' => $now,
+        ));
+
+        $formats = array(
+            '%d', '%s', '%s', '%s', '%s', '%s',
+            '%s', '%s', '%d', '%s', '%s', '%s',
         );
 
+        $inserted = $wpdb->insert(self::table(), $insert_data, $formats);
+
         if (!$inserted) {
-            return new WP_Error('customer_create_failed', 'Не вдалося створити клієнта.');
+            return new WP_Error(
+                'customer_create_failed',
+                'Не вдалося створити клієнта: ' . $wpdb->last_error
+            );
         }
 
         $id = (int) $wpdb->insert_id;
@@ -182,6 +110,8 @@ class UAPM_Customers {
     public static function update($customer_id, $data) {
         global $wpdb;
 
+        self::install_schema();
+
         $customer_id = absint($customer_id);
 
         if (!$customer_id || !self::get($customer_id)) {
@@ -190,14 +120,17 @@ class UAPM_Customers {
 
         $data = self::sanitize_data($data);
 
-        if (empty($data['email']) || !is_email($data['email'])) {
+        if (!$data['email'] || !is_email($data['email'])) {
             return new WP_Error('invalid_email', 'Вкажіть коректну електронну адресу.');
         }
 
         $duplicate = self::get_by_email($data['email']);
 
         if ($duplicate && (int) $duplicate->id !== $customer_id) {
-            return new WP_Error('duplicate_email', 'Клієнт з такою електронною адресою вже існує.');
+            return new WP_Error(
+                'duplicate_email',
+                'Клієнт з такою електронною адресою вже існує.'
+            );
         }
 
         $data['updated_at'] = current_time('mysql');
@@ -209,7 +142,10 @@ class UAPM_Customers {
         );
 
         if ($updated === false) {
-            return new WP_Error('customer_update_failed', 'Не вдалося оновити клієнта.');
+            return new WP_Error(
+                'customer_update_failed',
+                'Не вдалося оновити клієнта: ' . $wpdb->last_error
+            );
         }
 
         do_action('uapm_customer_updated', $customer_id, $data);
@@ -218,6 +154,14 @@ class UAPM_Customers {
     }
 
     private static function sanitize_data($data) {
+        $customer_type = isset($data['customer_type'])
+            ? sanitize_key($data['customer_type'])
+            : 'individual';
+
+        $status = isset($data['status'])
+            ? sanitize_key($data['status'])
+            : 'active';
+
         return array(
             'user_id' => absint($data['user_id'] ?? 0),
             'name' => sanitize_text_field($data['name'] ?? ''),
@@ -226,15 +170,15 @@ class UAPM_Customers {
             'company' => sanitize_text_field($data['company'] ?? ''),
             'country' => sanitize_text_field($data['country'] ?? ''),
             'customer_type' => in_array(
-                $data['customer_type'] ?? '',
+                $customer_type,
                 array('individual', 'business'),
                 true
-            ) ? $data['customer_type'] : 'individual',
+            ) ? $customer_type : 'individual',
             'status' => in_array(
-                $data['status'] ?? '',
+                $status,
                 array('active', 'inactive', 'blocked'),
                 true
-            ) ? $data['status'] : 'active',
+            ) ? $status : 'active',
             'mailing_consent' => empty($data['mailing_consent']) ? 0 : 1,
             'notes' => sanitize_textarea_field($data['notes'] ?? ''),
         );
@@ -243,9 +187,11 @@ class UAPM_Customers {
     public static function get($customer_id) {
         global $wpdb;
 
+        self::install_schema();
+
         return $wpdb->get_row(
             $wpdb->prepare(
-                "SELECT * FROM " . self::table() . " WHERE id = %d",
+                'SELECT * FROM ' . self::table() . ' WHERE id = %d',
                 absint($customer_id)
             )
         );
@@ -254,9 +200,11 @@ class UAPM_Customers {
     public static function get_by_email($email) {
         global $wpdb;
 
+        self::install_schema();
+
         return $wpdb->get_row(
             $wpdb->prepare(
-                "SELECT * FROM " . self::table() . " WHERE email = %s LIMIT 1",
+                'SELECT * FROM ' . self::table() . ' WHERE email = %s LIMIT 1',
                 sanitize_email($email)
             )
         );
@@ -265,9 +213,11 @@ class UAPM_Customers {
     public static function get_by_user_id($user_id) {
         global $wpdb;
 
+        self::install_schema();
+
         return $wpdb->get_row(
             $wpdb->prepare(
-                "SELECT * FROM " . self::table() . " WHERE user_id = %d LIMIT 1",
+                'SELECT * FROM ' . self::table() . ' WHERE user_id = %d LIMIT 1',
                 absint($user_id)
             )
         );
@@ -275,6 +225,8 @@ class UAPM_Customers {
 
     public static function get_all($args = array()) {
         global $wpdb;
+
+        self::install_schema();
 
         $defaults = array(
             'search' => '',
@@ -301,9 +253,7 @@ class UAPM_Customers {
         if ($args['search'] !== '') {
             $like = '%' . $wpdb->esc_like($args['search']) . '%';
             $where[] = '(name LIKE %s OR email LIKE %s OR company LIKE %s)';
-            $values[] = $like;
-            $values[] = $like;
-            $values[] = $like;
+            array_push($values, $like, $like, $like);
         }
 
         if ($args['status'] !== '') {
@@ -319,8 +269,8 @@ class UAPM_Customers {
         $limit = max(1, min(500, absint($args['limit'])));
         $offset = absint($args['offset']);
 
-        $sql = "SELECT * FROM " . self::table() .
-            " WHERE " . implode(' AND ', $where) .
+        $sql = 'SELECT * FROM ' . self::table() .
+            ' WHERE ' . implode(' AND ', $where) .
             " ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d";
 
         $values[] = $limit;
@@ -331,6 +281,8 @@ class UAPM_Customers {
 
     public static function count($args = array()) {
         global $wpdb;
+
+        self::install_schema();
 
         $where = array('1=1');
         $values = array();
@@ -351,8 +303,8 @@ class UAPM_Customers {
             $values[] = absint($args['mailing_consent']);
         }
 
-        $sql = "SELECT COUNT(*) FROM " . self::table() .
-            " WHERE " . implode(' AND ', $where);
+        $sql = 'SELECT COUNT(*) FROM ' . self::table() .
+            ' WHERE ' . implode(' AND ', $where);
 
         if ($values) {
             $sql = $wpdb->prepare($sql, $values);
@@ -363,6 +315,8 @@ class UAPM_Customers {
 
     public static function delete($customer_id) {
         global $wpdb;
+
+        self::install_schema();
 
         $customer_id = absint($customer_id);
 
@@ -377,7 +331,10 @@ class UAPM_Customers {
         );
 
         if (!$deleted) {
-            return new WP_Error('customer_delete_failed', 'Не вдалося видалити клієнта.');
+            return new WP_Error(
+                'customer_delete_failed',
+                'Не вдалося видалити клієнта: ' . $wpdb->last_error
+            );
         }
 
         do_action('uapm_customer_deleted', $customer_id);
@@ -387,7 +344,7 @@ class UAPM_Customers {
 
     public static function handle_save() {
         if (!current_user_can('uapm_manage_projects')) {
-            wp_die('Недостатньо прав.');
+            wp_die('Недостатньо прав.', '', array('response' => 403));
         }
 
         check_admin_referer('uapm_save_customer');
@@ -417,7 +374,7 @@ class UAPM_Customers {
 
     public static function handle_delete() {
         if (!current_user_can('uapm_manage_projects')) {
-            wp_die('Недостатньо прав.');
+            wp_die('Недостатньо прав.', '', array('response' => 403));
         }
 
         check_admin_referer('uapm_delete_customer');
@@ -442,10 +399,11 @@ class UAPM_Customers {
 
     public static function render_page() {
         if (!current_user_can('uapm_manage_projects')) {
-            wp_die('Недостатньо прав.');
+            wp_die('Недостатньо прав.', '', array('response' => 403));
         }
 
         $search = sanitize_text_field(wp_unslash($_GET['s'] ?? ''));
+
         $customers = self::get_all(array(
             'search' => $search,
             'limit' => 100,
@@ -504,14 +462,12 @@ class UAPM_Customers {
             echo '<td>' . (!empty($customer->mailing_consent) ? 'Так' : 'Ні') . '</td>';
             echo '<td>' . esc_html($customer->status) . '</td>';
             echo '<td>';
-
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" onsubmit="return confirm(\'Видалити клієнта?\')">';
             echo '<input type="hidden" name="action" value="uapm_delete_customer">';
             echo '<input type="hidden" name="customer_id" value="' . esc_attr($customer->id) . '">';
             wp_nonce_field('uapm_delete_customer');
             echo '<button class="button button-link-delete">Видалити</button>';
             echo '</form>';
-
             echo '</td></tr>';
         }
 
