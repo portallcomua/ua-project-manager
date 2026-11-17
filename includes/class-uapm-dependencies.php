@@ -1,4 +1,3 @@
-
 <?php
 if (!defined('ABSPATH')) {
     exit;
@@ -9,6 +8,7 @@ class UAPM_Dependencies {
     public static function init() {
         add_action('admin_notices', array(__CLASS__, 'show_notices'));
         add_action('admin_menu', array(__CLASS__, 'register_menu'), 110);
+        add_action('admin_menu', array(__CLASS__, 'register_module_menus'), 111);
         add_action('admin_post_uapm_check_dependencies', array(__CLASS__, 'handle_check'));
     }
 
@@ -144,6 +144,7 @@ class UAPM_Dependencies {
         $modules = self::check_modules();
 
         $requirements_ok = 0;
+
         foreach ($requirements as $item) {
             if ($item['ok']) {
                 $requirements_ok++;
@@ -151,6 +152,7 @@ class UAPM_Dependencies {
         }
 
         $modules_loaded = 0;
+
         foreach ($modules as $module) {
             if ($module['loaded']) {
                 $modules_loaded++;
@@ -203,6 +205,34 @@ class UAPM_Dependencies {
         );
     }
 
+    public static function register_module_menus() {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+
+        if (class_exists('UAPM_Integrations')) {
+            add_submenu_page(
+                'uapm',
+                'Інтеграції',
+                'Інтеграції',
+                'manage_options',
+                'uapm-integrations',
+                array('UAPM_Integrations', 'render_page')
+            );
+        }
+
+        if (class_exists('UAPM_GitHub')) {
+            add_submenu_page(
+                'uapm',
+                'GitHub та релізи',
+                'GitHub та релізи',
+                'manage_options',
+                'uapm-github',
+                array('UAPM_GitHub', 'render_page')
+            );
+        }
+    }
+
     public static function handle_check() {
         if (!current_user_can('manage_options')) {
             wp_die('Недостатньо прав.');
@@ -211,6 +241,7 @@ class UAPM_Dependencies {
         check_admin_referer('uapm_check_dependencies');
 
         $report = self::get_report();
+
         update_option('uapm_dependencies_last_report', $report, false);
 
         wp_safe_redirect(
@@ -220,6 +251,7 @@ class UAPM_Dependencies {
                 admin_url('admin.php?page=uapm-dependencies')
             )
         );
+
         exit;
     }
 
