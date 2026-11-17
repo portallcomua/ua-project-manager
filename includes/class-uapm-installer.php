@@ -26,6 +26,10 @@ final class UAPM_Installer {
         self::create_roles();
         self::create_default_settings();
 
+        if (class_exists('UAPM_Queue')) {
+            UAPM_Queue::install_schema();
+        }
+
         if (class_exists('UAPM_Integrations')) {
             UAPM_Integrations::install_schema();
         }
