@@ -1,12 +1,28 @@
 <?php
+/**
+ * UA Project Manager - Code Inspector.
+ *
+ * @package UA_Project_Manager
+ */
+
 if (!defined('ABSPATH')) {
     exit;
 }
 
-class UAPM_Code_Inspector {
+final class UAPM_Code_Inspector {
+
+    const VERSION = '1.1.0';
+    const MAX_FILES = 3000;
+    const MAX_PHP_FILE_SIZE = 2097152;
 
     public static function init() {
         add_action('admin_post_uapm_inspect_project', array(__CLASS__, 'handle_inspection'));
+    }
+
+    private static function can_inspect() {
+        return current_user_can('uapm_inspect_code') ||
+            current_user_can('uapm_manage_projects') ||
+            current_user_can('manage_options');
     }
 
     public static function inspect($project_id) {
@@ -21,44 +37,68 @@ class UAPM_Code_Inspector {
         }
 
         $slug = sanitize_title($project->slug);
-        $plugin_dir = WP_PLUGIN_DIR . '/' . $slug;
+        $plugin_dir = WP_PLUGIN_DIR . DIRECTORY_SEPARATOR . $slug;
 
-        if (!is_dir($plugin_dir)) {
+        $base_dir = realpath(WP_PLUGIN_DIR);
+        $real_dir = realpath($plugin_dir);
+
+        if (
+            !$base_dir ||
+            !$real_dir ||
+            !is_dir($real_dir) ||
+            strpos(
+                wp_normalize_path($real_dir) . '/',
+                trailingslashit(wp_normalize_path($base_dir))
+            ) !== 0
+        ) {
             return array(
                 'project_id' => absint($project_id),
-                'project_name' => $project->name,
+                'project_name' => sanitize_text_field($project->name),
+                'project_slug' => $slug,
                 'status' => 'not_installed',
-                'message' => 'Папку плагіна не знайдено на цьому WordPress-сайті.',
+                'message' => 'Папку плагіна не знайдено в каталозі встановлених плагінів.',
                 'files' => array(),
                 'summary' => array(
                     'total' => 0,
                     'php' => 0,
                     'other' => 0,
-                    'errors' => 0
+                    'errors' => 0,
+                    'warnings' => 0,
+                    'syntax_errors' => 0
                 ),
                 'checked_at' => current_time('mysql')
             );
         }
 
-        $files = self::scan_directory($plugin_dir);
-        $main_file = self::find_main_plugin_file($plugin_dir);
+        $files = self::scan_directory($real_dir);
+        $main_file = self::find_main_plugin_file($real_dir);
 
         $summary = array(
             'total' => count($files),
             'php' => 0,
             'other' => 0,
-            'errors' => 0
+            'errors' => 0,
+            'warnings' => 0,
+            'syntax_errors' => 0
         );
 
         foreach ($files as $file) {
             if ($file['type'] === 'php') {
                 $summary['php']++;
-            } else {
+            } elseif ($file['type'] === 'other') {
                 $summary['other']++;
             }
 
             if (!empty($file['error'])) {
                 $summary['errors']++;
+            }
+
+            if (!empty($file['warning'])) {
+                $summary['warnings']++;
+            }
+
+            if (!empty($file['syntax_error'])) {
+                $summary['syntax_errors']++;
             }
         }
 
@@ -77,21 +117,45 @@ class UAPM_Code_Inspector {
             );
         }
 
+        $project_version = isset($project->version)
+            ? sanitize_text_field($project->version)
+            : '';
+
+        $installed_version = isset($plugin_header['version'])
+            ? sanitize_text_field($plugin_header['version'])
+            : '';
+
+        $version_match = (
+            $project_version !== '' &&
+            $installed_version !== '' &&
+            version_compare($project_version, $installed_version, '==')
+        );
+
+        $status = 'completed';
+
+        if ($summary['errors'] > 0 || $summary['syntax_errors'] > 0) {
+            $status = 'error';
+        } elseif ($summary['warnings'] > 0 || !$main_file || !$version_match) {
+            $status = 'warning';
+        }
+
         $result = array(
             'project_id' => absint($project_id),
-            'project_name' => $project->name,
+            'project_name' => sanitize_text_field($project->name),
             'project_slug' => $slug,
-            'status' => $summary['errors'] > 0 ? 'warning' : 'completed',
-            'plugin_directory' => $plugin_dir,
-            'main_file' => $main_file ? basename($main_file) : '',
+            'status' => $status,
+            'plugin_directory' => $real_dir,
+            'main_file' => $main_file
+                ? str_replace(
+                    wp_normalize_path($real_dir) . '/',
+                    '',
+                    wp_normalize_path($main_file)
+                )
+                : '',
             'plugin_header' => $plugin_header,
-            'project_version' => isset($project->version) ? $project->version : '',
-            'installed_version' => isset($plugin_header['version']) ? $plugin_header['version'] : '',
-            'version_match' => (
-                !empty($project->version) &&
-                !empty($plugin_header['version']) &&
-                $project->version === $plugin_header['version']
-            ),
+            'project_version' => $project_version,
+            'installed_version' => $installed_version,
+            'version_match' => (bool) $version_match,
             'files' => $files,
             'summary' => $summary,
             'checked_at' => current_time('mysql')
@@ -104,66 +168,123 @@ class UAPM_Code_Inspector {
 
     private static function scan_directory($directory) {
         $results = array();
+        $directory = realpath($directory);
+
+        if (!$directory || !is_readable($directory)) {
+            return array(
+                self::error_item('', 'Немає доступу до каталогу плагіна.')
+            );
+        }
 
         try {
             $iterator = new RecursiveIteratorIterator(
                 new RecursiveDirectoryIterator(
                     $directory,
                     FilesystemIterator::SKIP_DOTS
-                )
+                ),
+                RecursiveIteratorIterator::LEAVES_ONLY
             );
 
             foreach ($iterator as $file) {
-                if (!$file->isFile()) {
+                if (count($results) >= self::MAX_FILES) {
+                    $results[] = self::error_item(
+                        '',
+                        'Досягнуто обмеження кількості файлів для перевірки.'
+                    );
+                    break;
+                }
+
+                if (!$file->isFile() || $file->isLink()) {
                     continue;
                 }
 
                 $path = $file->getPathname();
+                $real_path = realpath($path);
+
+                if (
+                    !$real_path ||
+                    strpos(
+                        wp_normalize_path($real_path),
+                        trailingslashit(wp_normalize_path($directory))
+                    ) !== 0
+                ) {
+                    continue;
+                }
+
                 $relative_path = ltrim(
-                    str_replace($directory, '', $path),
-                    DIRECTORY_SEPARATOR
+                    str_replace(
+                        wp_normalize_path($directory),
+                        '',
+                        wp_normalize_path($real_path)
+                    ),
+                    '/'
                 );
 
                 $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
                 $is_php = $extension === 'php';
+                $size = $file->getSize();
 
                 $item = array(
                     'name' => basename($path),
-                    'path' => str_replace(DIRECTORY_SEPARATOR, '/', $relative_path),
+                    'path' => $relative_path,
                     'type' => $is_php ? 'php' : 'other',
-                    'size' => $file->getSize(),
+                    'size' => $size,
                     'modified' => gmdate('Y-m-d H:i:s', $file->getMTime()),
-                    'hash' => hash_file('sha256', $path),
+                    'hash' => '',
                     'error' => false,
-                    'error_message' => ''
+                    'error_message' => '',
+                    'warning' => false,
+                    'warning_message' => '',
+                    'syntax_error' => false,
+                    'syntax_error_message' => ''
                 );
 
-                if ($is_php) {
-                    $contents = file_get_contents($path);
+                if (!is_readable($real_path)) {
+                    $item['error'] = true;
+                    $item['error_message'] = 'Файл недоступний для читання.';
+                    $results[] = $item;
+                    continue;
+                }
 
-                    if ($contents === false) {
-                        $item['error'] = true;
-                        $item['error_message'] = 'Не вдалося прочитати PHP-файл.';
-                    } elseif (strpos($contents, '<?php') === false) {
-                        $item['error'] = true;
-                        $item['error_message'] = 'Не знайдено відкривальний PHP-тег.';
+                $hash = hash_file('sha256', $real_path);
+
+                if ($hash !== false) {
+                    $item['hash'] = $hash;
+                } else {
+                    $item['warning'] = true;
+                    $item['warning_message'] = 'Не вдалося обчислити SHA-256.';
+                }
+
+                if ($is_php) {
+                    if ($size > self::MAX_PHP_FILE_SIZE) {
+                        $item['warning'] = true;
+                        $item['warning_message'] = 'PHP-файл завеликий для синтаксичної перевірки.';
+                    } else {
+                        $contents = file_get_contents($real_path);
+
+                        if ($contents === false) {
+                            $item['error'] = true;
+                            $item['error_message'] = 'Не вдалося прочитати PHP-файл.';
+                        } elseif (strpos($contents, '<?php') === false) {
+                            $item['warning'] = true;
+                            $item['warning_message'] = 'Не знайдено відкривальний PHP-тег.';
+                        } else {
+                            $syntax = self::check_php_syntax($contents);
+
+                            if (is_wp_error($syntax)) {
+                                $item['syntax_error'] = true;
+                                $item['syntax_error_message'] = $syntax->get_error_message();
+                            }
+                        }
                     }
                 }
 
                 $results[] = $item;
             }
-        } catch (Exception $exception) {
-            return array(
-                array(
-                    'name' => '',
-                    'path' => '',
-                    'type' => 'error',
-                    'size' => 0,
-                    'modified' => '',
-                    'hash' => '',
-                    'error' => true,
-                    'error_message' => $exception->getMessage()
-                )
+        } catch (Throwable $exception) {
+            $results[] = self::error_item(
+                '',
+                'Помилка сканування: ' . $exception->getMessage()
             );
         }
 
@@ -174,6 +295,51 @@ class UAPM_Code_Inspector {
         return $results;
     }
 
+    /**
+     * Parse PHP source without executing it.
+     */
+    private static function check_php_syntax($source) {
+        if (!defined('TOKEN_PARSE')) {
+            return new WP_Error(
+                'uapm_token_parse_unavailable',
+                'Ця версія PHP не підтримує повну перевірку синтаксису.'
+            );
+        }
+
+        try {
+            token_get_all($source, TOKEN_PARSE);
+        } catch (ParseError $exception) {
+            return new WP_Error(
+                'uapm_php_syntax_error',
+                $exception->getMessage()
+            );
+        } catch (Throwable $exception) {
+            return new WP_Error(
+                'uapm_php_parse_error',
+                $exception->getMessage()
+            );
+        }
+
+        return true;
+    }
+
+    private static function error_item($path, $message) {
+        return array(
+            'name' => $path ? basename($path) : '',
+            'path' => $path,
+            'type' => 'error',
+            'size' => 0,
+            'modified' => '',
+            'hash' => '',
+            'error' => true,
+            'error_message' => sanitize_text_field($message),
+            'warning' => false,
+            'warning_message' => '',
+            'syntax_error' => false,
+            'syntax_error_message' => ''
+        );
+    }
+
     private static function find_main_plugin_file($directory) {
         $files = glob(trailingslashit($directory) . '*.php');
 
@@ -182,6 +348,10 @@ class UAPM_Code_Inspector {
         }
 
         foreach ($files as $file) {
+            if (!is_file($file) || !is_readable($file)) {
+                continue;
+            }
+
             $headers = get_file_data(
                 $file,
                 array('name' => 'Plugin Name')
@@ -196,7 +366,7 @@ class UAPM_Code_Inspector {
     }
 
     public static function handle_inspection() {
-        if (!current_user_can('uapm_inspect_code')) {
+        if (!self::can_inspect()) {
             wp_die('Недостатньо прав для перевірки коду.');
         }
 
@@ -212,7 +382,7 @@ class UAPM_Code_Inspector {
             $redirect = add_query_arg(
                 array(
                     'page' => 'uapm-code-inspector',
-                    'uapm_error' => rawurlencode($result->get_error_message())
+                    'uapm_error' => $result->get_error_message()
                 ),
                 admin_url('admin.php')
             );
@@ -243,140 +413,167 @@ class UAPM_Code_Inspector {
     }
 
     public static function render_form($project_id = 0) {
-        if (!current_user_can('uapm_inspect_code')) {
+        if (!self::can_inspect()) {
             return;
         }
 
-        ?>
-        <div class="wrap">
-            <h1>UPM Code Inspector</h1>
+        $projects = class_exists('UAPM_Projects')
+            ? UAPM_Projects::get_all(array(
+                'limit' => 200,
+                'orderby' => 'name',
+                'order' => 'ASC'
+            ))
+            : array();
 
-            <p>Перевірка файлів встановленого плагіна на цьому WordPress-сайті.</p>
+        echo '<div class="wrap">';
+        echo '<h1>UPM Code Inspector</h1>';
+        echo '<p>Перевірка файлів плагіна, встановленого на цьому WordPress-сайті.</p>';
 
-            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                <input type="hidden" name="action" value="uapm_inspect_project">
+        if (isset($_GET['uapm_error'])) {
+            echo '<div class="notice notice-error"><p>' .
+                esc_html(sanitize_text_field(wp_unslash($_GET['uapm_error']))) .
+                '</p></div>';
+        }
 
-                <?php wp_nonce_field('uapm_inspect_project'); ?>
+        if (empty($projects)) {
+            echo '<p>Спочатку створіть проєкт у UA Project Manager.</p>';
+            echo '</div>';
+            return;
+        }
 
-                <label for="uapm_project_id">ID проєкту:</label>
+        echo '<form method="post" action="' .
+            esc_url(admin_url('admin-post.php')) . '">';
 
-                <input
-                    type="number"
-                    min="1"
-                    name="project_id"
-                    id="uapm_project_id"
-                    value="<?php echo esc_attr(absint($project_id)); ?>"
-                    required
-                >
+        echo '<input type="hidden" name="action" value="uapm_inspect_project">';
 
-                <?php submit_button('Перевірити файли'); ?>
-            </form>
+        wp_nonce_field('uapm_inspect_project');
 
-            <?php self::render_last_result(); ?>
-        </div>
-        <?php
+        echo '<p><label for="uapm_project_id">Проєкт:</label></p>';
+        echo '<select name="project_id" id="uapm_project_id" required>';
+
+        foreach ($projects as $project) {
+            echo '<option value="' . esc_attr(absint($project->id)) . '"' .
+                selected(absint($project_id), absint($project->id), false) . '>' .
+                esc_html($project->name . ' (' . $project->slug . ')') .
+                '</option>';
+        }
+
+        echo '</select> ';
+
+        submit_button('Перевірити файли', 'primary', 'submit', false);
+
+        echo '</form>';
+
+        self::render_last_result();
+
+        echo '</div>';
     }
 
     private static function render_last_result() {
         $result = self::get_last_result();
 
-        if (!$result) {
+        if (!$result || !is_array($result)) {
             return;
         }
 
-        ?>
-        <hr>
+        echo '<hr><h2>Результат перевірки</h2>';
 
-        <h2>Результат перевірки</h2>
+        echo '<p><strong>Проєкт:</strong> ' .
+            esc_html($result['project_name']) . '</p>';
 
-        <p>
-            <strong>Проєкт:</strong>
-            <?php echo esc_html($result['project_name']); ?>
-        </p>
+        echo '<p><strong>Статус:</strong> ' .
+            esc_html($result['status']) . '</p>';
 
-        <p>
-            <strong>Статус:</strong>
-            <?php echo esc_html($result['status']); ?>
-        </p>
+        echo '<p><strong>Дата:</strong> ' .
+            esc_html($result['checked_at']) . '</p>';
 
-        <p>
-            <strong>Дата:</strong>
-            <?php echo esc_html($result['checked_at']); ?>
-        </p>
+        echo '<p><strong>Усього файлів:</strong> ' .
+            esc_html($result['summary']['total']) . '</p>';
 
-        <p>
-            <strong>Усього файлів:</strong>
-            <?php echo esc_html($result['summary']['total']); ?>
-        </p>
+        echo '<p><strong>PHP-файлів:</strong> ' .
+            esc_html($result['summary']['php']) . '</p>';
 
-        <p>
-            <strong>PHP-файлів:</strong>
-            <?php echo esc_html($result['summary']['php']); ?>
-        </p>
+        echo '<p><strong>Інших файлів:</strong> ' .
+            esc_html($result['summary']['other']) . '</p>';
 
-        <p>
-            <strong>Інших файлів:</strong>
-            <?php echo esc_html($result['summary']['other']); ?>
-        </p>
+        echo '<p><strong>Помилок читання:</strong> ' .
+            esc_html($result['summary']['errors']) . '</p>';
 
-        <p>
-            <strong>Помилок:</strong>
-            <?php echo esc_html($result['summary']['errors']); ?>
-        </p>
+        echo '<p><strong>Синтаксичних помилок PHP:</strong> ' .
+            esc_html($result['summary']['syntax_errors']) . '</p>';
 
-        <?php if (!empty($result['plugin_header'])) : ?>
-            <h3>Інформація про встановлений плагін</h3>
+        echo '<p><strong>Попереджень:</strong> ' .
+            esc_html($result['summary']['warnings']) . '</p>';
 
-            <p>
-                Назва:
-                <?php echo esc_html($result['plugin_header']['name']); ?>
-            </p>
+        if (!empty($result['plugin_header'])) {
+            echo '<h3>Інформація про встановлений плагін</h3>';
 
-            <p>
-                Версія:
-                <?php echo esc_html($result['installed_version']); ?>
-            </p>
+            echo '<p>Назва: ' .
+                esc_html($result['plugin_header']['name']) . '</p>';
 
-            <p>
-                Версія в UPM:
-                <?php echo esc_html($result['project_version']); ?>
-            </p>
-        <?php endif; ?>
+            echo '<p>Встановлена версія: ' .
+                esc_html($result['installed_version']) . '</p>';
 
-        <h3>Список файлів</h3>
+            echo '<p>Версія в UPM: ' .
+                esc_html($result['project_version']) . '</p>';
 
-        <table class="widefat striped">
-            <thead>
-                <tr>
-                    <th>Файл</th>
-                    <th>Тип</th>
-                    <th>Розмір</th>
-                    <th>SHA-256</th>
-                    <th>Статус</th>
-                </tr>
-            </thead>
+            echo '<p>Версії збігаються: ' .
+                (!empty($result['version_match']) ? 'Так' : 'Ні') .
+                '</p>';
+        }
 
-            <tbody>
-                <?php foreach ($result['files'] as $file) : ?>
-                    <tr>
-                        <td><?php echo esc_html($file['path']); ?></td>
-                        <td><?php echo esc_html($file['type']); ?></td>
-                        <td><?php echo esc_html(size_format($file['size'])); ?></td>
-                        <td>
-                            <code><?php echo esc_html(substr($file['hash'], 0, 16)); ?></code>
-                        </td>
-                        <td>
-                            <?php
-                            echo !empty($file['error'])
-                                ? esc_html($file['error_message'])
-                                : 'OK';
-                            ?>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-        <?php
+        if (!empty($result['message'])) {
+            echo '<p>' . esc_html($result['message']) . '</p>';
+        }
+
+        if (empty($result['files'])) {
+            return;
+        }
+
+        echo '<h3>Файли</h3>';
+        echo '<div style="overflow-x:auto">';
+        echo '<table class="widefat striped">';
+        echo '<thead><tr>';
+        echo '<th>Файл</th>';
+        echo '<th>Тип</th>';
+        echo '<th>Розмір</th>';
+        echo '<th>SHA-256</th>';
+        echo '<th>Результат</th>';
+        echo '</tr></thead><tbody>';
+
+        foreach ($result['files'] as $file) {
+            echo '<tr>';
+
+            echo '<td>' . esc_html($file['path']) . '</td>';
+            echo '<td>' . esc_html($file['type']) . '</td>';
+            echo '<td>' . esc_html(size_format($file['size'])) . '</td>';
+
+            echo '<td><code>' .
+                esc_html($file['hash'] ? substr($file['hash'], 0, 16) : '—') .
+                '</code></td>';
+
+            $messages = array();
+
+            if (!empty($file['error_message'])) {
+                $messages[] = $file['error_message'];
+            }
+
+            if (!empty($file['syntax_error_message'])) {
+                $messages[] = 'PHP: ' . $file['syntax_error_message'];
+            }
+
+            if (!empty($file['warning_message'])) {
+                $messages[] = $file['warning_message'];
+            }
+
+            echo '<td>' . esc_html(
+                $messages ? implode(' | ', $messages) : 'OK'
+            ) . '</td>';
+
+            echo '</tr>';
+        }
+
+        echo '</tbody></table></div>';
     }
 }
 
