@@ -1,7 +1,7 @@
+
 <?php
 /**
- * UA Project Manager
- * Installation registration and monitoring.
+ * UA Project Manager — installation registration and monitoring.
  *
  * @package UA_Project_Manager
  */
@@ -19,6 +19,11 @@ final class UAPM_Installations {
 
         add_action('rest_api_init', array(__CLASS__, 'register_routes'));
         add_action('admin_post_uapm_installation_action', array(__CLASS__, 'handle_admin_action'));
+    }
+
+    public static function table_name() {
+        global $wpdb;
+        return $wpdb->prefix . self::$table;
     }
 
     public static function install_schema() {
@@ -60,11 +65,6 @@ final class UAPM_Installations {
         dbDelta($sql);
     }
 
-    private static function table_name() {
-        global $wpdb;
-        return $wpdb->prefix . self::$table;
-    }
-
     public static function register_routes() {
         register_rest_route('uapm/v1', '/installation/register', array(
             'methods' => WP_REST_Server::CREATABLE,
@@ -92,24 +92,14 @@ final class UAPM_Installations {
     }
 
     public static function can_view_installations() {
-        return current_user_can('uapm_manage_projects') ||
-            current_user_can('manage_options');
+        return current_user_can('uapm_manage_projects') || current_user_can('manage_options');
     }
 
-    /**
-     * Registration requires:
-     * X-UAPM-Token integration token.
-     * consent = 1.
-     */
     public static function register_installation($request) {
         global $wpdb;
 
         if (!class_exists('UAPM_Integrations')) {
-            return new WP_Error(
-                'uapm_integrations_unavailable',
-                'Модуль інтеграцій недоступний.',
-                array('status' => 503)
-            );
+            return new WP_Error('uapm_integrations_unavailable', 'Модуль інтеграцій недоступний.', array('status' => 503));
         }
 
         $integration = UAPM_Integrations::authenticate($request);
@@ -121,11 +111,7 @@ final class UAPM_Installations {
         $consent = $request->get_param('consent');
 
         if (!in_array($consent, array(true, 1, '1', 'yes'), true)) {
-            return new WP_Error(
-                'uapm_consent_required',
-                'Для реєстрації потрібно надати згоду на передачу даних встановлення.',
-                array('status' => 403)
-            );
+            return new WP_Error('uapm_consent_required', 'Для реєстрації потрібно надати згоду на передачу даних встановлення.', array('status' => 403));
         }
 
         $project_id = absint($request->get_param('project_id'));
@@ -135,67 +121,38 @@ final class UAPM_Installations {
         $plugin_version = sanitize_text_field($request->get_param('plugin_version'));
 
         if (!$project_id || !$site_url || !$plugin_slug) {
-            return new WP_Error(
-                'uapm_invalid_installation',
-                'Необхідні project_id, site_url та plugin_slug.',
-                array('status' => 400)
-            );
+            return new WP_Error('uapm_invalid_installation', 'Необхідні project_id, site_url та plugin_slug.', array('status' => 400));
         }
 
         if (!class_exists('UAPM_Projects')) {
-            return new WP_Error(
-                'uapm_projects_unavailable',
-                'Модуль проєктів недоступний.',
-                array('status' => 503)
-            );
+            return new WP_Error('uapm_projects_unavailable', 'Модуль проєктів недоступний.', array('status' => 503));
         }
 
         $project = UAPM_Projects::get($project_id);
 
         if (!$project || $project->status !== 'active') {
-            return new WP_Error(
-                'uapm_project_not_found',
-                'Активний проєкт не знайдено.',
-                array('status' => 404)
-            );
+            return new WP_Error('uapm_project_not_found', 'Активний проєкт не знайдено.', array('status' => 404));
         }
 
         $scheme = wp_parse_url($site_url, PHP_URL_SCHEME);
         $host = wp_parse_url($site_url, PHP_URL_HOST);
 
-        if (
-            !$host ||
-            !in_array(strtolower((string) $scheme), array('http', 'https'), true)
-        ) {
-            return new WP_Error(
-                'uapm_invalid_site',
-                'Некоректна адреса сайту.',
-                array('status' => 400)
-            );
+        if (!$host || !in_array(strtolower((string) $scheme), array('http', 'https'), true)) {
+            return new WP_Error('uapm_invalid_site', 'Некоректна адреса сайту.', array('status' => 400));
         }
 
         $site_url = untrailingslashit($site_url);
+        $table = self::table_name();
 
         $existing = $wpdb->get_row(
             $wpdb->prepare(
-                "SELECT * FROM " . self::table_name() . "
-                 WHERE project_id = %d AND site_url = %s
-                 LIMIT 1",
+                "SELECT * FROM {$table} WHERE project_id = %d AND site_url = %s LIMIT 1",
                 $project_id,
                 $site_url
             )
         );
 
-        try {
-            $token = bin2hex(random_bytes(32));
-        } catch (Exception $exception) {
-            return new WP_Error(
-                'uapm_token_generation_failed',
-                'Не вдалося створити токен встановлення.',
-                array('status' => 500)
-            );
-        }
-
+        $token = wp_generate_password(48, false, false);
         $now = current_time('mysql');
 
         $data = array(
@@ -204,65 +161,41 @@ final class UAPM_Installations {
             'site_name' => $site_name,
             'plugin_slug' => $plugin_slug,
             'plugin_version' => $plugin_version,
-            'wordpress_version' => sanitize_text_field(
-                $request->get_param('wordpress_version')
-            ),
-            'php_version' => sanitize_text_field(
-                $request->get_param('php_version')
-            ),
-            'platform' => sanitize_key(
-                $request->get_param('platform') ?: 'wordpress'
-            ),
+            'wordpress_version' => sanitize_text_field($request->get_param('wordpress_version')),
+            'php_version' => sanitize_text_field($request->get_param('php_version')),
+            'platform' => sanitize_key($request->get_param('platform') ?: 'wordpress'),
             'install_token_hash' => wp_hash_password($token),
             'status' => 'active',
             'consent_given' => 1,
             'consent_at' => $now,
+            'first_seen' => $existing && $existing->first_seen ? $existing->first_seen : $now,
             'last_seen' => $now,
+            'deactivated_at' => null,
             'updated_at' => $now,
         );
 
         if ($existing) {
-            $data['first_seen'] = $existing->first_seen
-                ? $existing->first_seen
-                : $now;
+            $updated = $wpdb->update($table, $data, array('id' => absint($existing->id)));
 
-            $result = $wpdb->update(
-                self::table_name(),
-                $data,
-                array('id' => absint($existing->id))
-            );
+            if (false === $updated) {
+                return new WP_Error('uapm_installation_update_failed', 'Не вдалося оновити встановлення.', array('status' => 500));
+            }
 
-            $installation_id = false === $result
-                ? 0
-                : absint($existing->id);
+            $installation_id = absint($existing->id);
         } else {
+            $data['customer_id'] = 0;
             $data['created_at'] = $now;
-            $data['first_seen'] = $now;
 
-            $result = $wpdb->insert(self::table_name(), $data);
+            $inserted = $wpdb->insert($table, $data);
 
-            $installation_id = $result
-                ? absint($wpdb->insert_id)
-                : 0;
+            if (!$inserted) {
+                return new WP_Error('uapm_installation_create_failed', 'Не вдалося зареєструвати встановлення.', array('status' => 500));
+            }
+
+            $installation_id = absint($wpdb->insert_id);
         }
 
-        if (!$installation_id) {
-            return new WP_Error(
-                'uapm_installation_failed',
-                'Не вдалося зареєструвати встановлення.',
-                array('status' => 500)
-            );
-        }
-
-        UAPM_Integrations::log_event(
-            $integration->id,
-            'installation_registered',
-            array(
-                'project_id' => $project_id,
-                'installation_id' => $installation_id,
-                'platform' => $data['platform'],
-            )
-        );
+        do_action('uapm_installation_registered', $installation_id, $project_id);
 
         return rest_ensure_response(array(
             'success' => true,
@@ -275,19 +208,13 @@ final class UAPM_Installations {
     private static function verify_token($installation_id, $token) {
         global $wpdb;
 
-        if (
-            !$installation_id ||
-            !is_string($token) ||
-            strlen($token) < 32 ||
-            strlen($token) > 128
-        ) {
+        if (!$installation_id || !is_string($token) || strlen($token) < 32 || strlen($token) > 128) {
             return false;
         }
 
         $hash = $wpdb->get_var(
             $wpdb->prepare(
-                "SELECT install_token_hash FROM " . self::table_name() . "
-                 WHERE id = %d AND status = 'active'",
+                "SELECT install_token_hash FROM " . self::table_name() . " WHERE id = %d AND status = 'active'",
                 $installation_id
             )
         );
@@ -302,11 +229,7 @@ final class UAPM_Installations {
         $token = $request->get_param('installation_token');
 
         if (!self::verify_token($id, $token)) {
-            return new WP_Error(
-                'uapm_invalid_token',
-                'Недійсний токен встановлення.',
-                array('status' => 403)
-            );
+            return new WP_Error('uapm_invalid_token', 'Недійсний токен встановлення.', array('status' => 403));
         }
 
         $data = array(
@@ -314,39 +237,20 @@ final class UAPM_Installations {
             'updated_at' => current_time('mysql'),
         );
 
-        $version = sanitize_text_field($request->get_param('plugin_version'));
-        if ($version !== '') {
-            $data['plugin_version'] = $version;
+        foreach (array('plugin_version', 'wordpress_version', 'php_version') as $field) {
+            $value = sanitize_text_field($request->get_param($field));
+            if ($value !== '') {
+                $data[$field] = $value;
+            }
         }
 
-        $wp_version = sanitize_text_field($request->get_param('wordpress_version'));
-        if ($wp_version !== '') {
-            $data['wordpress_version'] = $wp_version;
-        }
-
-        $php_version = sanitize_text_field($request->get_param('php_version'));
-        if ($php_version !== '') {
-            $data['php_version'] = $php_version;
-        }
-
-        $updated = $wpdb->update(
-            self::table_name(),
-            $data,
-            array('id' => $id)
-        );
+        $updated = $wpdb->update(self::table_name(), $data, array('id' => $id));
 
         if (false === $updated) {
-            return new WP_Error(
-                'uapm_heartbeat_failed',
-                'Не вдалося оновити зв’язок.',
-                array('status' => 500)
-            );
+            return new WP_Error('uapm_heartbeat_failed', 'Не вдалося оновити зв’язок.', array('status' => 500));
         }
 
-        return rest_ensure_response(array(
-            'success' => true,
-            'message' => 'Зв’язок оновлено.',
-        ));
+        return rest_ensure_response(array('success' => true, 'message' => 'Зв’язок оновлено.'));
     }
 
     public static function deactivate($request) {
@@ -356,51 +260,34 @@ final class UAPM_Installations {
         $token = $request->get_param('installation_token');
 
         if (!self::verify_token($id, $token)) {
-            return new WP_Error(
-                'uapm_invalid_token',
-                'Недійсний токен встановлення.',
-                array('status' => 403)
-            );
+            return new WP_Error('uapm_invalid_token', 'Недійсний токен встановлення.', array('status' => 403));
         }
 
         $now = current_time('mysql');
 
         $updated = $wpdb->update(
             self::table_name(),
-            array(
-                'status' => 'deactivated',
-                'deactivated_at' => $now,
-                'updated_at' => $now,
-            ),
+            array('status' => 'deactivated', 'deactivated_at' => $now, 'updated_at' => $now),
             array('id' => $id)
         );
 
         if (false === $updated) {
-            return new WP_Error(
-                'uapm_deactivation_failed',
-                'Не вдалося деактивувати встановлення.',
-                array('status' => 500)
-            );
+            return new WP_Error('uapm_deactivation_failed', 'Не вдалося деактивувати встановлення.', array('status' => 500));
         }
 
-        return rest_ensure_response(array(
-            'success' => true,
-            'message' => 'Встановлення деактивовано.',
-        ));
+        return rest_ensure_response(array('success' => true, 'message' => 'Встановлення деактивовано.'));
     }
 
     public static function get_all($args = array()) {
         global $wpdb;
 
-        $defaults = array(
+        $args = wp_parse_args($args, array(
             'project_id' => 0,
             'status' => '',
             'search' => '',
             'limit' => 50,
             'offset' => 0,
-        );
-
-        $args = wp_parse_args($args, $defaults);
+        ));
 
         $where = array('1=1');
         $values = array();
@@ -418,18 +305,13 @@ final class UAPM_Installations {
         if ($args['search'] !== '') {
             $where[] = '(site_url LIKE %s OR site_name LIKE %s OR plugin_slug LIKE %s)';
             $search = '%' . $wpdb->esc_like($args['search']) . '%';
-            $values[] = $search;
-            $values[] = $search;
-            $values[] = $search;
+            array_push($values, $search, $search, $search);
         }
 
         $limit = min(500, max(1, absint($args['limit'])));
         $offset = max(0, absint($args['offset']));
 
-        $sql = "SELECT * FROM " . self::table_name()
-            . " WHERE " . implode(' AND ', $where)
-            . " ORDER BY last_seen DESC LIMIT %d OFFSET %d";
-
+        $sql = "SELECT * FROM " . self::table_name() . " WHERE " . implode(' AND ', $where) . " ORDER BY last_seen DESC LIMIT %d OFFSET %d";
         $values[] = $limit;
         $values[] = $offset;
 
@@ -452,29 +334,23 @@ final class UAPM_Installations {
             $values[] = sanitize_key($args['status']);
         }
 
-        $sql = "SELECT COUNT(*) FROM " . self::table_name()
-            . " WHERE " . implode(' AND ', $where);
+        $sql = "SELECT COUNT(*) FROM " . self::table_name() . " WHERE " . implode(' AND ', $where);
 
-        if ($values) {
-            $sql = $wpdb->prepare($sql, $values);
-        }
-
-        return (int) $wpdb->get_var($sql);
+        return (int) $wpdb->get_var($values ? $wpdb->prepare($sql, $values) : $sql);
     }
 
     public static function rest_list($request) {
+        $args = array(
+            'project_id' => absint($request->get_param('project_id')),
+            'status' => sanitize_key($request->get_param('status')),
+            'search' => sanitize_text_field($request->get_param('search')),
+            'limit' => absint($request->get_param('limit')) ?: 50,
+            'offset' => absint($request->get_param('offset')),
+        );
+
         return rest_ensure_response(array(
-            'items' => self::get_all(array(
-                'project_id' => absint($request->get_param('project_id')),
-                'status' => sanitize_key($request->get_param('status')),
-                'search' => sanitize_text_field($request->get_param('search')),
-                'limit' => absint($request->get_param('limit')) ?: 50,
-                'offset' => absint($request->get_param('offset')),
-            )),
-            'total' => self::count(array(
-                'project_id' => absint($request->get_param('project_id')),
-                'status' => sanitize_key($request->get_param('status')),
-            )),
+            'items' => self::get_all($args),
+            'total' => self::count($args),
         ));
     }
 
@@ -487,36 +363,17 @@ final class UAPM_Installations {
 
         global $wpdb;
 
-        $id = isset($_POST['installation_id'])
-            ? absint($_POST['installation_id'])
-            : 0;
+        $id = isset($_POST['installation_id']) ? absint($_POST['installation_id']) : 0;
+        $action = isset($_POST['installation_action']) ? sanitize_key($_POST['installation_action']) : '';
 
-        $action = isset($_POST['installation_action'])
-            ? sanitize_key($_POST['installation_action'])
-            : '';
-
-        if ($id && $action === 'deactivate') {
-            $wpdb->update(
-                self::table_name(),
-                array(
-                    'status' => 'deactivated',
-                    'deactivated_at' => current_time('mysql'),
-                    'updated_at' => current_time('mysql'),
-                ),
-                array('id' => $id)
+        if ($id && in_array($action, array('activate', 'deactivate'), true)) {
+            $data = array(
+                'status' => $action === 'activate' ? 'active' : 'deactivated',
+                'updated_at' => current_time('mysql'),
+                'deactivated_at' => $action === 'activate' ? null : current_time('mysql'),
             );
-        }
 
-        if ($id && $action === 'activate') {
-            $wpdb->update(
-                self::table_name(),
-                array(
-                    'status' => 'active',
-                    'deactivated_at' => null,
-                    'updated_at' => current_time('mysql'),
-                ),
-                array('id' => $id)
-            );
+            $wpdb->update(self::table_name(), $data, array('id' => $id));
         }
 
         wp_safe_redirect(admin_url('admin.php?page=uapm-installations'));
