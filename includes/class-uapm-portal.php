@@ -34,12 +34,6 @@ final class UAPM_Portal {
         return $vars;
     }
 
-    private static function is_manager() {
-        return current_user_can('uapm_view_own_clients') &&
-            !current_user_can('uapm_manage_projects') &&
-            !current_user_can('manage_options');
-    }
-
     public static function admin_bar_link($bar) {
         if (
             !is_user_logged_in() ||
@@ -91,26 +85,32 @@ final class UAPM_Portal {
     }
 
     private static function render_manager_page() {
-        global $wpdb;
+        if (!class_exists('UAPM_Clients')) {
+            wp_die('Модуль клієнтів не завантажено.');
+        }
 
         $user = wp_get_current_user();
-        $table = $wpdb->prefix . 'uapm_clients';
         $manager_id = get_current_user_id();
 
-        $clients = $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT id, name, email, company, phone, status, created_at
-                 FROM {$table}
-                 WHERE user_id = %d
-                 ORDER BY created_at DESC
-                 LIMIT 200",
-                $manager_id
+        $clients = UAPM_Clients::get_manager_clients(
+            $manager_id,
+            array(
+                'limit' => 200,
+                'offset' => 0,
             )
         );
 
         $totals = class_exists('UAPM_Payments')
             ? UAPM_Payments::get_manager_totals($manager_id)
             : array();
+
+        $notice = isset($_GET['uapm_client_notice'])
+            ? sanitize_key(wp_unslash($_GET['uapm_client_notice']))
+            : '';
+
+        $message = isset($_GET['uapm_client_message'])
+            ? sanitize_text_field(wp_unslash($_GET['uapm_client_message']))
+            : '';
 
         status_header(200);
         nocache_headers();
@@ -190,22 +190,97 @@ final class UAPM_Portal {
                 .uapm-table {
                     width: 100%;
                     border-collapse: collapse;
-                    min-width: 600px;
+                    min-width: 650px;
                 }
                 .uapm-table th,
                 .uapm-table td {
                     padding: 12px 10px;
                     text-align: left;
                     border-bottom: 1px solid #e1e7ef;
+                    vertical-align: top;
                 }
                 .uapm-table th {
                     background: #f7f9fc;
+                }
+                .uapm-form-grid {
+                    display: grid;
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                    gap: 14px;
+                }
+                .uapm-field {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 6px;
+                }
+                .uapm-field-full {
+                    grid-column: 1 / -1;
+                }
+                .uapm-field label {
+                    font-weight: 600;
+                    font-size: 14px;
+                }
+                .uapm-field input,
+                .uapm-field textarea {
+                    width: 100%;
+                    box-sizing: border-box;
+                    padding: 11px;
+                    border: 1px solid #ccd5e0;
+                    border-radius: 7px;
+                    font-size: 15px;
+                }
+                .uapm-button {
+                    display: inline-block;
+                    border: 0;
+                    border-radius: 7px;
+                    padding: 11px 17px;
+                    background: #173b68;
+                    color: #fff;
+                    font-size: 14px;
+                    cursor: pointer;
+                    text-decoration: none;
+                }
+                .uapm-button:hover {
+                    background: #24558e;
+                    color: #fff;
+                }
+                .uapm-button-danger {
+                    background: #a52b36;
+                }
+                .uapm-button-danger:hover {
+                    background: #84212b;
+                }
+                .uapm-actions {
+                    display: flex;
+                    gap: 7px;
+                    flex-wrap: wrap;
+                }
+                .uapm-notice {
+                    margin-top: 18px;
+                    padding: 13px 16px;
+                    border-radius: 8px;
+                    background: #e8f5ec;
+                    color: #185b2d;
+                }
+                .uapm-notice-error {
+                    background: #fdecec;
+                    color: #8b2020;
                 }
                 .uapm-footer {
                     margin-top: 25px;
                     color: #778392;
                     font-size: 12px;
                     text-align: center;
+                }
+                .uapm-edit-form {
+                    min-width: 260px;
+                }
+                .uapm-edit-form input {
+                    width: 100%;
+                    box-sizing: border-box;
+                    margin-bottom: 6px;
+                    padding: 7px;
+                    border: 1px solid #ccd5e0;
+                    border-radius: 5px;
                 }
                 @media(max-width: 600px) {
                     .uapm-portal {
@@ -216,6 +291,12 @@ final class UAPM_Portal {
                     }
                     .uapm-header h1 {
                         font-size: 21px;
+                    }
+                    .uapm-form-grid {
+                        grid-template-columns: 1fr;
+                    }
+                    .uapm-field-full {
+                        grid-column: auto;
                     }
                 }
             </style>
@@ -237,6 +318,22 @@ final class UAPM_Portal {
                     </a>
                 </div>
             </header>
+
+            <?php if ($notice) : ?>
+                <div class="uapm-notice <?php echo 'error' === $notice ? 'uapm-notice-error' : ''; ?>">
+                    <?php
+                    if ($message) {
+                        echo esc_html($message);
+                    } elseif ('saved' === $notice) {
+                        echo 'Дані клієнта збережено.';
+                    } elseif ('archived' === $notice) {
+                        echo 'Клієнта переміщено до архіву.';
+                    } else {
+                        echo 'Не вдалося виконати операцію.';
+                    }
+                    ?>
+                </div>
+            <?php endif; ?>
 
             <section class="uapm-grid">
                 <div class="uapm-card">
@@ -272,6 +369,52 @@ final class UAPM_Portal {
             </section>
 
             <section class="uapm-card">
+                <h2>Додати клієнта</h2>
+
+                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                    <input type="hidden" name="action" value="uapm_manager_save_client">
+                    <input type="hidden" name="client_id" value="0">
+                    <?php wp_nonce_field('uapm_manager_save_client'); ?>
+
+                    <div class="uapm-form-grid">
+                        <div class="uapm-field">
+                            <label for="uapm-client-name">Ім’я клієнта *</label>
+                            <input id="uapm-client-name" type="text" name="name" required>
+                        </div>
+
+                        <div class="uapm-field">
+                            <label for="uapm-client-email">Email *</label>
+                            <input id="uapm-client-email" type="email" name="email" required>
+                        </div>
+
+                        <div class="uapm-field">
+                            <label for="uapm-client-company">Компанія</label>
+                            <input id="uapm-client-company" type="text" name="company">
+                        </div>
+
+                        <div class="uapm-field">
+                            <label for="uapm-client-phone">Телефон</label>
+                            <input id="uapm-client-phone" type="text" name="phone">
+                        </div>
+
+                        <div class="uapm-field">
+                            <label for="uapm-client-country">Країна</label>
+                            <input id="uapm-client-country" type="text" name="country">
+                        </div>
+
+                        <div class="uapm-field uapm-field-full">
+                            <label for="uapm-client-notes">Нотатки</label>
+                            <textarea id="uapm-client-notes" name="notes" rows="3"></textarea>
+                        </div>
+                    </div>
+
+                    <p>
+                        <button type="submit" class="uapm-button">Додати клієнта</button>
+                    </p>
+                </form>
+            </section>
+
+            <section class="uapm-card">
                 <h2>Мої клієнти</h2>
 
                 <div class="uapm-table-wrap">
@@ -284,12 +427,13 @@ final class UAPM_Portal {
                                 <th>Компанія</th>
                                 <th>Телефон</th>
                                 <th>Статус</th>
+                                <th>Керування</th>
                             </tr>
                         </thead>
                         <tbody>
                         <?php if (empty($clients)) : ?>
                             <tr>
-                                <td colspan="6">Поки що клієнтів не призначено.</td>
+                                <td colspan="7">Поки що клієнтів не додано.</td>
                             </tr>
                         <?php else : ?>
                             <?php foreach ($clients as $client) : ?>
@@ -300,6 +444,60 @@ final class UAPM_Portal {
                                     <td><?php echo esc_html($client->company); ?></td>
                                     <td><?php echo esc_html($client->phone); ?></td>
                                     <td><?php echo esc_html($client->status); ?></td>
+                                    <td>
+                                        <?php if ('archived' !== $client->status) : ?>
+                                            <details>
+                                                <summary>Редагувати</summary>
+
+                                                <form class="uapm-edit-form" method="post"
+                                                      action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                                                    <input type="hidden" name="action" value="uapm_manager_save_client">
+                                                    <input type="hidden" name="client_id"
+                                                           value="<?php echo esc_attr($client->id); ?>">
+                                                    <?php wp_nonce_field('uapm_manager_save_client'); ?>
+
+                                                    <input type="text" name="name"
+                                                           value="<?php echo esc_attr($client->name); ?>"
+                                                           placeholder="Ім’я" required>
+
+                                                    <input type="email" name="email"
+                                                           value="<?php echo esc_attr($client->email); ?>"
+                                                           placeholder="Email" required>
+
+                                                    <input type="text" name="company"
+                                                           value="<?php echo esc_attr($client->company); ?>"
+                                                           placeholder="Компанія">
+
+                                                    <input type="text" name="phone"
+                                                           value="<?php echo esc_attr($client->phone); ?>"
+                                                           placeholder="Телефон">
+
+                                                    <input type="text" name="country"
+                                                           value="<?php echo esc_attr($client->country); ?>"
+                                                           placeholder="Країна">
+
+                                                    <button type="submit" class="uapm-button">
+                                                        Зберегти
+                                                    </button>
+                                                </form>
+                                            </details>
+
+                                            <form method="post"
+                                                  action="<?php echo esc_url(admin_url('admin-post.php')); ?>"
+                                                  onsubmit="return confirm('Архівувати цього клієнта?');">
+                                                <input type="hidden" name="action" value="uapm_manager_archive_client">
+                                                <input type="hidden" name="client_id"
+                                                       value="<?php echo esc_attr($client->id); ?>">
+                                                <?php wp_nonce_field('uapm_manager_archive_client_' . $client->id); ?>
+
+                                                <button type="submit" class="uapm-button uapm-button-danger">
+                                                    Архівувати
+                                                </button>
+                                            </form>
+                                        <?php else : ?>
+                                            <span class="uapm-muted">В архіві</span>
+                                        <?php endif; ?>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php endif; ?>
