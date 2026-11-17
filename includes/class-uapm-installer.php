@@ -1,8 +1,7 @@
-
 <?php
 /**
  * UA Project Manager
- * Database installer.
+ * Database installer and role setup.
  *
  * @package UA_Project_Manager
  */
@@ -13,9 +12,6 @@ if (!defined('ABSPATH')) {
 
 final class UAPM_Installer {
 
-    /**
-     * Create database tables and initial settings.
-     */
     public static function activate() {
         global $wpdb;
 
@@ -23,24 +19,16 @@ final class UAPM_Installer {
 
         $charset = $wpdb->get_charset_collate();
 
-        $tables = self::get_table_definitions($charset);
-
-        foreach ($tables as $sql) {
+        foreach (self::get_table_definitions($charset) as $sql) {
             dbDelta($sql);
         }
 
         self::create_roles();
         self::create_default_settings();
 
-        update_option('uapm_db_version', UAPM_DB_VERSION);
+        update_option('uapm_db_version', defined('UAPM_DB_VERSION') ? UAPM_DB_VERSION : '1.0.0');
     }
 
-    /**
-     * Database table definitions.
-     *
-     * @param string $charset Database charset.
-     * @return array
-     */
     private static function get_table_definitions($charset) {
         global $wpdb;
 
@@ -92,6 +80,7 @@ final class UAPM_Installer {
                 project_id bigint(20) unsigned NOT NULL,
                 plan_id bigint(20) unsigned NULL,
                 customer_id bigint(20) unsigned NULL,
+                customer_email varchar(191) NULL,
                 activation_target varchar(255) NOT NULL,
                 activation_type varchar(30) NOT NULL DEFAULT 'domain',
                 amount decimal(18,2) NOT NULL DEFAULT 0.00,
@@ -101,13 +90,49 @@ final class UAPM_Installer {
                 external_reference varchar(191) NULL,
                 confirmed_by bigint(20) unsigned NULL,
                 confirmed_at datetime NULL,
+                manager_id bigint(20) unsigned NULL,
+                commission_rate decimal(8,4) NOT NULL DEFAULT 0.0000,
+                commission_amount decimal(18,2) NOT NULL DEFAULT 0.00,
+                received_amount decimal(18,2) NOT NULL DEFAULT 0.00,
+                activation_status varchar(30) NOT NULL DEFAULT 'provisional',
+                paid_at datetime NULL,
                 created_at datetime NOT NULL,
                 updated_at datetime NOT NULL,
                 PRIMARY KEY  (id),
                 KEY project_id (project_id),
                 KEY customer_id (customer_id),
+                KEY customer_email (customer_email),
                 KEY payment_status (payment_status),
-                KEY activation_target (activation_target)
+                KEY activation_target (activation_target),
+                KEY manager_id (manager_id)
+            ) {$charset};",
+
+            "CREATE TABLE {$prefix}payment_transactions (
+                id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+                payment_id bigint(20) unsigned NOT NULL,
+                amount decimal(18,2) NOT NULL DEFAULT 0.00,
+                currency varchar(10) NOT NULL DEFAULT 'UAH',
+                commission_rate decimal(8,4) NOT NULL DEFAULT 0.0000,
+                commission_amount decimal(18,2) NOT NULL DEFAULT 0.00,
+                reference varchar(191) NULL,
+                note text NULL,
+                received_by bigint(20) unsigned NULL,
+                received_at datetime NOT NULL,
+                PRIMARY KEY  (id),
+                KEY payment_id (payment_id),
+                KEY received_at (received_at)
+            ) {$charset};",
+
+            "CREATE TABLE {$prefix}manager_commissions (
+                id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+                manager_id bigint(20) unsigned NOT NULL,
+                customer_email varchar(191) NOT NULL,
+                commission_rate decimal(8,4) NOT NULL DEFAULT 0.0000,
+                updated_by bigint(20) unsigned NULL,
+                updated_at datetime NOT NULL,
+                PRIMARY KEY  (id),
+                UNIQUE KEY manager_customer (manager_id,customer_email),
+                KEY manager_id (manager_id)
             ) {$charset};",
 
             "CREATE TABLE {$prefix}customers (
@@ -191,7 +216,8 @@ final class UAPM_Installer {
                 created_at datetime NOT NULL,
                 PRIMARY KEY  (id),
                 KEY user_id (user_id),
-                KEY is_read (is_read)
+                KEY is_read (is_read),
+                KEY created_at (created_at)
             ) {$charset};",
 
             "CREATE TABLE {$prefix}settings (
@@ -205,38 +231,48 @@ final class UAPM_Installer {
         );
     }
 
-    /**
-     * Register custom WordPress roles.
-     */
     private static function create_roles() {
+        $manager_role = get_role('uapm_manager');
 
-        if (!get_role('uapm_manager')) {
+        if (!$manager_role) {
             add_role(
                 'uapm_manager',
-                'Gmaps manager',
+                'Менеджер UPM',
                 array(
                     'read' => true,
                     'uapm_access_manager' => true,
                 )
             );
+        } else {
+            $manager_role->add_cap('read');
+            $manager_role->add_cap('uapm_access_manager');
+
+            $roles = wp_roles();
+
+            if (isset($roles->roles['uapm_manager'])) {
+                $roles->roles['uapm_manager']['name'] = 'Менеджер UPM';
+                update_option($roles->role_key, $roles->roles);
+            }
         }
 
         $admin = get_role('administrator');
 
-        if ($admin && !$admin->has_cap('uapm_manage_projects')) {
-            $admin->add_cap('uapm_manage_projects');
-            $admin->add_cap('uapm_manage_payments');
-            $admin->add_cap('uapm_manage_integrations');
-            $admin->add_cap('uapm_manage_settings');
-            $admin->add_cap('uapm_inspect_code');
+        if ($admin) {
+            $capabilities = array(
+                'uapm_manage_projects',
+                'uapm_manage_payments',
+                'uapm_manage_integrations',
+                'uapm_manage_settings',
+                'uapm_inspect_code',
+            );
+
+            foreach ($capabilities as $capability) {
+                $admin->add_cap($capability);
+            }
         }
     }
 
-    /**
-     * Add default options.
-     */
     private static function create_default_settings() {
-
         $defaults = array(
             'uapm_currency' => 'UAH',
             'uapm_language' => 'auto',
@@ -245,6 +281,7 @@ final class UAPM_Installer {
             'uapm_github_enabled' => '0',
             'uapm_notifications_enabled' => '1',
             'uapm_privacy_mode' => '1',
+            'uapm_privat_envelope_url' => '',
         );
 
         foreach ($defaults as $key => $value) {
