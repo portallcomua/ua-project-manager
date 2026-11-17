@@ -9,7 +9,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-class UAPM_Roles {
+final class UAPM_Roles {
 
     const ROLE_MANAGER = 'uapm_manager';
 
@@ -43,39 +43,62 @@ class UAPM_Roles {
             'uapm_manage_codes',
             'uapm_manage_github',
             'uapm_manage_inspector',
+            'uapm_inspect_code',
         );
     }
 
     public static function ensure_roles() {
+        self::ensure_manager_role();
+        self::ensure_administrator_capabilities();
+    }
+
+    private static function ensure_manager_role() {
         $manager = get_role(self::ROLE_MANAGER);
 
         if (!$manager) {
             add_role(
                 self::ROLE_MANAGER,
-                'Менеджер UPM',
+                self::manager_role_name(),
                 self::manager_capabilities()
             );
 
             $manager = get_role(self::ROLE_MANAGER);
         }
 
-        if ($manager) {
-            foreach (self::manager_capabilities() as $capability => $grant) {
-                if ($grant) {
-                    $manager->add_cap($capability);
-                }
+        if (!$manager) {
+            return;
+        }
+
+        foreach (self::manager_capabilities() as $capability => $grant) {
+            if ($grant) {
+                $manager->add_cap($capability);
             }
         }
 
         self::update_manager_role_name();
+    }
 
+    private static function ensure_administrator_capabilities() {
         $admin = get_role('administrator');
 
-        if ($admin) {
-            foreach (self::admin_capabilities() as $capability) {
-                $admin->add_cap($capability);
-            }
+        if (!$admin) {
+            return;
         }
+
+        foreach (self::admin_capabilities() as $capability) {
+            $admin->add_cap($capability);
+        }
+    }
+
+    private static function manager_role_name() {
+        if (
+            class_exists('UAPM_Localization') &&
+            UAPM_Localization::get_language() === 'en'
+        ) {
+            return 'UPM Manager';
+        }
+
+        return 'Менеджер UPM';
     }
 
     private static function update_manager_role_name() {
@@ -92,15 +115,10 @@ class UAPM_Roles {
             return;
         }
 
-        if (
-            isset($roles->roles[self::ROLE_MANAGER]['name']) &&
-            $roles->roles[self::ROLE_MANAGER]['name'] === 'Менеджер UPM'
-        ) {
-            return;
-        }
+        $name = self::manager_role_name();
 
-        $roles->roles[self::ROLE_MANAGER]['name'] = 'Менеджер UPM';
-        $roles->role_names[self::ROLE_MANAGER] = 'Менеджер UPM';
+        $roles->roles[self::ROLE_MANAGER]['name'] = $name;
+        $roles->role_names[self::ROLE_MANAGER] = $name;
 
         update_option($roles->role_key, $roles->roles);
     }
@@ -112,13 +130,11 @@ class UAPM_Roles {
             remove_role(self::ROLE_MANAGER);
         }
 
-        $admin = get_role('administrator');
-
-        if ($admin) {
-            foreach (self::admin_capabilities() as $capability) {
-                $admin->remove_cap($capability);
-            }
-        }
+        /*
+         * Capabilities адміністратора навмисно не видаляються
+         * під час звичайної деактивації плагіна.
+         * Це запобігає втраті доступу до даних UPM.
+         */
     }
 
     public static function is_manager($user_id = 0) {
