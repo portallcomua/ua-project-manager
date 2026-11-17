@@ -40,16 +40,21 @@ final class UAPM_Installation_Compat {
             return;
         }
 
-        if (
-            strpos((string) $column->Default, '') === false ||
-            $column->Null === 'NO'
-        ) {
-            $wpdb->query(
-                "ALTER TABLE `{$table}`
-                 MODIFY `site_domain` varchar(191)
-                 NOT NULL DEFAULT ''"
-            );
+        $needs_update = (
+            $column->Null !== 'NO' ||
+            $column->Default === null ||
+            (string) $column->Default !== ''
+        );
+
+        if (!$needs_update) {
+            return;
         }
+
+        $wpdb->query(
+            "ALTER TABLE `{$table}`
+             MODIFY `site_domain` varchar(191)
+             NOT NULL DEFAULT ''"
+        );
     }
 }
 
