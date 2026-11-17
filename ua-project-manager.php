@@ -60,7 +60,6 @@ final class UAPM_Plugin {
     }
 
     public function load_plugin() {
-
         if ($this->initialized) {
             return;
         }
@@ -85,7 +84,6 @@ final class UAPM_Plugin {
     }
 
     private function load_modules() {
-
         $files = array(
             'class-uapm-security.php',
             'class-uapm-installer.php',
@@ -144,7 +142,6 @@ final class UAPM_Plugin {
         );
 
         foreach ($files as $file) {
-
             $path = UAPM_PATH . 'includes/' . $file;
 
             if (!file_exists($path)) {
@@ -153,16 +150,15 @@ final class UAPM_Plugin {
             }
 
             require_once $path;
-
             $this->loaded[] = $file;
         }
     }
 
     private function initialize_modules() {
-
         /*
          * These modules initialize themselves when loaded:
          *
+         * UAPM_Roles
          * UAPM_Clients
          * UAPM_GitHub
          * UAPM_Downloads
@@ -170,6 +166,8 @@ final class UAPM_Plugin {
          * UAPM_Installation_Compat
          * UAPM_Integrations
          * UAPM_Notifications
+         * UAPM_Email_Templates
+         * UAPM_Queue
          * UAPM_Code_Inspector
          * UAPM_REST_API
          * UAPM_Dependencies
@@ -180,7 +178,6 @@ final class UAPM_Plugin {
          */
 
         $classes = array(
-            'UAPM_Roles',
             'UAPM_Settings',
             'UAPM_Projects',
             'UAPM_Customers',
@@ -188,8 +185,6 @@ final class UAPM_Plugin {
             'UAPM_License_Manager',
             'UAPM_License_Sites',
             'UAPM_Updater',
-            'UAPM_Email_Templates',
-            'UAPM_Queue',
             'UAPM_Cron',
             'UAPM_Webhooks',
             'UAPM_Code_Generator',
@@ -221,7 +216,6 @@ final class UAPM_Plugin {
         );
 
         foreach ($classes as $class) {
-
             if (!class_exists($class)) {
                 continue;
             }
@@ -250,13 +244,11 @@ final class UAPM_Plugin {
     }
 
     public function render_dependency_notices() {
-
         if (!current_user_can('manage_options')) {
             return;
         }
 
         if (!empty($this->errors)) {
-
             echo '<div class="notice notice-error">';
             echo '<p><strong>UA Project Manager:</strong> Не знайдено файли модулів:</p>';
             echo '<ul>';
@@ -325,7 +317,6 @@ function uapm() {
 }
 
 function uapm_is_plugin_active($plugin_file) {
-
     if (!function_exists('is_plugin_active')) {
         require_once ABSPATH . 'wp-admin/includes/plugin.php';
     }
@@ -334,7 +325,6 @@ function uapm_is_plugin_active($plugin_file) {
 }
 
 function uapm_activate_plugin() {
-
     $installer = UAPM_PATH . 'includes/class-uapm-installer.php';
 
     if (file_exists($installer)) {
