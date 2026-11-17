@@ -20,6 +20,15 @@ final class UAPM_Admin_Sections {
 
         add_submenu_page(
             'uapm',
+            'Клієнти',
+            'Клієнти',
+            'uapm_manage_projects',
+            'uapm-clients',
+            array(__CLASS__, 'render_clients')
+        );
+
+        add_submenu_page(
+            'uapm',
             'Інтеграції',
             'Інтеграції',
             'uapm_manage_integrations',
@@ -96,7 +105,24 @@ final class UAPM_Admin_Sections {
             current_user_can('uapm_manage_projects');
     }
 
+    public static function render_clients() {
+        if (!self::allowed()) {
+            wp_die('Недостатньо прав.');
+        }
+
+        if (!class_exists('UAPM_Clients')) {
+            self::unavailable('Модуль клієнтів не завантажено.');
+            return;
+        }
+
+        UAPM_Clients::render_page();
+    }
+
     public static function render_integrations() {
+        if (!current_user_can('uapm_manage_integrations') && !current_user_can('manage_options')) {
+            wp_die('Недостатньо прав.');
+        }
+
         if (class_exists('UAPM_Integrations')) {
             UAPM_Integrations::render_page();
             return;
@@ -106,6 +132,10 @@ final class UAPM_Admin_Sections {
     }
 
     public static function render_downloads() {
+        if (!self::allowed()) {
+            wp_die('Недостатньо прав.');
+        }
+
         if (class_exists('UAPM_Downloads')) {
             UAPM_Downloads::render_stats();
             return;
@@ -250,6 +280,10 @@ final class UAPM_Admin_Sections {
     }
 
     public static function render_github() {
+        if (!self::allowed()) {
+            wp_die('Недостатньо прав.');
+        }
+
         if (class_exists('UAPM_GitHub')) {
             UAPM_GitHub::render_page();
             return;
