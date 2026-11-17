@@ -16,7 +16,6 @@ class UAPM_Clients {
 
         add_action('admin_post_uapm_save_client', array(__CLASS__, 'handle_save'));
         add_action('admin_post_uapm_delete_client', array(__CLASS__, 'handle_delete'));
-
         add_action('admin_post_uapm_manager_save_client', array(__CLASS__, 'handle_manager_save'));
         add_action('admin_post_uapm_manager_archive_client', array(__CLASS__, 'handle_manager_archive'));
 
@@ -77,6 +76,9 @@ class UAPM_Clients {
             'notes' => isset($data['notes'])
                 ? sanitize_textarea_field($data['notes'])
                 : '',
+            'user_id' => isset($data['user_id'])
+                ? absint($data['user_id'])
+                : 0,
         );
     }
 
@@ -111,9 +113,7 @@ class UAPM_Clients {
         $result = $wpdb->insert(
             self::table(),
             array(
-                'user_id' => isset($data['user_id'])
-                    ? absint($data['user_id'])
-                    : 0,
+                'user_id' => $data['user_id'],
                 'name' => $data['name'],
                 'email' => $data['email'],
                 'company' => $data['company'],
@@ -195,9 +195,6 @@ class UAPM_Clients {
         return true;
     }
 
-    /**
-     * Update only a client owned by the specified manager.
-     */
     public static function update_for_manager($id, $manager_id, $data) {
         $client = self::get($id);
 
@@ -206,6 +203,11 @@ class UAPM_Clients {
                 'uapm_client_forbidden',
                 'Цей клієнт не належить вашому обліковому запису.'
             );
+        }
+
+        // Preserve existing notes because the manager form does not expose this field.
+        if (!isset($data['notes']) || '' === trim((string) $data['notes'])) {
+            $data['notes'] = $client->notes;
         }
 
         return self::update($id, $data);
