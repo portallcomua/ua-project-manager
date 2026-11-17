@@ -1,14 +1,21 @@
 <?php
+/**
+ * UA Project Manager
+ * Secure external integrations manager.
+ *
+ * @package UA_Project_Manager
+ */
+
 if (!defined('ABSPATH')) {
     exit;
 }
 
-class UAPM_Integrations {
+final class UAPM_Integrations {
 
     public static function init() {
         add_action('admin_post_uapm_save_integration', array(__CLASS__, 'handle_save'));
         add_action('admin_post_uapm_delete_integration', array(__CLASS__, 'handle_delete'));
-
+        add_action('admin_post_uapm_toggle_integration', array(__CLASS__, 'handle_toggle'));
         add_action('rest_api_init', array(__CLASS__, 'register_routes'));
     }
 
@@ -17,8 +24,9 @@ class UAPM_Integrations {
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
-        $table = $wpdb->prefix . 'uapm_integrations';
         $charset = $wpdb->get_charset_collate();
+        $table = $wpdb->prefix . 'uapm_integrations';
+        $events = $wpdb->prefix . 'uapm_integration_events';
 
         $sql = "CREATE TABLE {$table} (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
@@ -28,7 +36,7 @@ class UAPM_Integrations {
             integration_type varchar(50) NOT NULL DEFAULT 'external',
             status varchar(30) NOT NULL DEFAULT 'inactive',
             access_token_hash varchar(64) NOT NULL DEFAULT '',
-            secret_key varchar(255) NOT NULL DEFAULT '',
+            secret_key longtext NULL,
             settings longtext NULL,
             last_seen datetime NULL,
             created_at datetime NOT NULL,
@@ -40,25 +48,38 @@ class UAPM_Integrations {
         ) {$charset};";
 
         dbDelta($sql);
+
+        $events_sql = "CREATE TABLE {$events} (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            integration_id bigint(20) unsigned NOT NULL,
+            event_type varchar(100) NOT NULL,
+            payload longtext NULL,
+            created_at datetime NOT NULL,
+            PRIMARY KEY  (id),
+            KEY integration_id (integration_id),
+            KEY event_type (event_type),
+            KEY created_at (created_at)
+        ) {$charset};";
+
+        dbDelta($events_sql);
+    }
+
+    private static function can_manage() {
+        return current_user_can('uapm_manage_integrations') ||
+            current_user_can('manage_options');
     }
 
     public static function register_routes() {
-        register_rest_route('uapm/v1', '/integrations/register', array(
-            'methods' => WP_REST_Server::CREATABLE,
-            'callback' => array(__CLASS__, 'api_register'),
-            'permission_callback' => '__return_true'
-        ));
-
         register_rest_route('uapm/v1', '/integrations/heartbeat', array(
             'methods' => WP_REST_Server::CREATABLE,
             'callback' => array(__CLASS__, 'api_heartbeat'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => '__return_true',
         ));
 
         register_rest_route('uapm/v1', '/integrations/event', array(
             'methods' => WP_REST_Server::CREATABLE,
             'callback' => array(__CLASS__, 'api_event'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => '__return_true',
         ));
     }
 
@@ -79,12 +100,23 @@ class UAPM_Integrations {
     public static function get($id) {
         global $wpdb;
 
-        $table = $wpdb->prefix . 'uapm_integrations';
+        return $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}uapm_integrations
+                 WHERE id = %d LIMIT 1",
+                absint($id)
+            )
+        );
+    }
+
+    public static function get_by_key($key) {
+        global $wpdb;
 
         return $wpdb->get_row(
             $wpdb->prepare(
-                "SELECT * FROM {$table} WHERE id = %d LIMIT 1",
-                absint($id)
+                "SELECT * FROM {$wpdb->prefix}uapm_integrations
+                 WHERE integration_key = %s LIMIT 1",
+                sanitize_key($key)
             )
         );
     }
@@ -92,7 +124,9 @@ class UAPM_Integrations {
     public static function create($data) {
         global $wpdb;
 
-        $table = $wpdb->prefix . 'uapm_integrations';
+        if (!self::can_manage()) {
+            return new WP_Error('uapm_forbidden', 'Недостатньо прав.');
+        }
 
         $key = isset($data['integration_key'])
             ? sanitize_key($data['integration_key'])
@@ -109,11 +143,17 @@ class UAPM_Integrations {
             );
         }
 
-        $token = wp_generate_password(48, false, false);
-        $secret = wp_generate_password(64, false, false);
+        if (self::get_by_key($key)) {
+            return new WP_Error(
+                'uapm_duplicate_integration',
+                'Інтеграція з таким ключем вже існує.'
+            );
+        }
+
+        $token = bin2hex(random_bytes(32));
 
         $result = $wpdb->insert(
-            $table,
+            $wpdb->prefix . 'uapm_integrations',
             array(
                 'integration_key' => $key,
                 'name' => $name,
@@ -125,73 +165,99 @@ class UAPM_Integrations {
                     : 'external',
                 'status' => 'active',
                 'access_token_hash' => hash('sha256', $token),
-                'secret_key' => self::encrypt_secret($secret),
+                'secret_key' => '',
                 'settings' => '{}',
                 'created_at' => current_time('mysql'),
-                'updated_at' => current_time('mysql')
+                'updated_at' => current_time('mysql'),
             )
         );
 
         if (!$result) {
             return new WP_Error(
-                'uapm_integration_create_failed',
-                'Не вдалося створити інтеграцію. Перевірте, чи не існує такий ключ.'
+                'uapm_database_error',
+                'Не вдалося створити інтеграцію.'
             );
         }
 
-        $integration_id = absint($wpdb->insert_id);
+        $id = (int) $wpdb->insert_id;
 
-        self::log_event($integration_id, 'created', array(
-            'integration_key' => $key
-        ));
+        self::log_event($id, 'created', array());
 
         return array(
-            'id' => $integration_id,
+            'id' => $id,
             'integration_key' => $key,
             'access_token' => $token,
-            'secret_key' => $secret
         );
     }
 
     public static function update($id, $data) {
         global $wpdb;
 
-        $table = $wpdb->prefix . 'uapm_integrations';
+        if (!self::can_manage()) {
+            return new WP_Error('uapm_forbidden', 'Недостатньо прав.');
+        }
 
-        $allowed_statuses = array('active', 'inactive', 'disabled');
+        $id = absint($id);
+        $integration = self::get($id);
+
+        if (!$integration) {
+            return new WP_Error('uapm_not_found', 'Інтеграцію не знайдено.');
+        }
+
+        $statuses = array('active', 'inactive', 'disabled');
 
         $status = isset($data['status'])
             ? sanitize_key($data['status'])
-            : 'inactive';
+            : $integration->status;
 
-        if (!in_array($status, $allowed_statuses, true)) {
-            return false;
+        if (!in_array($status, $statuses, true)) {
+            return new WP_Error('uapm_invalid_status', 'Некоректний статус.');
         }
 
         $result = $wpdb->update(
-            $table,
+            $wpdb->prefix . 'uapm_integrations',
             array(
-                'name' => sanitize_text_field($data['name']),
-                'description' => sanitize_textarea_field($data['description']),
+                'name' => isset($data['name'])
+                    ? sanitize_text_field($data['name'])
+                    : $integration->name,
+                'description' => isset($data['description'])
+                    ? sanitize_textarea_field($data['description'])
+                    : $integration->description,
                 'status' => $status,
-                'updated_at' => current_time('mysql')
+                'updated_at' => current_time('mysql'),
             ),
-            array('id' => absint($id))
+            array('id' => $id)
         );
 
-        return $result !== false;
+        return false === $result
+            ? new WP_Error('uapm_database_error', 'Не вдалося оновити інтеграцію.')
+            : true;
     }
 
     public static function delete($id) {
         global $wpdb;
 
-        $table = $wpdb->prefix . 'uapm_integrations';
+        if (!self::can_manage()) {
+            return false;
+        }
 
-        self::log_event(absint($id), 'deleted');
+        $id = absint($id);
 
-        return $wpdb->delete(
-            $table,
-            array('id' => absint($id)),
+        if (!$id) {
+            return false;
+        }
+
+        self::log_event($id, 'deleted', array());
+
+        $wpdb->delete(
+            $wpdb->prefix . 'uapm_integration_events',
+            array('integration_id' => $id),
+            array('%d')
+        );
+
+        return false !== $wpdb->delete(
+            $wpdb->prefix . 'uapm_integrations',
+            array('id' => $id),
             array('%d')
         );
     }
@@ -201,24 +267,19 @@ class UAPM_Integrations {
 
         $token = $request->get_header('x-uapm-token');
 
-        if (!$token) {
-            $token = $request->get_param('token');
-        }
-
-        if (!$token || strlen($token) < 32) {
+        if (!$token || !is_string($token) || strlen($token) < 32 || strlen($token) > 128) {
             return new WP_Error(
                 'uapm_missing_token',
-                'Токен інтеграції не передано.',
+                'Не передано дійсний токен інтеграції.',
                 array('status' => 401)
             );
         }
 
-        $hash = hash('sha256', sanitize_text_field($token));
-        $table = $wpdb->prefix . 'uapm_integrations';
+        $hash = hash('sha256', $token);
 
         $integration = $wpdb->get_row(
             $wpdb->prepare(
-                "SELECT * FROM {$table}
+                "SELECT * FROM {$wpdb->prefix}uapm_integrations
                  WHERE access_token_hash = %s
                  AND status = 'active'
                  LIMIT 1",
@@ -229,55 +290,25 @@ class UAPM_Integrations {
         if (!$integration) {
             return new WP_Error(
                 'uapm_invalid_token',
-                'Недійсний токен або інтеграцію вимкнено.',
+                'Токен недійсний або інтеграцію вимкнено.',
                 array('status' => 403)
             );
         }
 
+        $rate_key = 'uapm_int_rate_' . absint($integration->id);
+        $requests = (int) get_transient($rate_key);
+
+        if ($requests >= 120) {
+            return new WP_Error(
+                'uapm_rate_limit',
+                'Перевищено ліміт запитів.',
+                array('status' => 429)
+            );
+        }
+
+        set_transient($rate_key, $requests + 1, MINUTE_IN_SECONDS);
+
         return $integration;
-    }
-
-    public static function api_register($request) {
-        $key = sanitize_key($request->get_param('integration_key'));
-        $name = sanitize_text_field($request->get_param('name'));
-
-        if (!$key || !$name) {
-            return new WP_Error(
-                'uapm_invalid_registration',
-                'Необхідно передати integration_key та name.',
-                array('status' => 400)
-            );
-        }
-
-        $existing = self::get_by_key($key);
-
-        if ($existing) {
-            return new WP_Error(
-                'uapm_integration_exists',
-                'Інтеграція з таким ключем вже зареєстрована.',
-                array('status' => 409)
-            );
-        }
-
-        $result = self::create(array(
-            'integration_key' => $key,
-            'name' => $name,
-            'description' => $request->get_param('description'),
-            'integration_type' => $request->get_param('integration_type')
-        ));
-
-        if (is_wp_error($result)) {
-            return $result;
-        }
-
-        return new WP_REST_Response(array(
-            'success' => true,
-            'integration_id' => $result['id'],
-            'integration_key' => $result['integration_key'],
-            'access_token' => $result['access_token'],
-            'secret_key' => $result['secret_key'],
-            'message' => 'Збережіть ключі. Повторно вони не відображатимуться.'
-        ), 201);
     }
 
     public static function api_heartbeat($request) {
@@ -289,26 +320,21 @@ class UAPM_Integrations {
             return $integration;
         }
 
-        $table = $wpdb->prefix . 'uapm_integrations';
-
         $wpdb->update(
-            $table,
+            $wpdb->prefix . 'uapm_integrations',
             array(
                 'last_seen' => current_time('mysql'),
-                'updated_at' => current_time('mysql')
+                'updated_at' => current_time('mysql'),
             ),
             array('id' => absint($integration->id))
         );
 
-        self::log_event(
-            $integration->id,
-            'heartbeat'
-        );
+        self::log_event($integration->id, 'heartbeat');
 
         return rest_ensure_response(array(
             'success' => true,
             'integration_id' => absint($integration->id),
-            'server_time' => current_time('mysql')
+            'server_time' => current_time('mysql'),
         ));
     }
 
@@ -321,17 +347,17 @@ class UAPM_Integrations {
 
         $event = sanitize_key($request->get_param('event'));
 
-        $allowed_events = array(
+        $allowed = array(
             'installed',
             'activated',
             'updated',
             'deactivated',
             'uninstalled',
             'error',
-            'custom'
+            'custom',
         );
 
-        if (!in_array($event, $allowed_events, true)) {
+        if (!in_array($event, $allowed, true)) {
             return new WP_Error(
                 'uapm_invalid_event',
                 'Невідомий тип події.',
@@ -345,11 +371,21 @@ class UAPM_Integrations {
             $payload = array();
         }
 
-        self::log_event(
+        $payload = self::sanitize_payload($payload);
+
+        $saved = self::log_event(
             $integration->id,
             $event,
             $payload
         );
+
+        if (!$saved) {
+            return new WP_Error(
+                'uapm_event_save_failed',
+                'Не вдалося зберегти подію.',
+                array('status' => 500)
+            );
+        }
 
         do_action(
             'uapm_integration_event',
@@ -361,69 +397,57 @@ class UAPM_Integrations {
         return rest_ensure_response(array(
             'success' => true,
             'event' => $event,
-            'recorded' => true
+            'recorded' => true,
         ));
     }
 
-    public static function get_by_key($key) {
-        global $wpdb;
+    private static function sanitize_payload($payload, $depth = 0) {
+        if ($depth > 5 || !is_array($payload)) {
+            return array();
+        }
 
-        $table = $wpdb->prefix . 'uapm_integrations';
+        $clean = array();
 
-        return $wpdb->get_row(
-            $wpdb->prepare(
-                "SELECT * FROM {$table} WHERE integration_key = %s LIMIT 1",
-                sanitize_key($key)
-            )
-        );
+        foreach ($payload as $key => $value) {
+            if (count($clean) >= 100) {
+                break;
+            }
+
+            $key = sanitize_key($key);
+
+            if (is_array($value)) {
+                $clean[$key] = self::sanitize_payload($value, $depth + 1);
+            } elseif (is_scalar($value)) {
+                $clean[$key] = sanitize_text_field((string) $value);
+            }
+        }
+
+        return $clean;
     }
 
     public static function log_event($integration_id, $event, $payload = array()) {
         global $wpdb;
 
-        $table = $wpdb->prefix . 'uapm_integration_events';
-
-        $wpdb->insert(
-            $table,
+        $result = $wpdb->insert(
+            $wpdb->prefix . 'uapm_integration_events',
             array(
                 'integration_id' => absint($integration_id),
                 'event_type' => sanitize_key($event),
-                'payload' => wp_json_encode($payload),
-                'created_at' => current_time('mysql')
-            )
-        );
-    }
-
-    private static function encrypt_secret($secret) {
-        if (!function_exists('openssl_encrypt')) {
-            return '';
-        }
-
-        $key = hash('sha256', wp_salt('auth'), true);
-        $iv = random_bytes(16);
-
-        $encrypted = openssl_encrypt(
-            $secret,
-            'AES-256-CBC',
-            $key,
-            OPENSSL_RAW_DATA,
-            $iv
+                'payload' => wp_json_encode(self::sanitize_payload($payload)),
+                'created_at' => current_time('mysql'),
+            ),
+            array('%d', '%s', '%s', '%s')
         );
 
-        if ($encrypted === false) {
-            return '';
-        }
-
-        return base64_encode($iv . $encrypted);
+        return false !== $result;
     }
 
     public static function render_page() {
-        if (!current_user_can('uapm_manage_integrations')) {
+        if (!self::can_manage()) {
             wp_die('Недостатньо прав.');
         }
 
         $integrations = self::get_all();
-
         ?>
         <div class="wrap">
             <h1>Інтеграції UPM</h1>
@@ -432,27 +456,20 @@ class UAPM_Integrations {
 
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                 <input type="hidden" name="action" value="uapm_save_integration">
-
                 <?php wp_nonce_field('uapm_save_integration'); ?>
 
                 <table class="form-table">
                     <tr>
                         <th>Ключ інтеграції</th>
-                        <td>
-                            <input type="text" name="integration_key" required>
-                        </td>
+                        <td><input type="text" name="integration_key" required></td>
                     </tr>
                     <tr>
                         <th>Назва</th>
-                        <td>
-                            <input type="text" name="name" required>
-                        </td>
+                        <td><input type="text" name="name" required></td>
                     </tr>
                     <tr>
                         <th>Опис</th>
-                        <td>
-                            <textarea name="description" rows="3"></textarea>
-                        </td>
+                        <td><textarea name="description" rows="3"></textarea></td>
                     </tr>
                     <tr>
                         <th>Тип</th>
@@ -484,48 +501,56 @@ class UAPM_Integrations {
                         <th>Тип</th>
                         <th>Статус</th>
                         <th>Останній зв'язок</th>
-                        <th>Дія</th>
+                        <th>Дії</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($integrations as $item) : ?>
-                        <tr>
-                            <td><?php echo esc_html($item->id); ?></td>
-                            <td><?php echo esc_html($item->name); ?></td>
-                            <td><code><?php echo esc_html($item->integration_key); ?></code></td>
-                            <td><?php echo esc_html($item->integration_type); ?></td>
-                            <td><?php echo esc_html($item->status); ?></td>
-                            <td><?php echo esc_html($item->last_seen ? $item->last_seen : 'Ще не підключалась'); ?></td>
-                            <td>
-                                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                                    <input type="hidden" name="action" value="uapm_delete_integration">
-                                    <input type="hidden" name="integration_id" value="<?php echo esc_attr($item->id); ?>">
-                                    <?php wp_nonce_field('uapm_delete_integration_' . $item->id); ?>
-                                    <button
-                                        type="submit"
-                                        class="button button-small"
-                                        onclick="return confirm('Видалити інтеграцію?');"
-                                    >
-                                        Видалити
-                                    </button>
-                                </form>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
+                    <?php if ($integrations) : ?>
+                        <?php foreach ($integrations as $item) : ?>
+                            <tr>
+                                <td><?php echo esc_html($item->id); ?></td>
+                                <td><?php echo esc_html($item->name); ?></td>
+                                <td><code><?php echo esc_html($item->integration_key); ?></code></td>
+                                <td><?php echo esc_html($item->integration_type); ?></td>
+                                <td><?php echo esc_html($item->status); ?></td>
+                                <td><?php echo esc_html($item->last_seen ? $item->last_seen : 'Ще не підключалась'); ?></td>
+                                <td>
+                                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-block">
+                                        <input type="hidden" name="action" value="uapm_toggle_integration">
+                                        <input type="hidden" name="integration_id" value="<?php echo esc_attr($item->id); ?>">
+                                        <input type="hidden" name="new_status" value="<?php echo $item->status === 'active' ? 'inactive' : 'active'; ?>">
+                                        <?php wp_nonce_field('uapm_toggle_integration_' . $item->id); ?>
+                                        <button class="button button-small" type="submit">
+                                            <?php echo $item->status === 'active' ? 'Вимкнути' : 'Увімкнути'; ?>
+                                        </button>
+                                    </form>
 
-                    <?php if (empty($integrations)) : ?>
-                        <tr>
-                            <td colspan="7">Інтеграцій поки немає.</td>
-                        </tr>
+                                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-block">
+                                        <input type="hidden" name="action" value="uapm_delete_integration">
+                                        <input type="hidden" name="integration_id" value="<?php echo esc_attr($item->id); ?>">
+                                        <?php wp_nonce_field('uapm_delete_integration_' . $item->id); ?>
+                                        <button class="button button-small" type="submit" onclick="return confirm('Видалити інтеграцію?');">
+                                            Видалити
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php else : ?>
+                        <tr><td colspan="7">Інтеграцій поки немає.</td></tr>
                     <?php endif; ?>
                 </tbody>
             </table>
+
+            <p class="description">
+                Токен інтеграції показується лише під час її створення. Зберігайте його в безпечному місці.
+            </p>
         </div>
         <?php
     }
 
     public static function handle_save() {
-        if (!current_user_can('uapm_manage_integrations')) {
+        if (!self::can_manage()) {
             wp_die('Недостатньо прав.');
         }
 
@@ -543,23 +568,57 @@ class UAPM_Integrations {
                 : '',
             'integration_type' => isset($_POST['integration_type'])
                 ? wp_unslash($_POST['integration_type'])
-                : 'external'
+                : 'external',
         ));
 
-        $url = add_query_arg(
-            array(
-                'page' => 'uapm-integrations',
-                'created' => is_wp_error($result) ? 0 : 1
-            ),
-            admin_url('admin.php')
-        );
+        if (is_wp_error($result)) {
+            set_transient(
+                'uapm_integration_admin_message_' . get_current_user_id(),
+                $result->get_error_message(),
+                60
+            );
+        } else {
+            set_transient(
+                'uapm_integration_new_token_' . get_current_user_id(),
+                $result,
+                300
+            );
+        }
 
-        wp_safe_redirect($url);
+        wp_safe_redirect(
+            add_query_arg(
+                array('page' => 'uapm-integrations'),
+                admin_url('admin.php')
+            )
+        );
+        exit;
+    }
+
+    public static function handle_toggle() {
+        if (!self::can_manage()) {
+            wp_die('Недостатньо прав.');
+        }
+
+        $id = isset($_POST['integration_id'])
+            ? absint($_POST['integration_id'])
+            : 0;
+
+        check_admin_referer('uapm_toggle_integration_' . $id);
+
+        self::update($id, array(
+            'status' => isset($_POST['new_status'])
+                ? sanitize_key($_POST['new_status'])
+                : 'inactive',
+        ));
+
+        wp_safe_redirect(
+            add_query_arg('page', 'uapm-integrations', admin_url('admin.php'))
+        );
         exit;
     }
 
     public static function handle_delete() {
-        if (!current_user_can('uapm_manage_integrations')) {
+        if (!self::can_manage()) {
             wp_die('Недостатньо прав.');
         }
 
@@ -571,14 +630,9 @@ class UAPM_Integrations {
 
         self::delete($id);
 
-        wp_safe_redirect(add_query_arg(
-            array(
-                'page' => 'uapm-integrations',
-                'deleted' => 1
-            ),
-            admin_url('admin.php')
-        ));
-
+        wp_safe_redirect(
+            add_query_arg('page', 'uapm-integrations', admin_url('admin.php'))
+        );
         exit;
     }
 }
