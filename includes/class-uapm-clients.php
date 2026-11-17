@@ -6,6 +6,8 @@ if (!defined('ABSPATH')) {
 class UAPM_Clients {
 
     public static function init() {
+        self::install_schema();
+
         add_action('admin_post_uapm_save_client', array(__CLASS__, 'handle_save'));
         add_action('admin_post_uapm_delete_client', array(__CLASS__, 'handle_delete'));
 
@@ -496,5 +498,4 @@ class UAPM_Clients {
     }
 }
 
-UAPM_Clients::install_schema();
 UAPM_Clients::init();
