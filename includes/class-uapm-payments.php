@@ -36,7 +36,7 @@ final class UAPM_Payments {
         return $wpdb->prefix . 'uapm_manager_commissions';
     }
 
-    private static function install_schema() {
+    public static function install_schema() {
         static $installed = false;
 
         if ($installed) {
