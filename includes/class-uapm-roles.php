@@ -1,6 +1,6 @@
 <?php
 /**
- * UA Project Manager — Roles and capabilities.
+ * UA Project Manager — Roles and Capabilities.
  *
  * @package UA_Project_Manager
  */
@@ -9,165 +9,168 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-final class UAPM_Roles {
+if (!class_exists('UAPM_Roles')) {
 
-    const ROLE_MANAGER = 'uapm_manager';
+    final class UAPM_Roles {
 
-    public static function init() {
-        add_action('init', array(__CLASS__, 'ensure_roles'), 5);
-    }
+        const MANAGER_ROLE = 'uapm_manager';
 
-    public static function manager_capabilities() {
-        return array(
-            'read' => true,
-            'uapm_access_manager' => true,
-            'uapm_view_own_projects' => true,
-            'uapm_view_own_clients' => true,
-            'uapm_manage_own_clients' => true,
-            'uapm_view_own_commissions' => true,
-            'uapm_view_own_payments' => true,
-        );
-    }
-
-    public static function admin_capabilities() {
-        return array(
-            'uapm_manage_projects',
-            'uapm_manage_clients',
-            'uapm_manage_payments',
-            'uapm_manage_downloads',
-            'uapm_manage_installations',
-            'uapm_manage_integrations',
-            'uapm_manage_settings',
-            'uapm_manage_mailings',
-            'uapm_view_reports',
-            'uapm_manage_codes',
-            'uapm_manage_github',
-            'uapm_manage_inspector',
-            'uapm_inspect_code',
-        );
-    }
-
-    public static function ensure_roles() {
-        self::ensure_manager_role();
-        self::ensure_administrator_capabilities();
-    }
-
-    private static function ensure_manager_role() {
-        $manager = get_role(self::ROLE_MANAGER);
-
-        if (!$manager) {
-            add_role(
-                self::ROLE_MANAGER,
-                self::manager_role_name(),
-                self::manager_capabilities()
-            );
-
-            $manager = get_role(self::ROLE_MANAGER);
+        public static function init() {
+            add_action('init', array(__CLASS__, 'register_roles'), 5);
         }
 
-        if (!$manager) {
-            return;
+        public static function register_roles() {
+            self::create_manager_role();
+            self::add_admin_capabilities();
         }
 
-        foreach (self::manager_capabilities() as $capability => $grant) {
-            if ($grant) {
-                $manager->add_cap($capability);
+        public static function create_manager_role() {
+            $capabilities = self::manager_capabilities();
+
+            $role = get_role(self::MANAGER_ROLE);
+
+            if (!$role) {
+                add_role(
+                    self::MANAGER_ROLE,
+                    __('UAPM Manager', 'ua-project-manager'),
+                    $capabilities
+                );
+
+                return;
+            }
+
+            foreach ($capabilities as $capability => $enabled) {
+                if ($enabled) {
+                    $role->add_cap($capability);
+                }
             }
         }
 
-        self::update_manager_role_name();
-    }
-
-    private static function ensure_administrator_capabilities() {
-        $admin = get_role('administrator');
-
-        if (!$admin) {
-            return;
+        public static function manager_capabilities() {
+            return array(
+                'read' => true,
+                'uapm_manage_projects' => true,
+                'uapm_view_projects' => true,
+                'uapm_manage_clients' => true,
+                'uapm_view_clients' => true,
+                'uapm_manage_integrations' => true,
+                'uapm_view_integrations' => true,
+                'uapm_manage_installations' => true,
+                'uapm_view_installations' => true,
+                'uapm_manage_downloads' => true,
+                'uapm_view_downloads' => true,
+                'uapm_manage_tasks' => true,
+                'uapm_view_tasks' => true,
+                'uapm_manage_notes' => true,
+                'uapm_view_notes' => true,
+                'uapm_manage_comments' => true,
+                'uapm_view_comments' => true,
+                'uapm_manage_activity' => true,
+                'uapm_view_activity' => true,
+                'uapm_view_dashboard' => true,
+                'uapm_view_reports' => true,
+                'uapm_manage_notifications' => true,
+                'uapm_view_notifications' => true,
+                'uapm_manage_portal' => true,
+                'uapm_view_portal' => true,
+            );
         }
 
-        foreach (self::admin_capabilities() as $capability) {
-            $admin->add_cap($capability);
+        public static function admin_capabilities() {
+            return array(
+                'uapm_manage_projects',
+                'uapm_view_projects',
+                'uapm_manage_clients',
+                'uapm_view_clients',
+                'uapm_manage_payments',
+                'uapm_view_payments',
+                'uapm_manage_integrations',
+                'uapm_view_integrations',
+                'uapm_manage_installations',
+                'uapm_view_installations',
+                'uapm_manage_downloads',
+                'uapm_view_downloads',
+                'uapm_manage_tasks',
+                'uapm_view_tasks',
+                'uapm_manage_notes',
+                'uapm_view_notes',
+                'uapm_manage_comments',
+                'uapm_view_comments',
+                'uapm_manage_activity',
+                'uapm_view_activity',
+                'uapm_view_dashboard',
+                'uapm_view_reports',
+                'uapm_manage_notifications',
+                'uapm_view_notifications',
+                'uapm_manage_settings',
+                'uapm_manage_system',
+                'uapm_manage_security',
+                'uapm_manage_backups',
+                'uapm_manage_api',
+                'uapm_manage_webhooks',
+                'uapm_manage_licenses',
+                'uapm_manage_portal',
+                'uapm_view_portal',
+                'uapm_manage_code_generator',
+                'uapm_manage_code_inspector',
+                'uapm_manage_analytics',
+                'uapm_manage_logs',
+                'uapm_manage_export',
+                'uapm_manage_import',
+                'uapm_manage_privacy',
+                'uapm_manage_email_templates',
+                'uapm_manage_repository',
+                'uapm_manage_updater',
+                'uapm_manage_diagnostics',
+            );
+        }
+
+        public static function add_admin_capabilities() {
+            $admin = get_role('administrator');
+
+            if (!$admin) {
+                return;
+            }
+
+            foreach (self::admin_capabilities() as $capability) {
+                $admin->add_cap($capability);
+            }
+        }
+
+        public static function remove_manager_role() {
+            remove_role(self::MANAGER_ROLE);
+        }
+
+        public static function is_manager($user_id = 0) {
+            $user_id = $user_id ? absint($user_id) : get_current_user_id();
+
+            if (!$user_id) {
+                return false;
+            }
+
+            $user = get_userdata($user_id);
+
+            if (!$user) {
+                return false;
+            }
+
+            return in_array(self::MANAGER_ROLE, (array) $user->roles, true);
+        }
+
+        public static function has_capability($capability, $user_id = 0) {
+            $user_id = $user_id ? absint($user_id) : get_current_user_id();
+
+            if (!$user_id) {
+                return false;
+            }
+
+            return user_can($user_id, $capability);
+        }
+
+        public static function get_manager_role() {
+            return get_role(self::MANAGER_ROLE);
         }
     }
 
-    private static function manager_role_name() {
-        if (
-            class_exists('UAPM_Localization') &&
-            UAPM_Localization::get_language() === 'en'
-        ) {
-            return 'UPM Manager';
-        }
-
-        return 'Менеджер UPM';
-    }
-
-    private static function update_manager_role_name() {
-        if (!function_exists('wp_roles')) {
-            return;
-        }
-
-        $roles = wp_roles();
-
-        if (
-            !is_object($roles) ||
-            empty($roles->roles[self::ROLE_MANAGER])
-        ) {
-            return;
-        }
-
-        $name = self::manager_role_name();
-
-        $roles->roles[self::ROLE_MANAGER]['name'] = $name;
-        $roles->role_names[self::ROLE_MANAGER] = $name;
-
-        update_option($roles->role_key, $roles->roles);
-    }
-
-    public static function remove_roles() {
-        $manager = get_role(self::ROLE_MANAGER);
-
-        if ($manager) {
-            remove_role(self::ROLE_MANAGER);
-        }
-
-        /*
-         * Capabilities адміністратора навмисно не видаляються
-         * під час звичайної деактивації плагіна.
-         * Це запобігає втраті доступу до даних UPM.
-         */
-    }
-
-    public static function is_manager($user_id = 0) {
-        $user_id = $user_id ? absint($user_id) : get_current_user_id();
-
-        if (!$user_id) {
-            return false;
-        }
-
-        $user = get_userdata($user_id);
-
-        if (!$user) {
-            return false;
-        }
-
-        return in_array(self::ROLE_MANAGER, (array) $user->roles, true);
-    }
-
-    public static function can_manage_own_clients($user_id = 0) {
-        $user_id = $user_id ? absint($user_id) : get_current_user_id();
-
-        return self::is_manager($user_id) &&
-            user_can($user_id, 'uapm_manage_own_clients');
-    }
-
-    public static function can_manage_admin($user_id = 0) {
-        $user_id = $user_id ? absint($user_id) : get_current_user_id();
-
-        return $user_id && (
-            user_can($user_id, 'manage_options') ||
-            user_can($user_id, 'uapm_manage_projects')
-        );
-    }
+    UAPM_Roles::init();
 }
-
-UAPM_Roles::init();
