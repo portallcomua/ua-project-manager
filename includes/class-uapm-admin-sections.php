@@ -1,7 +1,6 @@
 <?php
 /**
- * UA Project Manager
- * Additional administration pages.
+ * UA Project Manager — Admin Sections.
  *
  * @package UA_Project_Manager
  */
@@ -10,359 +9,477 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-final class UAPM_Admin_Sections {
+if (!class_exists('UAPM_Admin_Sections')) {
 
-    public static function init() {
-        add_action('admin_menu', array(__CLASS__, 'register_menu'), 30);
-    }
+    final class UAPM_Admin_Sections {
 
-    public static function register_menu() {
-
-        add_submenu_page(
-            'uapm',
-            'Клієнти',
-            'Клієнти',
-            'uapm_manage_projects',
-            'uapm-clients',
-            array(__CLASS__, 'render_clients')
-        );
-
-        add_submenu_page(
-            'uapm',
-            'Інтеграції',
-            'Інтеграції',
-            'uapm_manage_integrations',
-            'uapm-integrations',
-            array(__CLASS__, 'render_integrations')
-        );
-
-        add_submenu_page(
-            'uapm',
-            'Завантаження',
-            'Завантаження',
-            'uapm_manage_projects',
-            'uapm-downloads',
-            array(__CLASS__, 'render_downloads')
-        );
-
-        add_submenu_page(
-            'uapm',
-            'Встановлення',
-            'Встановлення',
-            'uapm_manage_projects',
-            'uapm-installations',
-            array(__CLASS__, 'render_installations')
-        );
-
-        add_submenu_page(
-            'uapm',
-            'GitHub',
-            'GitHub',
-            'uapm_manage_settings',
-            'uapm-github',
-            array(__CLASS__, 'render_github')
-        );
-
-        add_submenu_page(
-            'uapm',
-            'Генератор коду',
-            'Генератор коду',
-            'uapm_manage_projects',
-            'uapm-code-generator',
-            array(__CLASS__, 'render_code_generator')
-        );
-
-        add_submenu_page(
-            'uapm',
-            'Перевірка коду',
-            'Перевірка коду',
-            'uapm_inspect_code',
-            'uapm-code-inspector',
-            array(__CLASS__, 'render_code_inspector')
-        );
-
-        add_submenu_page(
-            'uapm',
-            'Аналітика',
-            'Аналітика',
-            'uapm_manage_projects',
-            'uapm-analytics',
-            array(__CLASS__, 'render_analytics')
-        );
-
-        add_submenu_page(
-            'uapm',
-            'Налаштування',
-            'Налаштування',
-            'uapm_manage_settings',
-            'uapm-settings',
-            array(__CLASS__, 'render_settings')
-        );
-    }
-
-    private static function allowed() {
-        return current_user_can('manage_options') ||
-            current_user_can('uapm_manage_projects');
-    }
-
-    public static function render_clients() {
-        if (!self::allowed()) {
-            wp_die('Недостатньо прав.');
+        public static function init() {
+            add_action('admin_menu', array(__CLASS__, 'register_sections'), 30);
         }
 
-        if (!class_exists('UAPM_Clients')) {
-            self::unavailable('Модуль клієнтів не завантажено.');
-            return;
+        public static function register_sections() {
+            $parent = 'ua-project-manager';
+
+            self::add_page(
+                __('Clients', 'ua-project-manager'),
+                __('Clients', 'ua-project-manager'),
+                'uapm_manage_clients',
+                'uapm-clients',
+                array(__CLASS__, 'render_clients')
+            );
+
+            self::add_page(
+                __('Integrations', 'ua-project-manager'),
+                __('Integrations', 'ua-project-manager'),
+                'uapm_manage_integrations',
+                'uapm-integrations',
+                array(__CLASS__, 'render_integrations')
+            );
+
+            self::add_page(
+                __('Downloads', 'ua-project-manager'),
+                __('Downloads', 'ua-project-manager'),
+                'uapm_manage_downloads',
+                'uapm-downloads',
+                array(__CLASS__, 'render_downloads')
+            );
+
+            self::add_page(
+                __('Installations', 'ua-project-manager'),
+                __('Installations', 'ua-project-manager'),
+                'uapm_manage_installations',
+                'uapm-installations',
+                array(__CLASS__, 'render_installations')
+            );
+
+            self::add_page(
+                __('GitHub', 'ua-project-manager'),
+                __('GitHub', 'ua-project-manager'),
+                'uapm_manage_repository',
+                'uapm-github',
+                array(__CLASS__, 'render_github')
+            );
+
+            self::add_page(
+                __('Code Generator', 'ua-project-manager'),
+                __('Code Generator', 'ua-project-manager'),
+                'uapm_manage_code_generator',
+                'uapm-code-generator',
+                array(__CLASS__, 'render_code_generator')
+            );
+
+            self::add_page(
+                __('Code Inspector', 'ua-project-manager'),
+                __('Code Inspector', 'ua-project-manager'),
+                'uapm_manage_code_inspector',
+                'uapm-code-inspector',
+                array(__CLASS__, 'render_code_inspector')
+            );
+
+            self::add_page(
+                __('Analytics', 'ua-project-manager'),
+                __('Analytics', 'ua-project-manager'),
+                'uapm_manage_analytics',
+                'uapm-analytics',
+                array(__CLASS__, 'render_analytics')
+            );
+
+            self::add_page(
+                __('Settings', 'ua-project-manager'),
+                __('Settings', 'ua-project-manager'),
+                'uapm_manage_settings',
+                'uapm-settings',
+                array(__CLASS__, 'render_settings')
+            );
         }
 
-        UAPM_Clients::render_page();
-    }
-
-    public static function render_integrations() {
-        if (!current_user_can('uapm_manage_integrations') && !current_user_can('manage_options')) {
-            wp_die('Недостатньо прав.');
+        private static function add_page($page_title, $menu_title, $capability, $slug, $callback) {
+            add_submenu_page(
+                'ua-project-manager',
+                $page_title,
+                $menu_title,
+                $capability,
+                $slug,
+                $callback
+            );
         }
 
-        if (class_exists('UAPM_Integrations')) {
-            UAPM_Integrations::render_page();
-            return;
+        private static function header($title, $description = '') {
+            ?>
+            <div class="wrap uapm-wrap">
+                <div class="uapm-header">
+                    <div class="uapm-header-content">
+                        <h1><?php echo esc_html($title); ?></h1>
+
+                        <?php if ($description) : ?>
+                            <p><?php echo esc_html($description); ?></p>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            <?php
         }
 
-        self::unavailable('Модуль інтеграцій не завантажено.');
-    }
+        private static function footer() {
+            ?>
+                <div class="uapm-admin-footer">
+                    <span>
+                        <?php
+                        printf(
+                            esc_html__('UA Project Manager %s', 'ua-project-manager'),
+                            defined('UAPM_VERSION') ? esc_html(UAPM_VERSION) : ''
+                        );
+                        ?>
+                    </span>
 
-    public static function render_downloads() {
-        if (!self::allowed()) {
-            wp_die('Недостатньо прав.');
+                    <span>
+                        <a href="https://github.com/portallcomua/ua-project-manager"
+                           target="_blank"
+                           rel="noopener noreferrer">
+                            GitHub
+                        </a>
+                    </span>
+                </div>
+            </div>
+            <?php
         }
 
-        if (class_exists('UAPM_Downloads')) {
-            UAPM_Downloads::render_stats();
-            return;
+        private static function card($title, $description, $icon = '📦') {
+            ?>
+            <div class="uapm-card">
+                <div class="uapm-flex">
+                    <div class="uapm-list-icon">
+                        <?php echo esc_html($icon); ?>
+                    </div>
+
+                    <div>
+                        <h3 class="uapm-card-title">
+                            <?php echo esc_html($title); ?>
+                        </h3>
+
+                        <p class="uapm-text-muted">
+                            <?php echo esc_html($description); ?>
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <?php
         }
 
-        self::unavailable('Модуль завантажень не завантажено.');
-    }
+        private static function placeholder($title, $description, $icon = '📦') {
+            ?>
+            <div class="uapm-panel">
+                <div class="uapm-panel-body">
+                    <div class="uapm-empty-state">
+                        <span class="uapm-empty-state-icon">
+                            <?php echo esc_html($icon); ?>
+                        </span>
 
-    public static function render_installations() {
+                        <h3><?php echo esc_html($title); ?></h3>
 
-        if (!self::allowed()) {
-            wp_die('Недостатньо прав.');
+                        <p><?php echo esc_html($description); ?></p>
+                    </div>
+                </div>
+            </div>
+            <?php
         }
 
-        if (!class_exists('UAPM_Installations')) {
-            self::unavailable('Модуль встановлень не завантажено.');
-            return;
-        }
-
-        $search = isset($_GET['s'])
-            ? sanitize_text_field(wp_unslash($_GET['s']))
-            : '';
-
-        $status = isset($_GET['status'])
-            ? sanitize_key(wp_unslash($_GET['status']))
-            : '';
-
-        $allowed_statuses = array(
-            '',
-            'active',
-            'deactivated',
-            'inactive',
-        );
-
-        if (!in_array($status, $allowed_statuses, true)) {
-            $status = '';
-        }
-
-        $items = UAPM_Installations::get_all(array(
-            'search' => $search,
-            'status' => $status,
-            'limit' => 500,
-        ));
-
-        echo '<div class="wrap">';
-        echo '<h1>Встановлення проєктів</h1>';
-
-        echo '<p>Усього встановлень: <strong>';
-        echo esc_html(UAPM_Installations::count());
-        echo '</strong> | Активних: <strong>';
-        echo esc_html(UAPM_Installations::count(array('status' => 'active')));
-        echo '</strong></p>';
-
-        echo '<form method="get" action="' . esc_url(admin_url('admin.php')) . '">';
-        echo '<input type="hidden" name="page" value="uapm-installations">';
-
-        echo '<input type="search" name="s" value="' . esc_attr($search) . '" placeholder="Пошук сайту або плагіна"> ';
-
-        echo '<select name="status">';
-
-        $labels = array(
-            '' => 'Усі статуси',
-            'active' => 'Активні',
-            'deactivated' => 'Деактивовані',
-            'inactive' => 'Неактивні',
-        );
-
-        foreach ($labels as $key => $label) {
-            echo '<option value="' . esc_attr($key) . '" ' .
-                selected($status, $key, false) . '>';
-            echo esc_html($label);
-            echo '</option>';
-        }
-
-        echo '</select> ';
-        echo '<button class="button">Фільтрувати</button>';
-        echo '</form>';
-
-        echo '<table class="widefat striped" style="margin-top:15px">';
-        echo '<thead><tr>';
-        echo '<th>ID</th>';
-        echo '<th>Сайт</th>';
-        echo '<th>Проєкт</th>';
-        echo '<th>Плагін</th>';
-        echo '<th>Версія</th>';
-        echo '<th>Статус</th>';
-        echo '<th>Останній зв’язок</th>';
-        echo '<th>Дія</th>';
-        echo '</tr></thead><tbody>';
-
-        if (empty($items)) {
-            echo '<tr><td colspan="8">Встановлень поки немає.</td></tr>';
-        }
-
-        foreach ($items as $item) {
-
-            $project = class_exists('UAPM_Projects')
-                ? UAPM_Projects::get(absint($item->project_id))
-                : null;
-
-            echo '<tr>';
-
-            echo '<td>' . esc_html($item->id) . '</td>';
-
-            echo '<td><a href="' . esc_url($item->site_url) . '" target="_blank" rel="noopener noreferrer">';
-            echo esc_html($item->site_name ? $item->site_name : $item->site_url);
-            echo '</a><br><small>' . esc_html($item->site_url) . '</small></td>';
-
-            echo '<td>' . esc_html($project ? $project->name : 'Проєкт #' . $item->project_id) . '</td>';
-
-            echo '<td>' . esc_html($item->plugin_slug) . '</td>';
-            echo '<td>' . esc_html($item->plugin_version) . '</td>';
-            echo '<td>' . esc_html($item->status) . '</td>';
-            echo '<td>' . esc_html($item->last_seen) . '</td>';
-
-            echo '<td>';
-
-            if (in_array($item->status, array('active', 'inactive'), true)) {
-
-                echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
-
-                echo '<input type="hidden" name="action" value="uapm_installation_action">';
-                echo '<input type="hidden" name="installation_id" value="' . esc_attr($item->id) . '">';
-                echo '<input type="hidden" name="installation_action" value="' .
-                    esc_attr($item->status === 'active' ? 'deactivate' : 'activate') . '">';
-
-                wp_nonce_field('uapm_installation_action');
-
-                echo '<button class="button button-small">';
-                echo esc_html($item->status === 'active' ? 'Деактивувати' : 'Активувати');
-                echo '</button>';
-
-                echo '</form>';
+        public static function render_clients() {
+            if (!current_user_can('uapm_manage_clients')) {
+                wp_die(esc_html__('Access denied.', 'ua-project-manager'));
             }
 
-            echo '</td>';
-            echo '</tr>';
+            self::header(
+                __('Clients', 'ua-project-manager'),
+                __('Manage project clients.', 'ua-project-manager')
+            );
+
+            if (class_exists('UAPM_Clients')) {
+                if (method_exists('UAPM_Clients', 'render')) {
+                    UAPM_Clients::render();
+                } elseif (method_exists('UAPM_Clients', 'admin_page')) {
+                    UAPM_Clients::admin_page();
+                } else {
+                    self::placeholder(
+                        __('Clients module', 'ua-project-manager'),
+                        __('The clients module is loaded, but its renderer is not available.', 'ua-project-manager'),
+                        '👥'
+                    );
+                }
+            } else {
+                self::placeholder(
+                    __('Clients module', 'ua-project-manager'),
+                    __('The clients module is not available.', 'ua-project-manager'),
+                    '👥'
+                );
+            }
+
+            self::footer();
         }
 
-        echo '</tbody></table>';
-        echo '</div>';
+        public static function render_integrations() {
+            if (!current_user_can('uapm_manage_integrations')) {
+                wp_die(esc_html__('Access denied.', 'ua-project-manager'));
+            }
+
+            self::header(
+                __('Integrations', 'ua-project-manager'),
+                __('Connect external services.', 'ua-project-manager')
+            );
+
+            if (class_exists('UAPM_Integrations')) {
+                if (method_exists('UAPM_Integrations', 'render')) {
+                    UAPM_Integrations::render();
+                } elseif (method_exists('UAPM_Integrations', 'admin_page')) {
+                    UAPM_Integrations::admin_page();
+                } else {
+                    self::placeholder(
+                        __('Integrations', 'ua-project-manager'),
+                        __('The integrations module is loaded.', 'ua-project-manager'),
+                        '🔌'
+                    );
+                }
+            } else {
+                self::placeholder(
+                    __('Integrations', 'ua-project-manager'),
+                    __('The integrations module is not available.', 'ua-project-manager'),
+                    '🔌'
+                );
+            }
+
+            self::footer();
+        }
+
+        public static function render_downloads() {
+            if (!current_user_can('uapm_manage_downloads')) {
+                wp_die(esc_html__('Access denied.', 'ua-project-manager'));
+            }
+
+            self::header(
+                __('Downloads', 'ua-project-manager'),
+                __('Manage plugin and project downloads.', 'ua-project-manager')
+            );
+
+            if (class_exists('UAPM_Downloads')) {
+                if (method_exists('UAPM_Downloads', 'render')) {
+                    UAPM_Downloads::render();
+                } elseif (method_exists('UAPM_Downloads', 'admin_page')) {
+                    UAPM_Downloads::admin_page();
+                } else {
+                    self::placeholder(
+                        __('Downloads', 'ua-project-manager'),
+                        __('The downloads module is loaded.', 'ua-project-manager'),
+                        '⬇️'
+                    );
+                }
+            } else {
+                self::placeholder(
+                    __('Downloads', 'ua-project-manager'),
+                    __('The downloads module is not available.', 'ua-project-manager'),
+                    '⬇️'
+                );
+            }
+
+            self::footer();
+        }
+
+        public static function render_installations() {
+            if (!current_user_can('uapm_manage_installations')) {
+                wp_die(esc_html__('Access denied.', 'ua-project-manager'));
+            }
+
+            self::header(
+                __('Installations', 'ua-project-manager'),
+                __('Manage connected installations.', 'ua-project-manager')
+            );
+
+            if (class_exists('UAPM_Installations')) {
+                if (method_exists('UAPM_Installations', 'render')) {
+                    UAPM_Installations::render();
+                } elseif (method_exists('UAPM_Installations', 'admin_page')) {
+                    UAPM_Installations::admin_page();
+                } else {
+                    self::placeholder(
+                        __('Installations', 'ua-project-manager'),
+                        __('The installations module is loaded.', 'ua-project-manager'),
+                        '🖥️'
+                    );
+                }
+            } else {
+                self::placeholder(
+                    __('Installations', 'ua-project-manager'),
+                    __('The installations module is not available.', 'ua-project-manager'),
+                    '🖥️'
+                );
+            }
+
+            self::footer();
+        }
+
+        public static function render_github() {
+            if (!current_user_can('uapm_manage_repository')) {
+                wp_die(esc_html__('Access denied.', 'ua-project-manager'));
+            }
+
+            self::header(
+                __('GitHub', 'ua-project-manager'),
+                __('Manage GitHub repositories and connections.', 'ua-project-manager')
+            );
+
+            if (class_exists('UAPM_Repository')) {
+                if (method_exists('UAPM_Repository', 'render')) {
+                    UAPM_Repository::render();
+                } elseif (method_exists('UAPM_Repository', 'admin_page')) {
+                    UAPM_Repository::admin_page();
+                } else {
+                    self::placeholder(
+                        __('GitHub repository', 'ua-project-manager'),
+                        __('The repository module is loaded.', 'ua-project-manager'),
+                        '🐙'
+                    );
+                }
+            } else {
+                self::placeholder(
+                    __('GitHub repository', 'ua-project-manager'),
+                    __('The repository module is not available.', 'ua-project-manager'),
+                    '🐙'
+                );
+            }
+
+            self::footer();
+        }
+
+        public static function render_code_generator() {
+            if (!current_user_can('uapm_manage_code_generator')) {
+                wp_die(esc_html__('Access denied.', 'ua-project-manager'));
+            }
+
+            self::header(
+                __('Code Generator', 'ua-project-manager'),
+                __('Generate code and project files.', 'ua-project-manager')
+            );
+
+            if (class_exists('UAPM_Code_Generator')) {
+                if (method_exists('UAPM_Code_Generator', 'render')) {
+                    UAPM_Code_Generator::render();
+                } elseif (method_exists('UAPM_Code_Generator', 'admin_page')) {
+                    UAPM_Code_Generator::admin_page();
+                } else {
+                    self::placeholder(
+                        __('Code Generator', 'ua-project-manager'),
+                        __('The code generator module is loaded.', 'ua-project-manager'),
+                        '⚙️'
+                    );
+                }
+            } else {
+                self::placeholder(
+                    __('Code Generator', 'ua-project-manager'),
+                    __('The code generator module is not available.', 'ua-project-manager'),
+                    '⚙️'
+                );
+            }
+
+            self::footer();
+        }
+
+        public static function render_code_inspector() {
+            if (!current_user_can('uapm_manage_code_inspector')) {
+                wp_die(esc_html__('Access denied.', 'ua-project-manager'));
+            }
+
+            self::header(
+                __('Code Inspector', 'ua-project-manager'),
+                __('Inspect and analyze code.', 'ua-project-manager')
+            );
+
+            if (class_exists('UAPM_Code_Inspector')) {
+                if (method_exists('UAPM_Code_Inspector', 'render')) {
+                    UAPM_Code_Inspector::render();
+                } elseif (method_exists('UAPM_Code_Inspector', 'admin_page')) {
+                    UAPM_Code_Inspector::admin_page();
+                } else {
+                    self::placeholder(
+                        __('Code Inspector', 'ua-project-manager'),
+                        __('The code inspector module is loaded.', 'ua-project-manager'),
+                        '🔍'
+                    );
+                }
+            } else {
+                self::placeholder(
+                    __('Code Inspector', 'ua-project-manager'),
+                    __('The code inspector module is not available.', 'ua-project-manager'),
+                    '🔍'
+                );
+            }
+
+            self::footer();
+        }
+
+        public static function render_analytics() {
+            if (!current_user_can('uapm_manage_analytics')) {
+                wp_die(esc_html__('Access denied.', 'ua-project-manager'));
+            }
+
+            self::header(
+                __('Analytics', 'ua-project-manager'),
+                __('Statistics and project analytics.', 'ua-project-manager')
+            );
+
+            if (class_exists('UAPM_Analytics')) {
+                if (method_exists('UAPM_Analytics', 'render')) {
+                    UAPM_Analytics::render();
+                } elseif (method_exists('UAPM_Analytics', 'admin_page')) {
+                    UAPM_Analytics::admin_page();
+                } else {
+                    self::placeholder(
+                        __('Analytics', 'ua-project-manager'),
+                        __('The analytics module is loaded.', 'ua-project-manager'),
+                        '📊'
+                    );
+                }
+            } else {
+                self::placeholder(
+                    __('Analytics', 'ua-project-manager'),
+                    __('The analytics module is not available.', 'ua-project-manager'),
+                    '📊'
+                );
+            }
+
+            self::footer();
+        }
+
+        public static function render_settings() {
+            if (!current_user_can('uapm_manage_settings')) {
+                wp_die(esc_html__('Access denied.', 'ua-project-manager'));
+            }
+
+            self::header(
+                __('Settings', 'ua-project-manager'),
+                __('Configure UA Project Manager.', 'ua-project-manager')
+            );
+
+            if (class_exists('UAPM_Settings')) {
+                if (method_exists('UAPM_Settings', 'render')) {
+                    UAPM_Settings::render();
+                } elseif (method_exists('UAPM_Settings', 'admin_page')) {
+                    UAPM_Settings::admin_page();
+                } else {
+                    self::placeholder(
+                        __('Settings', 'ua-project-manager'),
+                        __('The settings module is loaded.', 'ua-project-manager'),
+                        '⚙️'
+                    );
+                }
+            } else {
+                self::placeholder(
+                    __('Settings', 'ua-project-manager'),
+                    __('The settings module is not available.', 'ua-project-manager'),
+                    '⚙️'
+                );
+            }
+
+            self::footer();
+        }
     }
 
-    public static function render_github() {
-        if (!self::allowed()) {
-            wp_die('Недостатньо прав.');
-        }
-
-        if (class_exists('UAPM_GitHub')) {
-            UAPM_GitHub::render_page();
-            return;
-        }
-
-        self::unavailable('Модуль GitHub не завантажено.');
-    }
-
-    public static function render_code_generator() {
-
-        if (!self::allowed()) {
-            wp_die('Недостатньо прав.');
-        }
-
-        echo '<div class="wrap">';
-        echo '<h1>Генератор коду</h1>';
-
-        if (class_exists('UAPM_Code_Generator')) {
-            UAPM_Code_Generator::render_form();
-        } else {
-            echo '<p>Модуль генератора коду не завантажено.</p>';
-        }
-
-        echo '</div>';
-    }
-
-    public static function render_code_inspector() {
-
-        if (!self::allowed() && !current_user_can('uapm_inspect_code')) {
-            wp_die('Недостатньо прав.');
-        }
-
-        if (class_exists('UAPM_Code_Inspector')) {
-            UAPM_Code_Inspector::render_form();
-            return;
-        }
-
-        self::unavailable('Модуль перевірки коду не завантажено.');
-    }
-
-    public static function render_analytics() {
-
-        if (!self::allowed()) {
-            wp_die('Недостатньо прав.');
-        }
-
-        if (class_exists('UAPM_Analytics')) {
-            UAPM_Analytics::render_page();
-            return;
-        }
-
-        self::unavailable('Модуль аналітики не завантажено.');
-    }
-
-    public static function render_settings() {
-
-        if (
-            !current_user_can('manage_options') &&
-            !current_user_can('uapm_manage_settings')
-        ) {
-            wp_die('Недостатньо прав.');
-        }
-
-        if (class_exists('UAPM_Settings')) {
-            UAPM_Settings::render_page();
-            return;
-        }
-
-        self::unavailable('Модуль налаштувань не завантажено.');
-    }
-
-    private static function unavailable($message) {
-        echo '<div class="wrap">';
-        echo '<h1>UA Project Manager</h1>';
-        echo '<div class="notice notice-error"><p>';
-        echo esc_html($message);
-        echo '</p></div>';
-        echo '</div>';
-    }
+    UAPM_Admin_Sections::init();
 }
-
-UAPM_Admin_Sections::init();
