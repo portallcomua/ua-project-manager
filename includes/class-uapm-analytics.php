@@ -28,6 +28,7 @@ final class UAPM_Analytics {
 	 */
 	private static function table( $name ) {
 		global $wpdb;
+
 		return $wpdb->prefix . 'uapm_' . sanitize_key( $name );
 	}
 
@@ -37,9 +38,9 @@ final class UAPM_Analytics {
 	 * @return bool
 	 */
 	private static function can_view() {
-		return current_user_can( 'uapm_manage_projects' ) ||
-			current_user_can( 'uapm_manage_payments' ) ||
-			current_user_can( 'manage_options' );
+		return current_user_can( 'uapm_manage_projects' )
+			|| current_user_can( 'uapm_manage_payments' )
+			|| current_user_can( 'manage_options' );
 	}
 
 	/**
@@ -67,7 +68,7 @@ final class UAPM_Analytics {
 		}
 
 		return array(
-			$ date_from = $date_from . ' 00:00:00',
+			$date_from . ' 00:00:00',
 			$date_to . ' 23:59:59',
 		);
 	}
@@ -102,8 +103,7 @@ final class UAPM_Analytics {
 	public static function get_overview( $date_from = '', $date_to = '' ) {
 		global $wpdb;
 
-		$dates = self::normalize_dates( $date_from, $date_to );
-
+		$dates         = self::normalize_dates( $date_from, $date_to );
 		$payments      = self::table( 'payments' );
 		$installations = self::table( 'installations' );
 		$projects      = self::table( 'projects' );
