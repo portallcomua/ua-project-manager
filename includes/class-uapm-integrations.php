@@ -1,8 +1,6 @@
-
 <?php
 /**
- * UA Project Manager
- * Secure external integrations manager.
+ * UA Project Manager — Universal Plugin Integrations Catalog.
  *
  * @package UA_Project_Manager
  */
@@ -11,13 +9,31 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+if (!class_exists('UAPM_Integrations')) {
+
 final class UAPM_Integrations {
 
     public static function init() {
         add_action('admin_post_uapm_save_integration', array(__CLASS__, 'handle_save'));
         add_action('admin_post_uapm_delete_integration', array(__CLASS__, 'handle_delete'));
         add_action('admin_post_uapm_toggle_integration', array(__CLASS__, 'handle_toggle'));
+        add_action('admin_post_uapm_check_integration', array(__CLASS__, 'handle_check'));
         add_action('rest_api_init', array(__CLASS__, 'register_routes'));
+    }
+
+    private static function table() {
+        global $wpdb;
+        return $wpdb->prefix . 'uapm_integrations';
+    }
+
+    private static function events_table() {
+        global $wpdb;
+        return $wpdb->prefix . 'uapm_integration_events';
+    }
+
+    private static function can_manage() {
+        return current_user_can('manage_options') ||
+            current_user_can('uapm_manage_integrations');
     }
 
     public static function install_schema() {
@@ -26,31 +42,39 @@ final class UAPM_Integrations {
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
         $charset = $wpdb->get_charset_collate();
-        $table = $wpdb->prefix . 'uapm_integrations';
-        $events = $wpdb->prefix . 'uapm_integration_events';
+        $table = self::table();
+        $events = self::events_table();
 
-        $sql = "CREATE TABLE {$table} (
+        dbDelta("CREATE TABLE {$table} (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             integration_key varchar(100) NOT NULL,
-            name varchar(255) NOT NULL,
+            name varchar(255) NOT NULL DEFAULT '',
             description text NULL,
-            integration_type varchar(50) NOT NULL DEFAULT 'external',
+            integration_type varchar(50) NOT NULL DEFAULT 'wordpress',
             status varchar(30) NOT NULL DEFAULT 'inactive',
             access_token_hash varchar(64) NOT NULL DEFAULT '',
             secret_key longtext NULL,
             settings longtext NULL,
             last_seen datetime NULL,
+            integration_name varchar(191) NOT NULL DEFAULT '',
+            integration_status varchar(30) NOT NULL DEFAULT 'inactive',
+            plugin_author varchar(191) NOT NULL DEFAULT '',
+            plugin_url text NULL,
+            github_url text NULL,
+            main_file varchar(255) NOT NULL DEFAULT '',
+            plugin_version varchar(100) NOT NULL DEFAULT '',
+            latest_version varchar(100) NOT NULL DEFAULT '',
+            github_release_url text NULL,
+            github_checked datetime NULL,
             created_at datetime NOT NULL,
             updated_at datetime NOT NULL,
             PRIMARY KEY  (id),
             UNIQUE KEY integration_key (integration_key),
             KEY status (status),
             KEY integration_type (integration_type)
-        ) {$charset};";
+        ) {$charset};");
 
-        dbDelta($sql);
-
-        $events_sql = "CREATE TABLE {$events} (
+        dbDelta("CREATE TABLE {$events} (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             integration_id bigint(20) unsigned NOT NULL,
             event_type varchar(100) NOT NULL,
@@ -60,24 +84,299 @@ final class UAPM_Integrations {
             KEY integration_id (integration_id),
             KEY event_type (event_type),
             KEY created_at (created_at)
-        ) {$charset};";
+        ) {$charset};");
 
-        dbDelta($events_sql);
+        self::seed_catalog();
     }
 
-    private static function can_manage() {
-        return current_user_can('uapm_manage_integrations') ||
-            current_user_can('manage_options');
-    }
-
-    private static function integrations_table() {
+    private static function seed_catalog() {
         global $wpdb;
-        return $wpdb->prefix . 'uapm_integrations';
+
+        $items = array(
+            array(
+                'integration_key' => 'ua-pay-box',
+                'name' => 'UA Pay Box',
+                'description' => 'Платіжний модуль та керування доступом.',
+                'plugin_author' => 'UA Tools',
+                'github_url' => 'https://github.com/portallcomua/UA-Pay-Box-',
+                'main_file' => '',
+            ),
+            array(
+                'integration_key' => 'ua-click-counter',
+                'name' => 'UA Click Counter',
+                'description' => 'Облік натискань на кнопки та посилання.',
+                'plugin_author' => 'UA Tools',
+                'github_url' => 'https://github.com/portallcomua/ua-click-counter',
+                'main_file' => 'ua-click-counter.php',
+            ),
+            array(
+                'integration_key' => 'ua-plugin-monitor',
+                'name' => 'UA Plugins Monitor',
+                'description' => 'Моніторинг встановлень і стану плагінів.',
+                'plugin_author' => 'UA Tools',
+                'github_url' => 'https://github.com/portallcomua/ua-plugin-monitor',
+                'main_file' => 'ua-plugin-monitor2.php',
+            ),
+            array(
+                'integration_key' => 'cms-web-finder',
+                'name' => 'CMS Web Finder',
+                'description' => 'Пошук сайтів і робота зі списками контактів.',
+                'plugin_author' => 'UA Tools',
+                'github_url' => 'https://github.com/portallcomua/cms-web-finger',
+                'main_file' => 'cms-web-finder.php',
+            ),
+        );
+
+        foreach ($items as $item) {
+            $exists = $wpdb->get_var(
+                $wpdb->prepare(
+                    "SELECT id FROM " . self::table() . " WHERE integration_key = %s LIMIT 1",
+                    $item['integration_key']
+                )
+            );
+
+            if ($exists) {
+                continue;
+            }
+
+            $wpdb->insert(
+                self::table(),
+                array_merge($item, array(
+                    'integration_type' => 'wordpress',
+                    'status' => 'inactive',
+                    'integration_name' => $item['name'],
+                    'integration_status' => 'inactive',
+                    'access_token_hash' => '',
+                    'secret_key' => '',
+                    'settings' => '{}',
+                    'created_at' => current_time('mysql'),
+                    'updated_at' => current_time('mysql'),
+                ))
+            );
+        }
     }
 
-    private static function events_table() {
+    public static function get_all() {
         global $wpdb;
-        return $wpdb->prefix . 'uapm_integration_events';
+
+        return $wpdb->get_results(
+            "SELECT * FROM " . self::table() . " ORDER BY name ASC"
+        );
+    }
+
+    public static function get($id) {
+        global $wpdb;
+
+        return $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT * FROM " . self::table() . " WHERE id = %d LIMIT 1",
+                absint($id)
+            )
+        );
+    }
+
+    public static function get_by_key($key) {
+        global $wpdb;
+
+        return $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT * FROM " . self::table() . " WHERE integration_key = %s LIMIT 1",
+                sanitize_key($key)
+            )
+        );
+    }
+
+    public static function create($data) {
+        global $wpdb;
+
+        if (!self::can_manage()) {
+            return new WP_Error('uapm_forbidden', 'Недостатньо прав.');
+        }
+
+        $key = sanitize_key($data['integration_key'] ?? '');
+        $name = sanitize_text_field($data['name'] ?? '');
+
+        if (!$key || !$name) {
+            return new WP_Error('uapm_invalid', 'Вкажіть ключ і назву плагіна.');
+        }
+
+        if (self::get_by_key($key)) {
+            return new WP_Error('uapm_duplicate', 'Такий ключ уже існує.');
+        }
+
+        $result = $wpdb->insert(
+            self::table(),
+            array(
+                'integration_key' => $key,
+                'name' => $name,
+                'integration_name' => $name,
+                'description' => sanitize_textarea_field($data['description'] ?? ''),
+                'integration_type' => 'wordpress',
+                'status' => 'inactive',
+                'integration_status' => 'inactive',
+                'plugin_author' => sanitize_text_field($data['plugin_author'] ?? ''),
+                'plugin_url' => esc_url_raw($data['plugin_url'] ?? ''),
+                'github_url' => esc_url_raw($data['github_url'] ?? ''),
+                'main_file' => sanitize_text_field($data['main_file'] ?? ''),
+                'plugin_version' => sanitize_text_field($data['plugin_version'] ?? ''),
+                'latest_version' => '',
+                'github_release_url' => '',
+                'github_checked' => null,
+                'access_token_hash' => '',
+                'secret_key' => '',
+                'settings' => '{}',
+                'created_at' => current_time('mysql'),
+                'updated_at' => current_time('mysql'),
+            )
+        );
+
+        if (!$result) {
+            return new WP_Error('uapm_database_error', 'Не вдалося зберегти запис.');
+        }
+
+        return (int) $wpdb->insert_id;
+    }
+
+    public static function update($id, $data) {
+        global $wpdb;
+
+        if (!self::can_manage()) {
+            return new WP_Error('uapm_forbidden', 'Недостатньо прав.');
+        }
+
+        $item = self::get($id);
+
+        if (!$item) {
+            return new WP_Error('uapm_not_found', 'Запис не знайдено.');
+        }
+
+        $status = sanitize_key($data['status'] ?? $item->status);
+
+        if (!in_array($status, array('active', 'inactive', 'disabled'), true)) {
+            $status = 'inactive';
+        }
+
+        $name = sanitize_text_field($data['name'] ?? $item->name);
+
+        $result = $wpdb->update(
+            self::table(),
+            array(
+                'name' => $name,
+                'integration_name' => $name,
+                'description' => sanitize_textarea_field($data['description'] ?? $item->description),
+                'plugin_author' => sanitize_text_field($data['plugin_author'] ?? $item->plugin_author),
+                'plugin_url' => esc_url_raw($data['plugin_url'] ?? $item->plugin_url),
+                'github_url' => esc_url_raw($data['github_url'] ?? $item->github_url),
+                'main_file' => sanitize_text_field($data['main_file'] ?? $item->main_file),
+                'plugin_version' => sanitize_text_field($data['plugin_version'] ?? $item->plugin_version),
+                'status' => $status,
+                'integration_status' => $status,
+                'updated_at' => current_time('mysql'),
+            ),
+            array('id' => absint($id))
+        );
+
+        return false === $result
+            ? new WP_Error('uapm_database_error', 'Не вдалося оновити запис.')
+            : true;
+    }
+
+    public static function delete($id) {
+        global $wpdb;
+
+        if (!self::can_manage()) {
+            return false;
+        }
+
+        $id = absint($id);
+
+        $wpdb->delete(
+            self::events_table(),
+            array('integration_id' => $id),
+            array('%d')
+        );
+
+        return false !== $wpdb->delete(
+            self::table(),
+            array('id' => $id),
+            array('%d')
+        );
+    }
+
+    public static function normalize_repository($url) {
+        $url = trim((string) $url);
+        $url = preg_replace('#^https?://github\.com/#i', '', $url);
+        $url = preg_replace('/\.git$/i', '', $url);
+        $url = trim($url, '/');
+
+        if (!preg_match('/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/', $url)) {
+            return new WP_Error('uapm_invalid_github', 'Некоректне посилання на GitHub.');
+        }
+
+        return $url;
+    }
+
+    public static function check_github($id) {
+        global $wpdb;
+
+        $item = self::get($id);
+
+        if (!$item || empty($item->github_url)) {
+            return new WP_Error('uapm_no_github', 'Не вказано GitHub-репозиторій.');
+        }
+
+        $repository = self::normalize_repository($item->github_url);
+
+        if (is_wp_error($repository)) {
+            return $repository;
+        }
+
+        $response = wp_remote_get(
+            'https://api.github.com/repos/' . $repository . '/releases/latest',
+            array(
+                'timeout' => 20,
+                'redirection' => 0,
+                'headers' => array(
+                    'Accept' => 'application/vnd.github+json',
+                    'User-Agent' => 'UA-Project-Manager',
+                    'X-GitHub-Api-Version' => '2022-11-28',
+                ),
+            )
+        );
+
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+        $data = json_decode(wp_remote_retrieve_body($response), true);
+
+        if ($code !== 200 || !is_array($data) || empty($data['tag_name'])) {
+            return new WP_Error(
+                'uapm_github_release',
+                'GitHub не повернув останній реліз. Перевірте репозиторій і наявність Releases.'
+            );
+        }
+
+        $release_url = !empty($data['html_url'])
+            ? esc_url_raw($data['html_url'])
+            : '';
+
+        $wpdb->update(
+            self::table(),
+            array(
+                'latest_version' => sanitize_text_field($data['tag_name']),
+                'github_release_url' => $release_url,
+                'github_checked' => current_time('mysql'),
+                'updated_at' => current_time('mysql'),
+            ),
+            array('id' => absint($id))
+        );
+
+        return array(
+            'version' => sanitize_text_field($data['tag_name']),
+            'url' => $release_url,
+        );
     }
 
     public static function register_routes() {
@@ -94,238 +393,34 @@ final class UAPM_Integrations {
         ));
     }
 
-    public static function get_all() {
-        global $wpdb;
-
-        return $wpdb->get_results(
-            "SELECT id, integration_key, name, description,
-                    integration_type, status, last_seen,
-                    created_at, updated_at
-             FROM " . self::integrations_table() . "
-             ORDER BY name ASC"
-        );
-    }
-
-    public static function get($id) {
-        global $wpdb;
-
-        return $wpdb->get_row(
-            $wpdb->prepare(
-                "SELECT * FROM " . self::integrations_table() . "
-                 WHERE id = %d LIMIT 1",
-                absint($id)
-            )
-        );
-    }
-
-    public static function get_by_key($key) {
-        global $wpdb;
-
-        return $wpdb->get_row(
-            $wpdb->prepare(
-                "SELECT * FROM " . self::integrations_table() . "
-                 WHERE integration_key = %s LIMIT 1",
-                sanitize_key($key)
-            )
-        );
-    }
-
-    public static function create($data) {
-        global $wpdb;
-
-        if (!self::can_manage()) {
-            return new WP_Error('uapm_forbidden', 'Недостатньо прав.');
-        }
-
-        $key = isset($data['integration_key'])
-            ? sanitize_key($data['integration_key'])
-            : '';
-
-        $name = isset($data['name'])
-            ? sanitize_text_field($data['name'])
-            : '';
-
-        if (!$key || !$name) {
-            return new WP_Error(
-                'uapm_invalid_integration',
-                'Вкажіть ключ та назву інтеграції.'
-            );
-        }
-
-        if (self::get_by_key($key)) {
-            return new WP_Error(
-                'uapm_duplicate_integration',
-                'Інтеграція з таким ключем вже існує.'
-            );
-        }
-
-        try {
-            $token = bin2hex(random_bytes(32));
-        } catch (Exception $exception) {
-            return new WP_Error(
-                'uapm_token_generation_failed',
-                'Не вдалося створити захищений токен.'
-            );
-        }
-
-        $result = $wpdb->insert(
-            self::integrations_table(),
-            array(
-                'integration_key' => $key,
-                'name' => $name,
-                'description' => isset($data['description'])
-                    ? sanitize_textarea_field($data['description'])
-                    : '',
-                'integration_type' => isset($data['integration_type'])
-                    ? sanitize_key($data['integration_type'])
-                    : 'external',
-                'status' => 'active',
-                'access_token_hash' => hash('sha256', $token),
-                'secret_key' => '',
-                'settings' => '{}',
-                'created_at' => current_time('mysql'),
-                'updated_at' => current_time('mysql'),
-            )
-        );
-
-        if (!$result) {
-            return new WP_Error(
-                'uapm_database_error',
-                'Не вдалося створити інтеграцію.'
-            );
-        }
-
-        $id = (int) $wpdb->insert_id;
-
-        self::log_event($id, 'created', array());
-
-        return array(
-            'id' => $id,
-            'integration_key' => $key,
-            'name' => $name,
-            'access_token' => $token,
-        );
-    }
-
-    public static function update($id, $data) {
-        global $wpdb;
-
-        if (!self::can_manage()) {
-            return new WP_Error('uapm_forbidden', 'Недостатньо прав.');
-        }
-
-        $id = absint($id);
-        $integration = self::get($id);
-
-        if (!$integration) {
-            return new WP_Error('uapm_not_found', 'Інтеграцію не знайдено.');
-        }
-
-        $statuses = array('active', 'inactive', 'disabled');
-
-        $status = isset($data['status'])
-            ? sanitize_key($data['status'])
-            : $integration->status;
-
-        if (!in_array($status, $statuses, true)) {
-            return new WP_Error('uapm_invalid_status', 'Некоректний статус.');
-        }
-
-        $result = $wpdb->update(
-            self::integrations_table(),
-            array(
-                'name' => isset($data['name'])
-                    ? sanitize_text_field($data['name'])
-                    : $integration->name,
-                'description' => isset($data['description'])
-                    ? sanitize_textarea_field($data['description'])
-                    : $integration->description,
-                'status' => $status,
-                'updated_at' => current_time('mysql'),
-            ),
-            array('id' => $id)
-        );
-
-        return false === $result
-            ? new WP_Error('uapm_database_error', 'Не вдалося оновити інтеграцію.')
-            : true;
-    }
-
-    public static function delete($id) {
-        global $wpdb;
-
-        if (!self::can_manage()) {
-            return false;
-        }
-
-        $id = absint($id);
-
-        if (!$id) {
-            return false;
-        }
-
-        self::log_event($id, 'deleted', array());
-
-        $wpdb->delete(
-            self::events_table(),
-            array('integration_id' => $id),
-            array('%d')
-        );
-
-        return false !== $wpdb->delete(
-            self::integrations_table(),
-            array('id' => $id),
-            array('%d')
-        );
-    }
-
     public static function authenticate($request) {
         global $wpdb;
 
         $token = $request->get_header('x-uapm-token');
 
-        if (
-            !$token ||
-            !is_string($token) ||
-            strlen($token) < 32 ||
-            strlen($token) > 128
-        ) {
-            return new WP_Error(
-                'uapm_missing_token',
-                'Не передано дійсний токен інтеграції.',
-                array('status' => 401)
-            );
+        if (!is_string($token) || strlen($token) < 32 || strlen($token) > 128) {
+            return new WP_Error('uapm_missing_token', 'Не передано токен.', array('status' => 401));
         }
 
         $hash = hash('sha256', $token);
 
         $integration = $wpdb->get_row(
             $wpdb->prepare(
-                "SELECT * FROM " . self::integrations_table() . "
-                 WHERE access_token_hash = %s
-                 AND status = 'active'
-                 LIMIT 1",
+                "SELECT * FROM " . self::table() . "
+                 WHERE access_token_hash = %s AND status = 'active' LIMIT 1",
                 $hash
             )
         );
 
         if (!$integration) {
-            return new WP_Error(
-                'uapm_invalid_token',
-                'Токен недійсний або інтеграцію вимкнено.',
-                array('status' => 403)
-            );
+            return new WP_Error('uapm_invalid_token', 'Токен недійсний або інтеграцію вимкнено.', array('status' => 403));
         }
 
         $rate_key = 'uapm_int_rate_' . absint($integration->id);
         $requests = (int) get_transient($rate_key);
 
         if ($requests >= 120) {
-            return new WP_Error(
-                'uapm_rate_limit',
-                'Перевищено ліміт запитів.',
-                array('status' => 429)
-            );
+            return new WP_Error('uapm_rate_limit', 'Перевищено ліміт запитів.', array('status' => 429));
         }
 
         set_transient($rate_key, $requests + 1, MINUTE_IN_SECONDS);
@@ -343,11 +438,8 @@ final class UAPM_Integrations {
         }
 
         $wpdb->update(
-            self::integrations_table(),
-            array(
-                'last_seen' => current_time('mysql'),
-                'updated_at' => current_time('mysql'),
-            ),
+            self::table(),
+            array('last_seen' => current_time('mysql')),
             array('id' => absint($integration->id))
         );
 
@@ -368,53 +460,20 @@ final class UAPM_Integrations {
         }
 
         $event = sanitize_key($request->get_param('event'));
-
-        $allowed = array(
-            'installed',
-            'activated',
-            'updated',
-            'deactivated',
-            'uninstalled',
-            'error',
-            'custom',
-        );
+        $allowed = array('installed', 'activated', 'updated', 'deactivated', 'uninstalled', 'error', 'custom');
 
         if (!in_array($event, $allowed, true)) {
-            return new WP_Error(
-                'uapm_invalid_event',
-                'Невідомий тип події.',
-                array('status' => 400)
-            );
+            return new WP_Error('uapm_invalid_event', 'Невідомий тип події.', array('status' => 400));
         }
 
         $payload = $request->get_param('payload');
+        $payload = is_array($payload) ? self::sanitize_payload($payload) : array();
 
-        if (!is_array($payload)) {
-            $payload = array();
+        if (!self::log_event($integration->id, $event, $payload)) {
+            return new WP_Error('uapm_event_save_failed', 'Не вдалося зберегти подію.', array('status' => 500));
         }
 
-        $payload = self::sanitize_payload($payload);
-
-        $saved = self::log_event(
-            $integration->id,
-            $event,
-            $payload
-        );
-
-        if (!$saved) {
-            return new WP_Error(
-                'uapm_event_save_failed',
-                'Не вдалося зберегти подію.',
-                array('status' => 500)
-            );
-        }
-
-        do_action(
-            'uapm_integration_event',
-            absint($integration->id),
-            $event,
-            $payload
-        );
+        do_action('uapm_integration_event', absint($integration->id), $event, $payload);
 
         return rest_ensure_response(array(
             'success' => true,
@@ -450,7 +509,7 @@ final class UAPM_Integrations {
     public static function log_event($integration_id, $event, $payload = array()) {
         global $wpdb;
 
-        $result = $wpdb->insert(
+        return false !== $wpdb->insert(
             self::events_table(),
             array(
                 'integration_id' => absint($integration_id),
@@ -460,8 +519,10 @@ final class UAPM_Integrations {
             ),
             array('%d', '%s', '%s', '%s')
         );
+    }
 
-        return false !== $result;
+    public static function render() {
+        self::render_page();
     }
 
     public static function render_page() {
@@ -469,68 +530,20 @@ final class UAPM_Integrations {
             wp_die('Недостатньо прав.');
         }
 
-        $integrations = self::get_all();
-        $user_id = get_current_user_id();
-
-        $new_token = get_transient(
-            'uapm_integration_new_token_' . $user_id
-        );
-
-        $admin_message = get_transient(
-            'uapm_integration_admin_message_' . $user_id
-        );
-
-        if ($new_token) {
-            delete_transient('uapm_integration_new_token_' . $user_id);
-        }
-
-        if ($admin_message) {
-            delete_transient('uapm_integration_admin_message_' . $user_id);
-        }
+        $items = self::get_all();
+        $message = get_transient('uapm_catalog_message_' . get_current_user_id());
+        delete_transient('uapm_catalog_message_' . get_current_user_id());
 
         ?>
         <div class="wrap">
-            <h1>Інтеграції UPM</h1>
+            <h1>Каталог плагінів та інтеграцій</h1>
+            <p>Додавайте сторонні плагіни за їхніми даними. Код дочірніх плагінів не копіюється в UA Project Manager.</p>
 
-            <?php if ($admin_message) : ?>
-                <div class="notice notice-error">
-                    <p><?php echo esc_html($admin_message); ?></p>
-                </div>
+            <?php if ($message) : ?>
+                <div class="notice notice-info"><p><?php echo esc_html($message); ?></p></div>
             <?php endif; ?>
 
-            <?php if (is_array($new_token) && !empty($new_token['access_token'])) : ?>
-                <div class="notice notice-success" style="padding:12px 15px;">
-                    <h2>Інтеграцію створено</h2>
-                    <p>
-                        Токен показується лише один раз.
-                        Скопіюйте та збережіть його — після закриття цієї сторінки
-                        повторно переглянути токен буде неможливо.
-                    </p>
-                    <p><strong>Назва:</strong>
-                        <?php echo esc_html($new_token['name']); ?>
-                    </p>
-                    <p><strong>Ключ:</strong>
-                        <code><?php echo esc_html($new_token['integration_key']); ?></code>
-                    </p>
-                    <p><strong>Токен:</strong></p>
-                    <input
-                        type="text"
-                        readonly
-                        class="large-text"
-                        value="<?php echo esc_attr($new_token['access_token']); ?>"
-                        onclick="this.select();"
-                    >
-                    <p>
-                        <button
-                            type="button"
-                            class="button button-primary"
-                            onclick="var f=this.parentNode.previousElementSibling.querySelector('input');f.select();document.execCommand('copy');this.textContent='Скопійовано';"
-                        >Скопіювати токен</button>
-                    </p>
-                </div>
-            <?php endif; ?>
-
-            <h2>Додати інтеграцію</h2>
+            <h2>Додати плагін</h2>
 
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                 <input type="hidden" name="action" value="uapm_save_integration">
@@ -538,111 +551,135 @@ final class UAPM_Integrations {
 
                 <table class="form-table">
                     <tr>
-                        <th>Ключ інтеграції</th>
-                        <td>
-                            <input
-                                type="text"
-                                name="integration_key"
-                                required
-                                pattern="[a-zA-Z0-9_-]+"
-                            >
-                            <p class="description">Наприклад: ua-click-counter</p>
-                        </td>
+                        <th>Системний ключ</th>
+                        <td><input class="regular-text" name="integration_key" required pattern="[a-zA-Z0-9_-]+"></td>
                     </tr>
                     <tr>
-                        <th>Назва</th>
-                        <td><input type="text" name="name" required></td>
+                        <th>Назва плагіна</th>
+                        <td><input class="regular-text" name="name" required></td>
+                    </tr>
+                    <tr>
+                        <th>Автор</th>
+                        <td><input class="regular-text" name="plugin_author"></td>
                     </tr>
                     <tr>
                         <th>Опис</th>
-                        <td><textarea name="description" rows="3"></textarea></td>
+                        <td><textarea class="large-text" rows="2" name="description"></textarea></td>
                     </tr>
                     <tr>
-                        <th>Тип</th>
-                        <td>
-                            <select name="integration_type">
-                                <option value="external">Зовнішня</option>
-                                <option value="wordpress">WordPress</option>
-                                <option value="payment">Платіжна</option>
-                                <option value="analytics">Аналітика</option>
-                                <option value="communication">Комунікації</option>
-                            </select>
-                        </td>
+                        <th>Сторінка плагіна</th>
+                        <td><input class="large-text" type="url" name="plugin_url" placeholder="https://..."></td>
+                    </tr>
+                    <tr>
+                        <th>GitHub репозиторій</th>
+                        <td><input class="large-text" type="url" name="github_url" placeholder="https://github.com/user/repository"></td>
+                    </tr>
+                    <tr>
+                        <th>Головний файл</th>
+                        <td><input class="regular-text" name="main_file" placeholder="plugin-name.php"></td>
+                    </tr>
+                    <tr>
+                        <th>Поточна версія</th>
+                        <td><input class="regular-text" name="plugin_version" placeholder="1.0.0"></td>
                     </tr>
                 </table>
 
-                <?php submit_button('Створити інтеграцію'); ?>
+                <?php submit_button('Додати до каталогу'); ?>
             </form>
 
             <hr>
 
-            <h2>Підключені інтеграції</h2>
+            <h2>Каталог плагінів (<?php echo esc_html(count($items)); ?>)</h2>
 
             <table class="widefat striped">
                 <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>Назва</th>
-                        <th>Ключ</th>
-                        <th>Тип</th>
-                        <th>Статус</th>
-                        <th>Останній зв'язок</th>
+                        <th>Плагін</th>
+                        <th>Автор</th>
+                        <th>Поточна версія</th>
+                        <th>Останній реліз</th>
+                        <th>GitHub</th>
+                        <th>Сторінка</th>
+                        <th>Перевірено</th>
                         <th>Дії</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if ($integrations) : ?>
-                        <?php foreach ($integrations as $item) : ?>
-                            <tr>
-                                <td><?php echo esc_html($item->id); ?></td>
-                                <td><?php echo esc_html($item->name); ?></td>
-                                <td><code><?php echo esc_html($item->integration_key); ?></code></td>
-                                <td><?php echo esc_html($item->integration_type); ?></td>
-                                <td><?php echo esc_html($item->status); ?></td>
-                                <td>
-                                    <?php
-                                    echo esc_html(
-                                        $item->last_seen
-                                            ? $item->last_seen
-                                            : 'Ще не підключалась'
-                                    );
-                                    ?>
-                                </td>
-                                <td>
-                                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-block">
-                                        <input type="hidden" name="action" value="uapm_toggle_integration">
-                                        <input type="hidden" name="integration_id" value="<?php echo esc_attr($item->id); ?>">
-                                        <input type="hidden" name="new_status" value="<?php echo $item->status === 'active' ? 'inactive' : 'active'; ?>">
-                                        <?php wp_nonce_field('uapm_toggle_integration_' . $item->id); ?>
-                                        <button class="button button-small" type="submit">
-                                            <?php echo $item->status === 'active' ? 'Вимкнути' : 'Увімкнути'; ?>
-                                        </button>
-                                    </form>
+                <?php if ($items) : foreach ($items as $item) : ?>
+                    <tr>
+                        <td>
+                            <strong><?php echo esc_html($item->name); ?></strong>
+                            <br><code><?php echo esc_html($item->integration_key); ?></code>
+                            <br><?php echo esc_html($item->description); ?>
+                            <?php if (!empty($item->main_file)) : ?>
+                                <br><small>Файл: <?php echo esc_html($item->main_file); ?></small>
+                            <?php endif; ?>
+                        </td>
+                        <td><?php echo esc_html($item->plugin_author); ?></td>
+                        <td><?php echo esc_html($item->plugin_version); ?></td>
+                        <td>
+                            <?php echo esc_html($item->latest_version); ?>
+                            <?php if (!empty($item->github_release_url)) : ?>
+                                <br><a href="<?php echo esc_url($item->github_release_url); ?>" target="_blank" rel="noopener">Реліз</a>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if ($item->github_url) : ?>
+                                <a href="<?php echo esc_url($item->github_url); ?>" target="_blank" rel="noopener">GitHub</a>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if ($item->plugin_url) : ?>
+                                <a href="<?php echo esc_url($item->plugin_url); ?>" target="_blank" rel="noopener">Відкрити</a>
+                            <?php endif; ?>
+                        </td>
+                        <td><?php echo esc_html($item->github_checked ?: 'Ще не перевірено'); ?></td>
+                        <td>
+                            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-block">
+                                <input type="hidden" name="action" value="uapm_check_integration">
+                                <input type="hidden" name="integration_id" value="<?php echo esc_attr($item->id); ?>">
+                                <?php wp_nonce_field('uapm_check_integration_' . $item->id); ?>
+                                <button class="button button-small">Перевірити GitHub</button>
+                            </form>
 
-                                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-block">
-                                        <input type="hidden" name="action" value="uapm_delete_integration">
-                                        <input type="hidden" name="integration_id" value="<?php echo esc_attr($item->id); ?>">
-                                        <?php wp_nonce_field('uapm_delete_integration_' . $item->id); ?>
-                                        <button class="button button-small" type="submit" onclick="return confirm('Видалити інтеграцію?');">
-                                            Видалити
-                                        </button>
-                                    </form>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    <?php else : ?>
-                        <tr><td colspan="7">Інтеграцій поки немає.</td></tr>
-                    <?php endif; ?>
+                            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-block">
+                                <input type="hidden" name="action" value="uapm_toggle_integration">
+                                <input type="hidden" name="integration_id" value="<?php echo esc_attr($item->id); ?>">
+                                <input type="hidden" name="new_status" value="<?php echo $item->status === 'active' ? 'inactive' : 'active'; ?>">
+                                <?php wp_nonce_field('uapm_toggle_integration_' . $item->id); ?>
+                                <button class="button button-small"><?php echo $item->status === 'active' ? 'Вимкнути' : 'Увімкнути'; ?></button>
+                            </form>
+
+                            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline-block">
+                                <input type="hidden" name="action" value="uapm_delete_integration">
+                                <input type="hidden" name="integration_id" value="<?php echo esc_attr($item->id); ?>">
+                                <?php wp_nonce_field('uapm_delete_integration_' . $item->id); ?>
+                                <button class="button button-small" onclick="return confirm('Видалити запис каталогу?');">Видалити</button>
+                            </form>
+                        </td>
+                    </tr>
+                <?php endforeach; else : ?>
+                    <tr><td colspan="8">Каталог порожній.</td></tr>
+                <?php endif; ?>
                 </tbody>
             </table>
 
-            <p class="description">
-                Токен інтеграції зберігається у вигляді хешу.
-                Повторно переглянути його після створення неможливо.
-                Для заміни токена потрібно створити нову інтеграцію.
-            </p>
+            <p class="description">Перевірка GitHub отримує останній опублікований реліз. Якщо в репозиторії немає Releases, перевірка повідомить про це.</p>
         </div>
         <?php
+    }
+
+    private static function redirect($message = '') {
+        if ($message !== '') {
+            set_transient(
+                'uapm_catalog_message_' . get_current_user_id(),
+                $message,
+                60
+            );
+        }
+
+        wp_safe_redirect(admin_url('admin.php?page=uapm-integrations'));
+        exit;
     }
 
     public static function handle_save() {
@@ -652,43 +689,13 @@ final class UAPM_Integrations {
 
         check_admin_referer('uapm_save_integration');
 
-        $result = self::create(array(
-            'integration_key' => isset($_POST['integration_key'])
-                ? wp_unslash($_POST['integration_key'])
-                : '',
-            'name' => isset($_POST['name'])
-                ? wp_unslash($_POST['name'])
-                : '',
-            'description' => isset($_POST['description'])
-                ? wp_unslash($_POST['description'])
-                : '',
-            'integration_type' => isset($_POST['integration_type'])
-                ? wp_unslash($_POST['integration_type'])
-                : 'external',
-        ));
+        $result = self::create(wp_unslash($_POST));
 
-        if (is_wp_error($result)) {
-            set_transient(
-                'uapm_integration_admin_message_' . get_current_user_id(),
-                $result->get_error_message(),
-                60
-            );
-        } else {
-            set_transient(
-                'uapm_integration_new_token_' . get_current_user_id(),
-                $result,
-                300
-            );
-        }
-
-        wp_safe_redirect(
-            add_query_arg(
-                array('page' => 'uapm-integrations'),
-                admin_url('admin.php')
-            )
+        self::redirect(
+            is_wp_error($result)
+                ? $result->get_error_message()
+                : 'Плагін додано до каталогу.'
         );
-
-        exit;
     }
 
     public static function handle_toggle() {
@@ -696,31 +703,18 @@ final class UAPM_Integrations {
             wp_die('Недостатньо прав.');
         }
 
-        $id = isset($_POST['integration_id'])
-            ? absint($_POST['integration_id'])
-            : 0;
-
+        $id = absint($_POST['integration_id'] ?? 0);
         check_admin_referer('uapm_toggle_integration_' . $id);
 
         $result = self::update($id, array(
-            'status' => isset($_POST['new_status'])
-                ? sanitize_key($_POST['new_status'])
-                : 'inactive',
+            'status' => sanitize_key($_POST['new_status'] ?? 'inactive'),
         ));
 
-        if (is_wp_error($result)) {
-            set_transient(
-                'uapm_integration_admin_message_' . get_current_user_id(),
-                $result->get_error_message(),
-                60
-            );
-        }
-
-        wp_safe_redirect(
-            add_query_arg('page', 'uapm-integrations', admin_url('admin.php'))
+        self::redirect(
+            is_wp_error($result)
+                ? $result->get_error_message()
+                : 'Статус змінено.'
         );
-
-        exit;
     }
 
     public static function handle_delete() {
@@ -728,20 +722,31 @@ final class UAPM_Integrations {
             wp_die('Недостатньо прав.');
         }
 
-        $id = isset($_POST['integration_id'])
-            ? absint($_POST['integration_id'])
-            : 0;
-
+        $id = absint($_POST['integration_id'] ?? 0);
         check_admin_referer('uapm_delete_integration_' . $id);
 
         self::delete($id);
-
-        wp_safe_redirect(
-            add_query_arg('page', 'uapm-integrations', admin_url('admin.php'))
-        );
-
-        exit;
+        self::redirect('Запис каталогу видалено.');
     }
+
+    public static function handle_check() {
+        if (!self::can_manage()) {
+            wp_die('Недостатньо прав.');
+        }
+
+        $id = absint($_POST['integration_id'] ?? 0);
+        check_admin_referer('uapm_check_integration_' . $id);
+
+        $result = self::check_github($id);
+
+        self::redirect(
+            is_wp_error($result)
+                ? $result->get_error_message()
+                : 'GitHub перевірено. Остання версія: ' . $result['version']
+        );
+    }
+}
+
 }
 
 UAPM_Integrations::install_schema();
