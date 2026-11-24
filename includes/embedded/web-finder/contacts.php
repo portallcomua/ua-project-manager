@@ -1166,12 +1166,21 @@ add_action('wp_ajax_cmsfc_campaign_step', function () {
  * --------------------------------------------------------- */
 
 add_action('admin_menu', function () {
+    add_menu_page(
+        'UA Web Finder — Контакти та розсилки',
+        'Finder: Контакти / розсилки',
+        'manage_options',
+        'uapm-finder-contacts',
+        __NAMESPACE__ . '\\cmsfc_admin_page',
+        'dashicons-email-alt',
+        6
+    );
     add_submenu_page(
-        'uapm',
-        'Збір email',
+        'uapm-finder-contacts',
+        'Збір email та розсилки',
         'Збір email',
         'manage_options',
-        'cmsf-contacts',
+        'uapm-finder-contacts',
         __NAMESPACE__ . '\\cmsfc_admin_page'
     );
 });
@@ -1181,7 +1190,7 @@ add_action('admin_menu', function () {
  * --------------------------------------------------------- */
 
 add_action('admin_enqueue_scripts', function ($hook) {
-    if (($_GET['page'] ?? '') !== 'cmsf-contacts') {
+    if (($_GET['page'] ?? '') !== 'uapm-finder-contacts') {
         return;
     }
 
