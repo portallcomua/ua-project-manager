@@ -186,7 +186,7 @@ add_action('admin_footer', function () {
         return;
     }
 
-    if (($_GET['page'] ?? '') !== 'cmsf-settings') {
+    if (($_GET['page'] ?? '') !== 'uapm-finder-settings') {
         return;
     }
 
