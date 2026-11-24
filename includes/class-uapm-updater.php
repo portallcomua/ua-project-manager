@@ -6,6 +6,7 @@ if (!defined('ABSPATH')) {
 class UAPM_Updater {
 
     private static $cache = array();
+    private const REPOSITORY = 'portallcomua/ua-project-manager';
 
     public static function init() {
         add_filter('pre_set_site_transient_update_plugins', array(__CLASS__, 'check_updates'));
@@ -31,10 +32,6 @@ class UAPM_Updater {
         $settings = class_exists('UAPM_Settings')
             ? UAPM_Settings::get_all()
             : array();
-
-        if (empty($settings['github_api_enabled']) || empty($settings['automatic_updates'])) {
-            return false;
-        }
 
         $repository = trim($repository, '/');
 
@@ -85,17 +82,19 @@ class UAPM_Updater {
         $plugins = get_plugins();
 
         foreach ($plugins as $plugin_file => $plugin_data) {
-            $repository = $plugin_data['UpdateURI'] ?? '';
-
-            if (!$repository) {
-                continue;
+            if (defined('UAPM_BASENAME') && $plugin_file === UAPM_BASENAME) {
+                $repository = self::REPOSITORY;
+            } else {
+                $repository = $plugin_data['UpdateURI'] ?? '';
+                if (!$repository) {
+                    continue;
+                }
+                $repository = preg_replace(
+                    '#^https?://github\.com/#i',
+                    '',
+                    trim($repository)
+                );
             }
-
-            $repository = preg_replace(
-                '#^https?://github\.com/#i',
-                '',
-                trim($repository)
-            );
 
             $release = self::get_remote_release($repository);
 
@@ -159,21 +158,22 @@ class UAPM_Updater {
         $plugins = get_plugins();
 
         foreach ($plugins as $plugin_file => $plugin_data) {
-            if (dirname($plugin_file) !== $args->slug) {
-                continue;
+            if (defined('UAPM_BASENAME') && $plugin_file === UAPM_BASENAME) {
+                $repository = self::REPOSITORY;
+            } else {
+                if (dirname($plugin_file) !== $args->slug) {
+                    continue;
+                }
+                $repository = $plugin_data['UpdateURI'] ?? '';
+                if (!$repository) {
+                    return $result;
+                }
+                $repository = preg_replace(
+                    '#^https?://github\.com/#i',
+                    '',
+                    trim($repository)
+                );
             }
-
-            $repository = $plugin_data['UpdateURI'] ?? '';
-
-            if (!$repository) {
-                return $result;
-            }
-
-            $repository = preg_replace(
-                '#^https?://github\.com/#i',
-                '',
-                trim($repository)
-            );
 
             $release = self::get_remote_release($repository);
 
