@@ -5,7 +5,7 @@ if (!defined('ABSPATH')) exit;
 
 function cmsf_is_english_locale() {
     if (class_exists('\\UAPM_Localization')) {
-        return \\UAPM_Localization::get_language() === 'en';
+        return \UAPM_Localization::get_language() === 'en';
     }
     return false;
 }
