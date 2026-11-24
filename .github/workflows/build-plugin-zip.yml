@@ -56,7 +56,7 @@ jobs:
             - Separated Pay Box, Finder website collection, and Finder contacts/mailing into distinct admin menu groups.
             - Gave embedded Finder and Pay Box pages unique admin slugs to prevent collisions with still-active standalone plugins.
             - Removed the redundant Pay Box license-list menu entry without deleting license records or tables.
-            - Stopped automatic creation of Pay Box products from every project; existing services are linked by slug only.
+            - Synced projects into Pay Box by unique normalized project name, so duplicate project records reuse one service instead of creating repeated products.
             - Collapsed duplicate service names in the Pay Box list while preserving all underlying service and license records.
             - Preserved existing Finder and Pay Box database tables and options.
           files: ua-project-manager-1.0.9.zip
