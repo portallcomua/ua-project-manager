@@ -65,7 +65,7 @@ jobs:
       - name: Upload installable ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: ua-project-manager-1.0.7
+          name: ua-project-manager-1.0.8
           path: ua-project-manager-1.0.8.zip
           if-no-files-found: error
           retention-days: 14
