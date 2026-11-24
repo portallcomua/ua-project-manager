@@ -40,32 +40,33 @@ jobs:
           if [ -f readme.txt ]; then cp readme.txt build/ua-project-manager/; fi
           if [ -f README.md ]; then cp README.md build/ua-project-manager/; fi
           cd build
-          zip -qr ../ua-project-manager-1.0.8.zip ua-project-manager
-          unzip -t ../ua-project-manager-1.0.8.zip
+          zip -qr ../ua-project-manager-1.0.9.zip ua-project-manager
+          unzip -t ../ua-project-manager-1.0.9.zip
 
 
       - name: Publish GitHub release for WordPress updater
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.8
-          name: UA Project Manager 1.0.8
+          tag_name: v1.0.9
+          name: UA Project Manager 1.0.9
           body: |
-            UA Project Manager 1.0.8
+            UA Project Manager 1.0.9
 
-            - Embedded UA Pay Box 1.3.10 functionality into the single UA Project Manager plugin.
-            - Embedded UA Web Finder 2.6.0 functionality into the single UA Project Manager plugin.
-            - Preserved the existing Pay Box and Web Finder database table names and options for in-place data continuity.
-            - Added shared customer/contact synchronization paths between Finder and the manager.
-            - Fixed the embedded Finder Contacts submenu placement and namespaced callback.
-            - Includes the current pro-development integration work; further functional testing and refinements will continue in subsequent updates.
-          files: ua-project-manager-1.0.8.zip
+            - Ukrainian is now the default admin language; English remains an explicit per-user option.
+            - Separated Pay Box, Finder website collection, and Finder contacts/mailing into distinct admin menu groups.
+            - Gave embedded Finder and Pay Box pages unique admin slugs to prevent collisions with still-active standalone plugins.
+            - Removed the redundant Pay Box license-list menu entry without deleting license records or tables.
+            - Stopped automatic creation of Pay Box products from every project; existing services are linked by slug only.
+            - Collapsed duplicate service names in the Pay Box list while preserving all underlying service and license records.
+            - Preserved existing Finder and Pay Box database tables and options.
+          files: ua-project-manager-1.0.9.zip
           make_latest: true
           overwrite_files: true
 
       - name: Upload installable ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: ua-project-manager-1.0.8
-          path: ua-project-manager-1.0.8.zip
+          name: ua-project-manager-1.0.9
+          path: ua-project-manager-1.0.9.zip
           if-no-files-found: error
           retention-days: 14
