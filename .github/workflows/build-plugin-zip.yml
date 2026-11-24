@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   package:
@@ -42,6 +42,24 @@ jobs:
           cd build
           zip -qr ../ua-project-manager-1.0.4.zip ua-project-manager
           unzip -t ../ua-project-manager-1.0.4.zip
+
+
+      - name: Publish GitHub release for WordPress updater
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.4
+          name: UA Project Manager 1.0.4
+          body: |
+            UA Project Manager 1.0.4
+
+            - CSV import with delimiter selection, column mapping and preview.
+            - Safe repeat imports by project key or customer email.
+            - Existing project records receive a stable project key.
+            - Empty CSV cells do not overwrite saved values.
+            - Removed the optional integrations warning notice.
+          files: ua-project-manager-1.0.4.zip
+          make_latest: true
+          overwrite_files: true
 
       - name: Upload installable ZIP
         uses: actions/upload-artifact@v4
