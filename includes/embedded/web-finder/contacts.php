@@ -1167,12 +1167,12 @@ add_action('wp_ajax_cmsfc_campaign_step', function () {
 
 add_action('admin_menu', function () {
     add_submenu_page(
-        'cms-checker',
+        'uapm',
         'Збір email',
         'Збір email',
         'manage_options',
         'cmsf-contacts',
-        'cmsfc_admin_page'
+        __NAMESPACE__ . '\\cmsfc_admin_page'
     );
 });
 
