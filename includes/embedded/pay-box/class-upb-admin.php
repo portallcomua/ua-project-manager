@@ -10,15 +10,15 @@ class UPB_Admin {
 	public static function init() {
 		add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'assets' ) );
-		add_action( 'admin_post_upb_save_service', array( __CLASS__, 'save_service' ) );
-		add_action( 'admin_post_upb_delete_service', array( __CLASS__, 'delete_service' ) );
-		add_action( 'admin_post_upb_save_settings', array( __CLASS__, 'save_settings' ) );
+		add_action( 'admin_post_uapm_upb_save_service', array( __CLASS__, 'save_service' ) );
+		add_action( 'admin_post_uapm_upb_delete_service', array( __CLASS__, 'delete_service' ) );
+		add_action( 'admin_post_uapm_upb_save_settings', array( __CLASS__, 'save_settings' ) );
 		add_action( 'admin_notices', array( __CLASS__, 'missing_url_notice' ) );
 		add_filter( 'plugin_action_links_' . plugin_basename( UPB_FILE ), array( __CLASS__, 'action_links' ) );
 	}
 
 	public static function action_links( $links ) {
-		array_unshift( $links, '<a href="' . esc_url( admin_url( 'admin.php?page=upb-services' ) ) . '">Послуги</a>' );
+		array_unshift( $links, '<a href="' . esc_url( admin_url( 'admin.php?page=uapm-paybox-services' ) ) . '">Послуги</a>' );
 		return $links;
 	}
 
@@ -38,7 +38,7 @@ class UPB_Admin {
 			printf(
 				'<div class="notice notice-warning"><p><strong>UA Pay Box:</strong> заповніть Freemius Product ID, Plan ID і Product Secret Key для: %s. <a href="%s">Відкрити послуги</a></p></div>',
 				implode( ', ', $missing ), // phpcs:ignore -- уже екрановано вище
-				esc_url( admin_url( 'admin.php?page=upb-services' ) )
+				esc_url( admin_url( 'admin.php?page=uapm-paybox-services' ) )
 			);
 		}
 	}
@@ -209,7 +209,7 @@ class UPB_Admin {
 						<td><?php echo ! empty( $s['enabled'] ) ? '🟢 Увімкнено' : '⚪ Вимкнено'; ?></td>
 						<td class="upb-actions">
 							<a href="<?php echo esc_url( self::url( 'uapm-paybox-services', array( 'action' => 'edit', 'id' => $id ) ) ); ?>">Редагувати</a> |
-							<a class="upb-del" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=upb_delete_service&id=' . (int) $id ), 'upb_delete_' . (int) $id ) ); ?>" onclick="return confirm('Видалити послугу? Користувачі, які вже мають PRO, збережуть його до кінця терміну.');">Видалити</a>
+							<a class="upb-del" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=upb_delete_service&id=' . (int) $id ), 'uapm_upb_delete_' . (int) $id ) ); ?>" onclick="return confirm('Видалити послугу? Користувачі, які вже мають PRO, збережуть його до кінця терміну.');">Видалити</a>
 						</td>
 					</tr>
 				<?php endforeach; ?>
@@ -236,9 +236,9 @@ class UPB_Admin {
 			<h1><?php echo $id ? 'Редагувати послугу #' . (int) $id : 'Нова послуга'; ?></h1>
 			<?php self::notice(); ?>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-				<input type="hidden" name="action" value="upb_save_service">
+				<input type="hidden" name="action" value="uapm_upb_save_service">
 				<input type="hidden" name="id" value="<?php echo (int) $id; ?>">
-				<?php wp_nonce_field( 'upb_save_service_' . (int) $id ); ?>
+				<?php wp_nonce_field( 'uapm_upb_save_service_' . (int) $id ); ?>
 
 				<table class="form-table" role="presentation">
 					<tr>
@@ -343,7 +343,7 @@ class UPB_Admin {
 	public static function save_service() {
 		self::guard();
 		$id = isset( $_POST['id'] ) ? absint( $_POST['id'] ) : 0;
-		check_admin_referer( 'upb_save_service_' . $id );
+		check_admin_referer( 'uapm_upb_save_service_' . $id );
 
 		$raw = isset( $_POST['svc'] ) && is_array( $_POST['svc'] ) ? wp_unslash( $_POST['svc'] ) : array();
 		$old = $id ? UPB_Services::get( $id ) : null;
@@ -393,7 +393,7 @@ class UPB_Admin {
 	public static function delete_service() {
 		self::guard();
 		$id = isset( $_GET['id'] ) ? absint( $_GET['id'] ) : 0;
-		check_admin_referer( 'upb_delete_' . $id );
+		check_admin_referer( 'uapm_upb_delete_' . $id );
 		UPB_Services::delete( $id );
 		wp_safe_redirect( self::url( 'uapm-paybox-services', array( 'upb_notice' => 'deleted' ) ) );
 		exit;
@@ -410,8 +410,8 @@ class UPB_Admin {
 			<h1>Налаштування Pay Box</h1>
 			<?php self::notice(); ?>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-				<input type="hidden" name="action" value="upb_save_settings">
-				<?php wp_nonce_field( 'upb_save_settings' ); ?>
+				<input type="hidden" name="action" value="uapm_upb_save_settings">
+				<?php wp_nonce_field( 'uapm_upb_save_settings' ); ?>
 				<table class="form-table" role="presentation">
 					<tr>
 						<th><label for="upb-warn">Попереджати за (днів)</label></th>
@@ -453,7 +453,7 @@ echo upb_buy_button( 1, 'Купити PRO' );</pre>
 
 	public static function save_settings() {
 		self::guard();
-		check_admin_referer( 'upb_save_settings' );
+		check_admin_referer( 'uapm_upb_save_settings' );
 		$in   = isset( $_POST['opt'] ) && is_array( $_POST['opt'] ) ? wp_unslash( $_POST['opt'] ) : array();
 		$warn = isset( $in['warn_days'] ) ? absint( $in['warn_days'] ) : 10;
 		$warn = min( 60, max( 1, $warn ) );
