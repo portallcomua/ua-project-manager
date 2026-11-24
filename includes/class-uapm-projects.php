@@ -641,8 +641,16 @@ final class UAPM_Projects {
             ? sanitize_key($data['status'])
             : 'active';
 
-        if (!in_array($project_type, $types, true)) {
-            $project_type = 'other';
+        if ($project_type === 'custom') {
+            $custom_type = isset($data['custom_project_type']) ? sanitize_text_field($data['custom_project_type']) : '';
+            $project_type = sanitize_key($custom_type);
+            if (!$project_type) {
+                return new WP_Error('uapm_missing_custom_type', __('Вкажіть власний тип проєкту.', 'ua-project-manager'));
+            }
+            $project_type = substr($project_type, 0, 50);
+        } elseif (!in_array($project_type, $types, true)) {
+            // Preserve custom project types already stored in the database.
+            $project_type = substr($project_type, 0, 50);
         }
 
         if (!in_array($status, $statuses, true)) {
