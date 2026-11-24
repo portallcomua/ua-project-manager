@@ -14,7 +14,18 @@ final class UAPM_Admin {
 
     public static function init() {
         add_action('admin_menu', array(__CLASS__, 'register_menu'));
+        add_action('admin_menu', array(__CLASS__, 'hide_legacy_module_menus'), 999);
         add_action('admin_enqueue_scripts', array(__CLASS__, 'enqueue_styles'));
+    }
+
+    /** Hide duplicate top-level menus from the old standalone modules while keeping their data untouched. */
+    public static function hide_legacy_module_menus() {
+        if (class_exists('\\UAPM\\PayBox\\UPB_Admin')) {
+            remove_menu_page('upb-premiums');
+        }
+        if (function_exists('\\UAPM\\WebFinder\\cmsf_page_search')) {
+            remove_menu_page('cms-checker');
+        }
     }
 
     public static function register_menu() {
