@@ -2,6 +2,7 @@
 /**
  * Plugin Name: UA Project Manager
  * Plugin URI: https://uaserver.pp.ua/
+ * Update URI: https://github.com/portallcomua/ua-project-manager
  * Description: Central management system for UA projects, plugins, releases, licenses, payments and integrations.
  * Version: 1.0.4
  * Author: UA Tools
