@@ -38,7 +38,7 @@ function cmsf_pro_options() {
 
 /** Verify Freemius' HMAC-signed hosted-checkout return URL. */
 function cmsf_freemius_capture_purchase() {
-    if (empty($_GET['page']) || sanitize_key(wp_unslash($_GET['page'])) !== 'cmsf-pro' || empty($_GET['signature'])) return;
+    if (empty($_GET['page']) || sanitize_key(wp_unslash($_GET['page'])) !== 'uapm-finder-pro' || empty($_GET['signature'])) return;
     $o = cmsf_pro_options();
     if (!$o['secret_key']) return;
 
@@ -78,17 +78,17 @@ add_action('admin_post_cmsf_save_pro', function () {
     check_admin_referer('cmsf_save_pro');
     $url = esc_url_raw(trim(wp_unslash($_POST['checkout_url'] ?? '')));
     if ($url && (!wp_parse_url($url, PHP_URL_HOST) || !preg_match('~(^|\.)freemius\.com$~i', wp_parse_url($url, PHP_URL_HOST)))) {
-        wp_safe_redirect(add_query_arg(['page'=>'cmsf-pro','cmsf_saved'=>'0'], admin_url('admin.php'))); exit;
+        wp_safe_redirect(add_query_arg(['page'=>'uapm-finder-pro','cmsf_saved'=>'0'], admin_url('admin.php'))); exit;
     }
     update_option('cmsf_freemius_checkout_url', $url, false);
     $new_secret = sanitize_text_field(wp_unslash($_POST['secret_key'] ?? ''));
     if ($new_secret !== '') update_option('cmsf_freemius_secret_key', $new_secret, false);
     update_option('cmsf_freemius_plan_id', sanitize_text_field(wp_unslash($_POST['plan_id'] ?? '')), false);
-    wp_safe_redirect(add_query_arg(['page'=>'cmsf-pro','cmsf_saved'=>'1'], admin_url('admin.php'))); exit;
+    wp_safe_redirect(add_query_arg(['page'=>'uapm-finder-pro','cmsf_saved'=>'1'], admin_url('admin.php'))); exit;
 });
 
 add_action('admin_notices', function () {
-    if (!is_admin() || empty($_GET['page']) || !in_array(sanitize_key(wp_unslash($_GET['page'])), ['cms-checker','cmsf-import','cmsf-lists','cmsf-templates','cmsf-settings','cmsf-pro','cmsf-contacts'], true)) return;
+    if (!is_admin() || empty($_GET['page']) || !in_array(sanitize_key(wp_unslash($_GET['page'])), ['uapm-finder-search','uapm-finder-import','uapm-finder-lists','uapm-finder-templates','uapm-finder-settings','uapm-finder-pro','uapm-finder-contacts'], true)) return;
     if (cmsf_pro_is_active()) {
         echo '<div class="notice notice-success"><p><strong>UA Web Finder Pro</strong> — Pro активовано.</p></div>';
     } elseif (cmsf_trial_is_active()) {
@@ -99,7 +99,7 @@ add_action('admin_notices', function () {
 });
 
 add_action('admin_menu', function () {
-    add_submenu_page('uapm', 'UA Web Finder Pro', 'Pro / Активація', 'manage_options', 'cmsf-pro', __NAMESPACE__ . '\\cmsf_pro_render_page');
+    add_submenu_page('uapm-finder-contacts', 'UA Web Finder Pro', 'Pro / Активація', 'manage_options', 'uapm-finder-pro', __NAMESPACE__ . '\\cmsf_pro_render_page');
 }, 20);
 
 function cmsf_pro_render_page() {
@@ -107,7 +107,7 @@ function cmsf_pro_render_page() {
     $o = cmsf_pro_options();
     $active = cmsf_pro_is_active();
     $days = cmsf_trial_days_left();
-    $return_url = add_query_arg('page', 'cmsf-pro', admin_url('admin.php'));
+    $return_url = add_query_arg('page', 'uapm-finder-pro', admin_url('admin.php'));
     ?>
     <div class="wrap cmsf">
       <h1>UA Web Finder Pro</h1>
