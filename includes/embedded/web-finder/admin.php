@@ -4,7 +4,6 @@ namespace UAPM\WebFinder;
 if (!defined('ABSPATH')) exit;
 
 add_action('admin_menu', function () {
-    add_submenu_page('uapm', 'UA Web Finder 2.6.0', 'UA Web Finder', 'manage_options', 'cms-checker', __NAMESPACE__ . '\\cmsf_page_search');
     add_submenu_page('uapm', 'Пошук сайтів', 'Пошук', 'manage_options', 'cms-checker', __NAMESPACE__ . '\\cmsf_page_search');
     add_submenu_page('uapm', 'Свій список доменів', 'Свій список', 'manage_options', 'cmsf-import', __NAMESPACE__ . '\\cmsf_page_import');
     add_submenu_page('uapm', 'Збережені списки', 'Списки', 'manage_options', 'cmsf-lists', __NAMESPACE__ . '\\cmsf_page_lists');

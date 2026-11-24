@@ -624,7 +624,7 @@ function cmsfc_ajax_guard() {
         wp_send_json_error('Недостатньо прав.');
     }
     $action = sanitize_key(wp_unslash($_REQUEST['action'] ?? ''));
-    if (function_exists('cmsf_trial_blocks_action') && cmsf_trial_blocks_action($action)) {
+    if (function_exists(__NAMESPACE__ . '\\cmsf_trial_blocks_action') && cmsf_trial_blocks_action($action)) {
         wp_send_json_error('Пробний період завершився. Активуйте UA Web Finder Pro у розділі «Pro / Активація».');
     }
 }

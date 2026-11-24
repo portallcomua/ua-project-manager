@@ -71,7 +71,7 @@ function cmsf_freemius_capture_purchase() {
     update_option('cmsf_pro_plan_id_purchased', $plan_id, false);
     add_settings_error('cmsf_pro', 'cmsf_purchase_ok', 'Покупку Freemius перевірено. UA Web Finder Pro активовано на цьому сайті.', 'success');
 }
-add_action('admin_init', __NAMESPACE__ . '\\cmsf_freemius_capture_purchase, 1);
+add_action('admin_init', __NAMESPACE__ . '\\cmsf_freemius_capture_purchase', 1);
 
 add_action('admin_post_cmsf_save_pro', function () {
     if (!current_user_can('manage_options')) wp_die('Недостатньо прав.');
@@ -99,7 +99,7 @@ add_action('admin_notices', function () {
 });
 
 add_action('admin_menu', function () {
-    add_submenu_page('uapm', 'UA Web Finder Pro', 'Pro / Активація', 'manage_options', 'cmsf-pro', __NAMESPACE__ . '\\cmsf_pro_render_page);
+    add_submenu_page('uapm', 'UA Web Finder Pro', 'Pro / Активація', 'manage_options', 'cmsf-pro', __NAMESPACE__ . '\\cmsf_pro_render_page');
 }, 20);
 
 function cmsf_pro_render_page() {
