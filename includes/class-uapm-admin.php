@@ -30,8 +30,8 @@ final class UAPM_Admin {
 
         add_submenu_page(
             'uapm',
-            __('Dashboard', 'ua-project-manager'),
-            __('Dashboard', 'ua-project-manager'),
+            __('Головна', 'ua-project-manager'),
+            __('Головна', 'ua-project-manager'),
             'uapm_manage_projects',
             'uapm',
             array(__CLASS__, 'render_dashboard')
@@ -39,8 +39,8 @@ final class UAPM_Admin {
 
         add_submenu_page(
             'uapm',
-            __('Projects', 'ua-project-manager'),
-            __('Projects', 'ua-project-manager'),
+            __('Проєкти', 'ua-project-manager'),
+            __('Проєкти', 'ua-project-manager'),
             'uapm_manage_projects',
             'uapm-projects',
             array(__CLASS__, 'render_projects')
@@ -48,8 +48,8 @@ final class UAPM_Admin {
 
         add_submenu_page(
             'uapm',
-            __('Payments', 'ua-project-manager'),
-            __('Payments', 'ua-project-manager'),
+            __('Платежі', 'ua-project-manager'),
+            __('Платежі', 'ua-project-manager'),
             'uapm_manage_payments',
             'uapm-payments',
             array(__CLASS__, 'render_payments')
@@ -70,12 +70,16 @@ final class UAPM_Admin {
             return;
         }
 
+        wp_enqueue_media();
+        wp_enqueue_script('jquery');
         wp_register_style('uapm-admin-inline', false, array(), UAPM_VERSION);
         wp_enqueue_style('uapm-admin-inline');
 
         $css = '
             .uapm-wrap{max-width:1250px;margin:20px 20px 20px 0}
             .uapm-header{background:#173b68;color:#fff;padding:22px 25px;border-radius:10px;margin-bottom:20px}
+            .uapm-brand{font-size:13px;font-weight:700;margin-bottom:10px;color:#fff}.uapm-brand span{opacity:.75;font-weight:400;margin-left:5px}
+            .uapm-quick-nav{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 13px}.uapm-quick-nav a{display:inline-block;padding:4px 9px;border:1px solid rgba(255,255,255,.35);border-radius:4px;color:#fff;text-decoration:none;font-size:11px;line-height:1.5}.uapm-quick-nav a:hover{background:rgba(255,255,255,.15);color:#fff}
             .uapm-header h1{color:#fff;margin:0 0 6px;font-size:25px}
             .uapm-header p{margin:0;color:#dce9f7}
             .uapm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:15px;margin:20px 0}
@@ -118,6 +122,8 @@ final class UAPM_Admin {
         ';
 
         wp_add_inline_style('uapm-admin-inline', $css);
+        $media_js = "jQuery(function($){var frame;$(document).on('click','.uapm-select-logo',function(e){e.preventDefault();if(frame){frame.open();return;}frame=wp.media({title:'Виберіть логотип проєкту',button:{text:'Використати логотип'},multiple:false,library:{type:'image'}});frame.on('select',function(){var a=frame.state().get('selection').first().toJSON();$('#uapm-logo-url').val(a.url);$('#uapm-logo-preview').attr('src',a.url).show();$('.uapm-remove-logo').show();});frame.open();});$(document).on('click','.uapm-remove-logo',function(e){e.preventDefault();$('#uapm-logo-url').val('');$('#uapm-logo-preview').attr('src','').hide();$(this).hide();});});";
+        wp_add_inline_script('jquery', $media_js);
     }
 
     private static function can_manage_projects() {
@@ -131,6 +137,14 @@ final class UAPM_Admin {
     private static function header($title, $description = '') {
         echo '<div class="wrap uapm-wrap">';
         echo '<div class="uapm-header">';
+        echo '<div class="uapm-brand">UA Project Manager <span>v' . esc_html(UAPM_VERSION) . '</span></div>';
+        echo '<nav class="uapm-quick-nav" aria-label="Швидке меню">';
+        $nav_items = array('uapm' => 'Головна', 'uapm-projects' => 'Проєкти', 'uapm-payments' => 'Платежі', 'uapm-import' => 'Імпорт даних');
+        foreach ($nav_items as $page_slug => $nav_label) {
+            if (($page_slug === 'uapm-payments' && !self::can_manage_payments()) || ($page_slug === 'uapm-import' && !current_user_can('uapm_manage_settings') && !current_user_can('manage_options'))) { continue; }
+            echo '<a href="' . esc_url(admin_url('admin.php?page=' . $page_slug)) . '">' . esc_html($nav_label) . '</a>';
+        }
+        echo '</nav>';
         echo '<h1>' . esc_html($title) . '</h1>';
 
         if ($description) {
@@ -212,7 +226,7 @@ final class UAPM_Admin {
         );
 
         self::stat_card(
-            __('In development', 'ua-project-manager'),
+            __('У розробці', 'ua-project-manager'),
             $projects_development
         );
 
@@ -227,14 +241,14 @@ final class UAPM_Admin {
         echo '<div class="uapm-grid">';
 
         echo '<div class="uapm-card">';
-        echo '<h2>' . esc_html__('Projects', 'ua-project-manager') . '</h2>';
+        echo '<h2>' . esc_html__('Проєкти', 'ua-project-manager') . '</h2>';
         echo '<p class="uapm-muted">' . esc_html__('Create and manage your products and applications.', 'ua-project-manager') . '</p>';
         echo '<a class="button button-primary" href="' . esc_url(admin_url('admin.php?page=uapm-projects')) . '">' . esc_html__('Open projects', 'ua-project-manager') . '</a>';
         echo '</div>';
 
         if (self::can_manage_payments()) {
             echo '<div class="uapm-card">';
-            echo '<h2>' . esc_html__('Payments', 'ua-project-manager') . '</h2>';
+            echo '<h2>' . esc_html__('Платежі', 'ua-project-manager') . '</h2>';
             echo '<p class="uapm-muted">' . esc_html__('Record received amounts and manually confirm or revoke PRO access.', 'ua-project-manager') . '</p>';
             echo '<a class="button button-primary" href="' . esc_url(admin_url('admin.php?page=uapm-payments')) . '">' . esc_html__('Open payments', 'ua-project-manager') . '</a>';
             echo '</div>';
@@ -263,16 +277,12 @@ final class UAPM_Admin {
             wp_die(esc_html__('You do not have permission to access this page.', 'ua-project-manager'));
         }
 
-        self::header(
-            __('Projects', 'ua-project-manager'),
-            __('Manage WordPress plugins, Android applications, Windows programs and web projects.', 'ua-project-manager')
-        );
-
         $edit_id = isset($_GET['edit_project']) ? absint($_GET['edit_project']) : 0;
         $project = $edit_id ? UAPM_Projects::get($edit_id) : null;
+        self::header($edit_id ? 'Редагувати проєкт' : 'Додати проєкт', 'Керування проєктами та їхніми посиланнями.');
 
         if ($edit_id && !$project) {
-            echo '<div class="notice notice-error"><p>' . esc_html__('Project not found.', 'ua-project-manager') . '</p></div>';
+            echo '<div class="notice notice-error"><p>' . esc_html__('Проєкт не знайдено.', 'ua-project-manager') . '</p></div>';
         }
 
         self::render_project_form($project);
@@ -286,12 +296,12 @@ final class UAPM_Admin {
             'order' => 'DESC',
         ));
 
-        echo '<h2 class="uapm-section-title">' . esc_html__('Project list', 'ua-project-manager') . '</h2>';
+        echo '<h2 class="uapm-section-title">' . esc_html__('Список проєктів', 'ua-project-manager') . '</h2>';
 
         echo '<form method="get" action="' . esc_url(admin_url('admin.php')) . '" style="margin:15px 0">';
         echo '<input type="hidden" name="page" value="uapm-projects">';
-        echo '<input type="search" name="s" value="' . esc_attr($search) . '" placeholder="' . esc_attr__('Search projects...', 'ua-project-manager') . '">';
-        echo ' <button class="button">' . esc_html__('Search', 'ua-project-manager') . '</button>';
+        echo '<input type="search" name="s" value="' . esc_attr($search) . '" placeholder="' . esc_attr__('Пошук проєктів...', 'ua-project-manager') . '">';
+        echo ' <button class="button">' . esc_html__('Знайти', 'ua-project-manager') . '</button>';
         echo '</form>';
 
         self::render_projects_table($projects, true);
@@ -306,7 +316,7 @@ final class UAPM_Admin {
         };
 
         echo '<div class="uapm-form">';
-        echo '<h2>' . esc_html($is_edit ? __('Edit project', 'ua-project-manager') : __('Add project', 'ua-project-manager')) . '</h2>';
+        echo '<h2>' . esc_html($is_edit ? __('Редагувати проєкт', 'ua-project-manager') : __('Додати проєкт', 'ua-project-manager')) . '</h2>';
 
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         echo '<input type="hidden" name="action" value="uapm_save_project">';
@@ -317,38 +327,46 @@ final class UAPM_Admin {
 
         wp_nonce_field('uapm_save_project');
 
-        self::field('project[name]', __('Project name', 'ua-project-manager'), $value('name'), 'text', true);
-        self::field('project[slug]', __('Slug', 'ua-project-manager'), $value('slug'));
-        self::field('project[version]', __('Version', 'ua-project-manager'), $value('version', '1.0.0'));
-        self::field('project[author]', __('Author', 'ua-project-manager'), $value('author'));
+        self::field('project[name]', __('Назва проєкту', 'ua-project-manager'), $value('name'), 'text', true);
+        self::field('project[slug]', __('Системна назва (slug)', 'ua-project-manager'), $value('slug'));
+        self::field('project[version]', __('Версія', 'ua-project-manager'), $value('version', '1.0.0'));
+        self::field('project[author]', __('Автор', 'ua-project-manager'), $value('author'));
 
         echo '<div class="uapm-field">';
-        echo '<label for="uapm-project-type">' . esc_html__('Project type', 'ua-project-manager') . '</label>';
+        echo '<label for="uapm-project-type">' . esc_html__('Тип проєкту', 'ua-project-manager') . '</label>';
+        $known_types = array('wordpress', 'android', 'windows', 'web', 'other');
+        $stored_type = (string) $value('project_type', 'wordpress');
+        $custom_type = !in_array($stored_type, $known_types, true);
         echo '<select id="uapm-project-type" name="project[project_type]">';
 
         $types = array(
             'wordpress' => 'WordPress',
-            'android' => 'Android',
-            'windows' => 'Windows',
-            'web' => 'Web',
-            'other' => __('Other', 'ua-project-manager'),
+            'android' => 'Android / Android-додаток',
+            'windows' => 'Windows / програма',
+            'web' => 'Вебсайт / вебсервіс',
+            'other' => __('Інший тип (вказати власний)', 'ua-project-manager'),
         );
 
         foreach ($types as $key => $label) {
-            echo '<option value="' . esc_attr($key) . '" ' . selected($value('project_type', 'wordpress'), $key, false) . '>' . esc_html($label) . '</option>';
+            echo '<option value="' . esc_attr($key) . '" ' . selected($custom_type ? 'custom' : $stored_type, $key, false) . '>' . esc_html($label) . '</option>';
         }
-
+        echo '<option value="custom" ' . selected($custom_type, true, false) . '>Власний тип проєкту…</option>';
         echo '</select></div>';
+        echo '<div class="uapm-field" id="uapm-custom-type-wrap"' . ($custom_type ? '' : ' style="display:none"') . '>';
+        echo '<label for="uapm-custom-project-type">Вкажіть свій тип проєкту</label>';
+        echo '<input type="text" id="uapm-custom-project-type" name="project[custom_project_type]" value="' . esc_attr($custom_type ? ucwords(str_replace(array('-', '_'), ' ', $stored_type)) : '') . '" placeholder="Наприклад: Chrome Extension, Node.js програма">';
+        echo '</div>';
+        echo '<script>document.addEventListener("DOMContentLoaded",function(){var s=document.getElementById("uapm-project-type"),w=document.getElementById("uapm-custom-type-wrap");if(s&&w){s.addEventListener("change",function(){w.style.display=s.value==="custom"?"block":"none";});}});</script>';
 
         echo '<div class="uapm-field">';
-        echo '<label for="uapm-project-status">' . esc_html__('Status', 'ua-project-manager') . '</label>';
+        echo '<label for="uapm-project-status">' . esc_html__('Статус', 'ua-project-manager') . '</label>';
         echo '<select id="uapm-project-status" name="project[status]">';
 
         $statuses = array(
-            'active' => __('Active', 'ua-project-manager'),
-            'development' => __('In development', 'ua-project-manager'),
-            'paused' => __('Paused', 'ua-project-manager'),
-            'archived' => __('Archived', 'ua-project-manager'),
+            'active' => __('Активний', 'ua-project-manager'),
+            'development' => __('У розробці', 'ua-project-manager'),
+            'paused' => __('Призупинений', 'ua-project-manager'),
+            'archived' => __('Архівний', 'ua-project-manager'),
         );
 
         foreach ($statuses as $key => $label) {
@@ -357,22 +375,26 @@ final class UAPM_Admin {
 
         echo '</select></div>';
 
-        self::field('project[website_url]', __('Website URL', 'ua-project-manager'), $value('website_url'), 'url');
-        self::field('project[documentation_url]', __('Documentation URL', 'ua-project-manager'), $value('documentation_url'), 'url');
-        self::field('project[github_repository]', __('GitHub repository (owner/repo)', 'ua-project-manager'), $value('github_repository'));
-        self::field('project[github_branch]', __('GitHub branch', 'ua-project-manager'), $value('github_branch', 'main'));
-        self::field('project[logo_url]', __('Logo URL', 'ua-project-manager'), $value('logo_url'), 'url');
+        self::field('project[website_url]', __('Посилання на сайт', 'ua-project-manager'), $value('website_url'), 'url');
+        self::field('project[documentation_url]', __('Посилання на документацію', 'ua-project-manager'), $value('documentation_url'), 'url');
+        self::field('project[github_repository]', __('Репозиторій GitHub (власник/репозиторій або повне посилання)', 'ua-project-manager'), $value('github_repository'));
+        self::field('project[github_branch]', __('Гілка GitHub', 'ua-project-manager'), $value('github_branch', 'main'));
+        echo '<div class="uapm-field"><label for="uapm-logo-url">Логотип проєкту</label>';
+        echo '<input type="url" id="uapm-logo-url" name="project[logo_url]" value="' . esc_attr($value('logo_url')) . '" placeholder="URL логотипа або виберіть файл з медіатеки" style="max-width:520px"> ';
+        echo '<button type="button" class="button uapm-select-logo">Завантажити / вибрати з медіатеки</button> ';
+        echo '<button type="button" class="button uapm-remove-logo"' . ($value('logo_url') ? '' : ' style="display:none"') . '>Прибрати</button>';
+        echo '<div style="margin-top:10px"><img id="uapm-logo-preview" src="' . esc_url($value('logo_url')) . '" alt="Попередній перегляд логотипа" style="max-width:120px;max-height:120px;object-fit:contain;' . ($value('logo_url') ? '' : 'display:none;') . '"></div></div>';
 
         echo '<div class="uapm-field">';
-        echo '<label for="uapm-project-description">' . esc_html__('Description', 'ua-project-manager') . '</label>';
+        echo '<label for="uapm-project-description">' . esc_html__('Опис', 'ua-project-manager') . '</label>';
         echo '<textarea id="uapm-project-description" name="project[description]">' . esc_textarea($value('description')) . '</textarea>';
         echo '</div>';
 
         echo '<p class="submit">';
-        echo '<button type="submit" class="button button-primary">' . esc_html($is_edit ? __('Save changes', 'ua-project-manager') : __('Create project', 'ua-project-manager')) . '</button> ';
+        echo '<button type="submit" class="button button-primary">' . esc_html($is_edit ? __('Зберегти зміни', 'ua-project-manager') : __('Створити проєкт', 'ua-project-manager')) . '</button> ';
 
         if ($is_edit) {
-            echo '<a class="button" href="' . esc_url(admin_url('admin.php?page=uapm-projects')) . '">' . esc_html__('Cancel', 'ua-project-manager') . '</a>';
+            echo '<a class="button" href="' . esc_url(admin_url('admin.php?page=uapm-projects')) . '">' . esc_html__('Скасувати', 'ua-project-manager') . '</a>';
         }
 
         echo '</p>';
@@ -391,7 +413,7 @@ final class UAPM_Admin {
 
     private static function render_projects_table($projects, $show_actions = true) {
         if (empty($projects)) {
-            echo '<div class="uapm-card"><p>' . esc_html__('No projects found.', 'ua-project-manager') . '</p></div>';
+            echo '<div class="uapm-card"><p>' . esc_html__('Проєктів не знайдено.', 'ua-project-manager') . '</p></div>';
             return;
         }
 
@@ -399,13 +421,13 @@ final class UAPM_Admin {
         echo '<table class="uapm-table">';
         echo '<thead><tr>';
         echo '<th>ID</th>';
-        echo '<th>' . esc_html__('Name', 'ua-project-manager') . '</th>';
-        echo '<th>' . esc_html__('Type', 'ua-project-manager') . '</th>';
-        echo '<th>' . esc_html__('Version', 'ua-project-manager') . '</th>';
-        echo '<th>' . esc_html__('Status', 'ua-project-manager') . '</th>';
+        echo '<th>' . esc_html__('Назва', 'ua-project-manager') . '</th>';
+        echo '<th>' . esc_html__('Тип', 'ua-project-manager') . '</th>';
+        echo '<th>' . esc_html__('Версія', 'ua-project-manager') . '</th>';
+        echo '<th>' . esc_html__('Статус', 'ua-project-manager') . '</th>';
 
         if ($show_actions) {
-            echo '<th>' . esc_html__('Actions', 'ua-project-manager') . '</th>';
+            echo '<th>' . esc_html__('Дії', 'ua-project-manager') . '</th>';
         }
 
         echo '</tr></thead><tbody>';
@@ -429,7 +451,7 @@ final class UAPM_Admin {
                     admin_url('admin.php')
                 );
 
-                echo '<a class="button button-small" href="' . esc_url($edit_url) . '">' . esc_html__('Edit', 'ua-project-manager') . '</a>';
+                echo '<a class="button button-small" href="' . esc_url($edit_url) . '">' . esc_html__('Редагувати', 'ua-project-manager') . '</a>';
 
                 if ($project->status !== 'archived') {
                     $archive_url = wp_nonce_url(
@@ -443,7 +465,7 @@ final class UAPM_Admin {
                         'uapm_delete_project'
                     );
 
-                    echo '<a class="button button-small" href="' . esc_url($archive_url) . '" onclick="return confirm(' . esc_attr(wp_json_encode(__('Archive this project?', 'ua-project-manager'))) . ')">' . esc_html__('Archive', 'ua-project-manager') . '</a>';
+                    echo '<a class="button button-small" href="' . esc_url($archive_url) . '" onclick="return confirm(' . esc_attr(wp_json_encode(__('Archive this project?', 'ua-project-manager'))) . ')">' . esc_html__('В архів', 'ua-project-manager') . '</a>';
                 }
 
                 echo '</div></td>';
@@ -468,7 +490,7 @@ final class UAPM_Admin {
         }
 
         self::header(
-            __('Payments', 'ua-project-manager'),
+            __('Платежі', 'ua-project-manager'),
             __('Record actual receipts. PRO access is confirmed only after manual verification.', 'ua-project-manager')
         );
 
@@ -512,9 +534,9 @@ final class UAPM_Admin {
         echo '<th>' . esc_html__('Customer', 'ua-project-manager') . '</th>';
         echo '<th>' . esc_html__('Amount', 'ua-project-manager') . '</th>';
         echo '<th>' . esc_html__('Received', 'ua-project-manager') . '</th>';
-        echo '<th>' . esc_html__('Status', 'ua-project-manager') . '</th>';
+        echo '<th>' . esc_html__('Статус', 'ua-project-manager') . '</th>';
         echo '<th>' . esc_html__('Activation', 'ua-project-manager') . '</th>';
-        echo '<th>' . esc_html__('Actions', 'ua-project-manager') . '</th>';
+        echo '<th>' . esc_html__('Дії', 'ua-project-manager') . '</th>';
         echo '</tr></thead><tbody>';
 
         foreach ($payments as $payment) {
