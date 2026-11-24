@@ -107,7 +107,7 @@ final class UAPM_Admin {
             .uapm-notice{padding:12px 15px;margin:15px 0;border-left:4px solid #2271b1;background:#fff}
             .uapm-notice.error{border-color:#d63638}
             .uapm-notice.success{border-color:#00a32a}
-            .uapm-section-title{margin-top:28px}
+            .uapm-section-title{margin-top:28px}.uapm-project-links{display:inline-flex;gap:8px;flex-wrap:wrap;margin-top:4px;font-size:12px}
             @media(max-width:782px){
                 .uapm-wrap{margin-right:10px}
                 .uapm-header{padding:17px}
@@ -435,8 +435,26 @@ final class UAPM_Admin {
         foreach ($projects as $project) {
             echo '<tr>';
             echo '<td>' . esc_html((int) $project->id) . '</td>';
-            echo '<td><strong>' . esc_html($project->name) . '</strong><br><span class="uapm-muted">' . esc_html($project->slug) . '</span></td>';
-            echo '<td>' . esc_html(ucfirst($project->project_type)) . '</td>';
+            echo '<td><strong>' . esc_html($project->name) . '</strong><br><span class="uapm-muted">' . esc_html($project->slug) . '</span>';
+            $project_links = array();
+            if (!empty($project->website_url)) {
+                $project_links[] = '<a href="' . esc_url($project->website_url) . '" target="_blank" rel="noopener noreferrer">Сайт</a>';
+            }
+            if (!empty($project->documentation_url)) {
+                $project_links[] = '<a href="' . esc_url($project->documentation_url) . '" target="_blank" rel="noopener noreferrer">Документація</a>';
+            }
+            if (!empty($project->github_repository)) {
+                $github_url = trim($project->github_repository);
+                if (strpos($github_url, 'http://') !== 0 && strpos($github_url, 'https://') !== 0) {
+                    $github_url = 'https://github.com/' . ltrim($github_url, '/');
+                }
+                $project_links[] = '<a href="' . esc_url($github_url) . '" target="_blank" rel="noopener noreferrer">GitHub</a>';
+            }
+            if ($project_links) {
+                echo '<br><span class="uapm-project-links">' . implode(' · ', $project_links) . '</span>';
+            }
+            echo '</td>';
+            echo '<td>' . esc_html(ucwords(str_replace(array('-', '_'), ' ', $project->project_type))) . '</td>';
             echo '<td>' . esc_html($project->version) . '</td>';
             echo '<td>' . self::status_badge($project->status) . '</td>';
 
