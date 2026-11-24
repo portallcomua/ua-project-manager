@@ -48,7 +48,7 @@ final class UAPM_Installer {
                 id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
                 name varchar(255) NOT NULL,
                 slug varchar(191) NOT NULL,
-                project_key varchar(191) NOT NULL DEFAULT '',
+                project_key varchar(191) NULL,
                 description longtext NULL,
                 project_type varchar(50) NOT NULL DEFAULT 'wordpress',
                 status varchar(30) NOT NULL DEFAULT 'active',
