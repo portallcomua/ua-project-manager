@@ -191,7 +191,7 @@ add_action('admin_footer', function () {
     }
 
     $s = cmsf_smtp_settings();
-    $nonce = wp_create_nonce('uapm_cmsf';
+    $nonce = wp_create_nonce('uapm_cmsf');
     ?>
     <style>
         #cmsf-smtp-box {
