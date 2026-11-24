@@ -1,0 +1,52 @@
+name: Build installable WordPress plugin
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          coverage: none
+
+      - name: Check PHP syntax
+        shell: bash
+        run: |
+          set -e
+          find . -path './.git' -prune -o -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Build plugin ZIP
+        shell: bash
+        run: |
+          set -e
+          mkdir -p build/ua-project-manager
+          cp ua-project-manager.php build/ua-project-manager/
+          cp -R includes build/ua-project-manager/
+          if [ -d assets ]; then cp -R assets build/ua-project-manager/; fi
+          if [ -d languages ]; then cp -R languages build/ua-project-manager/; fi
+          if [ -f readme.txt ]; then cp readme.txt build/ua-project-manager/; fi
+          if [ -f README.md ]; then cp README.md build/ua-project-manager/; fi
+          cd build
+          zip -qr ../ua-project-manager-1.0.3.zip ua-project-manager
+          unzip -t ../ua-project-manager-1.0.3.zip
+
+      - name: Upload installable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: ua-project-manager-1.0.3
+          path: ua-project-manager-1.0.3.zip
+          if-no-files-found: error
+          retention-days: 14
