@@ -18,7 +18,7 @@ if (!class_exists('UAPM_Admin_Sections')) {
         }
 
         public static function register_sections() {
-            $parent = 'ua-project-manager';
+            $parent = 'uapm';
 
             self::add_page(
                 __('Clients', 'ua-project-manager'),
@@ -95,7 +95,7 @@ if (!class_exists('UAPM_Admin_Sections')) {
 
         private static function add_page($page_title, $menu_title, $capability, $slug, $callback) {
             add_submenu_page(
-                'ua-project-manager',
+                'uapm',
                 $page_title,
                 $menu_title,
                 $capability,

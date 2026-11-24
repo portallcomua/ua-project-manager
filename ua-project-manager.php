@@ -4,7 +4,7 @@
  * Plugin URI: https://uaserver.pp.ua/
  * Update URI: https://github.com/portallcomua/ua-project-manager
  * Description: Central management system for UA projects, plugins, releases, licenses, payments and integrations.
- * Version: 1.0.7
+ * Version: 1.0.8
  * Author: UA Tools
  * Author URI: https://uaserver.pp.ua/
  * Text Domain: ua-project-manager
@@ -18,7 +18,7 @@ if (!defined('ABSPATH')) {
 }
 
 if (!defined('UAPM_VERSION')) {
-    define('UAPM_VERSION', '1.0.7');
+    define('UAPM_VERSION', '1.0.8');
 }
 
 if (!defined('UAPM_DB_VERSION')) {
@@ -101,6 +101,8 @@ final class UAPM_Plugin {
             'class-uapm-installations.php',
             'class-uapm-installation-compat.php',
             'class-uapm-integrations.php',
+            'embedded/pay-box/bootstrap.php',
+            'embedded/web-finder/bootstrap.php',
             'class-uapm-notifications.php',
             'class-uapm-email-templates.php',
             'class-uapm-queue.php',
@@ -262,10 +264,6 @@ final class UAPM_Plugin {
         }
 
         $dependencies = array(
-            'UA Pay Box' => array(
-                'slug' => 'ua-pay-box/ua-pay-box.php',
-                'description' => 'Платежі та керування PRO-доступом.',
-            ),
             'UA Click Counter' => array(
                 'slug' => 'ua-click-counter/ua-click-counter.php',
                 'description' => 'Облік натискань на кнопки та посилання.',
@@ -273,10 +271,6 @@ final class UAPM_Plugin {
             'UA Plugins Monitor' => array(
                 'slug' => 'ua-plugins-monitor/ua-plugins-monitor.php',
                 'description' => 'Моніторинг встановлень та оновлень.',
-            ),
-            'CMS Web Finder' => array(
-                'slug' => 'cms-web-finder/cms-web-finder.php',
-                'description' => 'Передача списків сайтів та кампаній.',
             ),
         );
 

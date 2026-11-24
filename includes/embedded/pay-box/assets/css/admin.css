@@ -1,0 +1,14 @@
+.upb-wrap .upb-table td, .upb-wrap .upb-table th { vertical-align: middle; }
+.upb-wrap .upb-id { color:#888; font-size:11px; margin-left:4px; }
+.upb-wrap .upb-search { margin:12px 0; display:flex; gap:8px; align-items:center; }
+.upb-wrap .upb-code { width:100%; min-width:180px; font-family:Consolas,monospace; font-size:12px; background:#f6f7f7; }
+.upb-wrap .upb-pre { background:#1d2327; color:#e2e4e7; padding:12px 16px; border-radius:6px; overflow:auto; max-width:760px; }
+.upb-wrap .upb-badge { display:inline-block; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600; }
+.upb-b-active { background:#d7f0de; color:#14692f; }
+.upb-b-blocked { background:#fbdada; color:#a11; }
+.upb-b-grey { background:#e6e8ea; color:#555; }
+.upb-btn-block { background:#d63638; color:#fff; border:0; border-radius:6px; padding:10px 14px; font-size:14px; font-weight:700; cursor:pointer; }
+.upb-btn-block:hover { background:#a52022; }
+.upb-btn-unblock { background:#1c9c4a; color:#fff; border:0; border-radius:6px; padding:10px 14px; font-size:14px; font-weight:700; cursor:pointer; }
+.upb-btn-unblock:hover { background:#14692f; }
+.upb-actions .upb-del { color:#b32d2e; }

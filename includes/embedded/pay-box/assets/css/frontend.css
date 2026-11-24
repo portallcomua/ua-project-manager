@@ -1,0 +1,50 @@
+/* Universal Pay Box PRO — фронтенд. Палітра: синьо-жовта. */
+.upb-card, .upb-modal, .upb-toast { --upb-blue:#0057b7; --upb-blue-d:#003f87; --upb-yellow:#ffd500; --upb-text:#1b2430; box-sizing:border-box; }
+.upb-card *, .upb-modal *, .upb-toast * { box-sizing:border-box; }
+
+/* Картка послуги */
+.upb-card { max-width:420px; margin:1.5em auto; padding:24px; background:#fff; color:var(--upb-text); border:2px solid var(--upb-blue); border-top:8px solid var(--upb-yellow); border-radius:16px; box-shadow:0 8px 24px rgba(0,87,183,.15); font-family:inherit; text-align:center; }
+.upb-card--error { color:#a00; border-color:#a00; }
+.upb-title { margin:0 0 8px; font-size:1.4em; color:var(--upb-blue); }
+.upb-price { font-size:2em; font-weight:800; margin:4px 0 8px; }
+.upb-term { color:#586374; margin-bottom:12px; }
+.upb-desc { margin:0 0 16px; text-align:left; line-height:1.5; }
+.upb-btn { display:inline-block; width:100%; padding:14px 18px; background:var(--upb-blue); color:#fff !important; border:0; border-radius:12px; font-size:1.05em; font-weight:700; cursor:pointer; text-decoration:none; text-align:center; transition:background .15s, transform .05s; }
+.upb-btn:hover { background:var(--upb-blue-d); }
+.upb-btn:active { transform:scale(.98); }
+.upb-status { padding:12px; border-radius:10px; font-weight:600; margin-bottom:10px; }
+.upb-status--ok { background:#e8f6ec; color:#14692f; }
+.upb-status--blocked { background:#fdeaea; color:#a11; }
+.upb-warning { margin:-8px -8px 16px; padding:12px 14px; background:#fff4c2; border:1px solid #e6c200; border-radius:10px; color:#5c4800; text-align:left; line-height:1.45; }
+.upb-link { color:var(--upb-blue); font-weight:700; text-decoration:underline; }
+
+/* Модальне вікно */
+.upb-modal[hidden] { display:none !important; }
+.upb-modal { position:fixed; inset:0; z-index:999999; display:flex; align-items:center; justify-content:center; padding:16px; font-family:inherit; }
+.upb-modal__backdrop { position:absolute; inset:0; background:rgba(10,20,40,.65); }
+.upb-modal__dialog { position:relative; width:100%; max-width:480px; max-height:92vh; overflow:auto; background:#fff; color:var(--upb-text); border-radius:16px; border-top:8px solid var(--upb-yellow); padding:24px 22px 22px; box-shadow:0 20px 60px rgba(0,0,0,.4); }
+.upb-modal__x { position:absolute; top:6px; right:10px; background:none; border:0; font-size:30px; line-height:1; cursor:pointer; color:#667; }
+.upb-modal__title { margin:0 28px 10px 0; font-size:1.25em; color:var(--upb-blue); }
+.upb-modal__price { font-size:1.6em; font-weight:800; margin-bottom:8px; }
+.upb-modal__label { margin:10px 0 6px; color:#586374; }
+.upb-login-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:12px; background:#f1f6fd; border:2px dashed var(--upb-blue); border-radius:12px; }
+.upb-login { flex:1 1 140px; font-size:1.5em; font-weight:800; word-break:break-all; user-select:all; }
+.upb-copy { flex:0 0 auto; padding:10px 14px; background:var(--upb-yellow); color:#222; border:0; border-radius:10px; font-weight:700; cursor:pointer; transition:background .15s,color .15s; }
+.upb-copy.is-copied { background:#1c9c4a; color:#fff; }
+.upb-modal__note { margin:14px 0 8px; padding:10px 12px; background:#fff4c2; border-radius:10px; line-height:1.45; font-size:.95em; }
+.upb-modal__hint { margin:0 0 14px; color:#586374; font-size:.9em; }
+.upb-go { width:100%; padding:14px; background:var(--upb-blue); color:#fff; border:0; border-radius:12px; font-size:1.05em; font-weight:700; cursor:pointer; }
+.upb-go[disabled] { background:#b9c3d1; cursor:not-allowed; }
+.upb-modal__msg { padding:12px; border-radius:10px; background:#fdeaea; color:#a11; font-weight:600; line-height:1.45; }
+.upb-modal__msg.is-info { background:#e8f1fc; color:var(--upb-blue-d); }
+
+/* Повідомлення про успішну активацію */
+.upb-toast { position:fixed; top:16px; left:50%; transform:translateX(-50%); z-index:999998; display:flex; gap:12px; align-items:flex-start; max-width:92vw; width:460px; padding:14px 16px; background:#e8f6ec; color:#14692f; border:2px solid #1c9c4a; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.25); font-weight:600; line-height:1.45; }
+.upb-toast__text { flex:1; }
+.upb-toast__x { background:none; border:0; font-size:24px; line-height:1; cursor:pointer; color:inherit; }
+body.upb-lock { overflow:hidden; }
+
+/* Вбудовані кнопки / мітки (wp-admin, інші плагіни) */
+.upb-btn.upb-btn--inline { width:auto; display:inline-block; padding:8px 18px; font-size:14px; margin-left:8px; vertical-align:middle; }
+.upb-inline-note { display:inline-block; margin-left:8px; padding:6px 12px; border-radius:8px; background:#e8f6ec; color:#14692f; font-weight:700; }
+.upb-inline-note--blocked { background:#fdeaea; color:#a11; }
