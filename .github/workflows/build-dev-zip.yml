@@ -1,0 +1,44 @@
+name: Build test ZIP for pro-development
+
+on:
+  push:
+    branches:
+      - pro-development
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          coverage: none
+      - name: Validate PHP
+        run: |
+          set -e
+          find . -path './.git' -prune -o -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Build installable plugin ZIP
+        run: |
+          set -e
+          mkdir -p build/ua-project-manager
+          cp ua-project-manager.php build/ua-project-manager/
+          cp -R includes build/ua-project-manager/
+          if [ -d assets ]; then cp -R assets build/ua-project-manager/; fi
+          if [ -d languages ]; then cp -R languages build/ua-project-manager/; fi
+          if [ -f README.md ]; then cp README.md build/ua-project-manager/; fi
+          cd build
+          zip -qr ../ua-project-manager-pro-development.zip ua-project-manager
+          unzip -t ../ua-project-manager-pro-development.zip
+      - name: Upload test ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: ua-project-manager-pro-development
+          path: ua-project-manager-pro-development.zip
+          if-no-files-found: error
+          retention-days: 14
