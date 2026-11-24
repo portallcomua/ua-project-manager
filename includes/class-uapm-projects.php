@@ -79,7 +79,7 @@ final class UAPM_Projects {
             array(
                 'name' => $prepared['name'],
                 'slug' => self::unique_slug($prepared['slug']),
-                'project_key' => $prepared['project_key'] ? $prepared['project_key'] : self::unique_slug($prepared['slug']),
+                'project_key' => self::unique_slug($prepared['project_key'] ? $prepared['project_key'] : $prepared['slug']),
                 'description' => $prepared['description'],
                 'project_type' => $prepared['project_type'],
                 'status' => $prepared['status'],
@@ -96,7 +96,7 @@ final class UAPM_Projects {
             array(
                 '%s', '%s', '%s', '%s', '%s', '%s',
                 '%s', '%s', '%s', '%s', '%s', '%s',
-                '%s', '%s',
+                '%s', '%s', '%s',
             )
         );
 
@@ -155,7 +155,9 @@ final class UAPM_Projects {
             array(
                 'name' => $prepared['name'],
                 'slug' => $slug,
-                'project_key' => $prepared['project_key'] ? $prepared['project_key'] : $slug,
+                'project_key' => $prepared['project_key'] !== $existing->project_key
+                    ? self::unique_slug($prepared['project_key'], $project_id)
+                    : $existing->project_key,
                 'description' => $prepared['description'],
                 'project_type' => $prepared['project_type'],
                 'status' => $prepared['status'],
@@ -172,7 +174,7 @@ final class UAPM_Projects {
             array(
                 '%s', '%s', '%s', '%s', '%s', '%s',
                 '%s', '%s', '%s', '%s', '%s', '%s',
-                '%s',
+                '%s', '%s',
             ),
             array('%d')
         );
