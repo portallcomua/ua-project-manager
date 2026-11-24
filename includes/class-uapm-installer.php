@@ -23,6 +23,9 @@ final class UAPM_Installer {
             dbDelta($sql);
         }
 
+        $projects_table = $wpdb->prefix . 'uapm_projects';
+        $wpdb->query("UPDATE {$projects_table} SET project_key = slug WHERE project_key = '' OR project_key IS NULL");
+
         self::create_roles();
         self::create_default_settings();
 
@@ -45,6 +48,7 @@ final class UAPM_Installer {
                 id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
                 name varchar(255) NOT NULL,
                 slug varchar(191) NOT NULL,
+                project_key varchar(191) NOT NULL DEFAULT '',
                 description longtext NULL,
                 project_type varchar(50) NOT NULL DEFAULT 'wordpress',
                 status varchar(30) NOT NULL DEFAULT 'active',
@@ -59,6 +63,7 @@ final class UAPM_Installer {
                 updated_at datetime NOT NULL,
                 PRIMARY KEY  (id),
                 UNIQUE KEY slug (slug),
+                UNIQUE KEY project_key (project_key),
                 KEY status (status),
                 KEY project_type (project_type)
             ) {$charset};",
