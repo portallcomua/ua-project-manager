@@ -4,19 +4,18 @@ namespace UAPM\WebFinder;
 if (!defined('ABSPATH')) exit;
 
 add_action('admin_menu', function () {
-    add_submenu_page('uapm', 'Пошук сайтів', 'Пошук', 'manage_options', 'cms-checker', __NAMESPACE__ . '\\cmsf_page_search');
-    add_submenu_page('uapm', 'Свій список доменів', 'Свій список', 'manage_options', 'cmsf-import', __NAMESPACE__ . '\\cmsf_page_import');
-    add_submenu_page('uapm', 'Збережені списки', 'Списки', 'manage_options', 'cmsf-lists', __NAMESPACE__ . '\\cmsf_page_lists');
-    add_submenu_page('uapm', 'Шаблони листів', 'Шаблони листів', 'manage_options', 'cmsf-templates', __NAMESPACE__ . '\\cmsf_page_templates');
-    add_submenu_page('uapm', 'Налаштування', 'Налаштування', 'manage_options', 'cmsf-settings', __NAMESPACE__ . '\\cmsf_page_settings');
+    add_menu_page('UA Web Finder — Збір сайтів', 'Finder: Збір сайтів', 'manage_options', 'uapm-finder-search', __NAMESPACE__ . '\\cmsf_page_search', 'dashicons-search', 5);
+    add_submenu_page('uapm-finder-search', 'Пошук сайтів', 'Пошук сайтів', 'manage_options', 'uapm-finder-search', __NAMESPACE__ . '\\cmsf_page_search');
+    add_submenu_page('uapm-finder-search', 'Свій список доменів', 'Свій список', 'manage_options', 'uapm-finder-import', __NAMESPACE__ . '\\cmsf_page_import');
+    add_submenu_page('uapm-finder-search', 'Збережені списки', 'Списки', 'manage_options', 'uapm-finder-lists', __NAMESPACE__ . '\\cmsf_page_lists');
 });
 
 add_action('admin_enqueue_scripts', function () {
     $page = $_GET['page'] ?? '';
-    if (!in_array($page, ['cms-checker', 'cmsf-import', 'cmsf-lists', 'cmsf-templates', 'cmsf-settings', 'cmsf-pro'], true)) return;
+    if (!in_array($page, ['uapm-finder-search', 'uapm-finder-import', 'uapm-finder-lists', 'uapm-finder-templates', 'uapm-finder-settings', 'uapm-finder-pro'], true)) return;
     wp_enqueue_style('cmsf-admin', CMSF_URL . 'assets/admin.css', [], CMSF_VERSION);
-    if ($page === 'cmsf-templates') wp_enqueue_editor();
-    $admin_deps = $page === 'cmsf-templates' ? ['wp-editor'] : [];
+    if ($page === 'uapm-finder-templates') wp_enqueue_editor();
+    $admin_deps = $page === 'uapm-finder-templates' ? ['wp-editor'] : [];
     wp_enqueue_script('cmsf-admin', CMSF_URL . 'assets/admin.js', $admin_deps, CMSF_VERSION, true);
     $s = cmsf_settings();
     wp_localize_script('cmsf-admin', 'CMSF', [
@@ -25,12 +24,12 @@ add_action('admin_enqueue_scripts', function () {
         'exportUrl' => admin_url('admin-post.php'),
         'exportNonce' => wp_create_nonce('cmsf_export'),
         'page' => $page,
-        'listsUrl' => admin_url('admin.php?page=cmsf-lists'),
+        'listsUrl' => admin_url('admin.php?page=uapm-finder-lists'),
         'concurrency' => (int)$s['concurrency'],
         'delay' => (int)$s['delay'],
         'engines' => cmsf_engines(),
         'openList' => (int)($_GET['list'] ?? 0),
-        'templatesUrl' => admin_url('admin.php?page=cmsf-templates'),
+        'templatesUrl' => admin_url('admin.php?page=uapm-finder-templates'),
         'locale' => cmsf_is_english_locale() ? 'en' : 'uk',
         'translations' => cmsf_is_english_locale() ? cmsf_i18n_dictionary() : [],
     ]);
