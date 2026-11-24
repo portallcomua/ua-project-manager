@@ -780,6 +780,15 @@ if (!class_exists('UAPM_Localization')) {
             'Automation retry checkpoint stage' => 'Етап контрольних точок повторів автоматизації',
             'Automation retry checkpoint milestone' => 'Контрольний етап контрольних точок повторів автоматизації',
             'Automation retry checkpoint checkpoint' => 'Контрольна точка контрольних точок повторів автоматизації',
+            'Central management of projects, releases, installations and payments.' => 'Централізоване керування проєктами, релізами, встановленнями та платежами.',
+            'Record actual receipts. PRO access is confirmed only after manual verification.' => 'Фіксуйте фактично отримані кошти. Доступ PRO підтверджується лише після ручної перевірки.',
+            'Latest projects' => 'Останні проєкти',
+            'Open payments' => 'Відкрити платежі',
+            'All statuses' => 'Усі статуси',
+            'Filter' => 'Фільтрувати',
+            'No payment requests found.' => 'Запитів на оплату не знайдено.',
+            'Unknown project' => 'Невідомий проєкт',
+            'You do not have permission to access this page.' => 'У вас недостатньо прав для перегляду цієї сторінки.',
         );
 
         public static function init() {
@@ -826,7 +835,8 @@ if (!class_exists('UAPM_Localization')) {
                 }
             }
 
-            return strpos(determine_locale(), 'uk') === 0 ? 'uk' : 'en';
+            // Ukrainian is the product default; English is enabled only by an explicit user choice.
+            return 'uk';
         }
 
         public static function translate($translated, $text, $domain) {
