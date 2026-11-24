@@ -32,7 +32,7 @@ class UAPM_Updater {
             ? UAPM_Settings::get_all()
             : array();
 
-        if (empty($settings['github_enabled'])) {
+        if (empty($settings['github_api_enabled']) || empty($settings['automatic_updates'])) {
             return false;
         }
 
