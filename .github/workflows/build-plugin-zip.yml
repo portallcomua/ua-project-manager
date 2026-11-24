@@ -52,7 +52,7 @@ jobs:
           body: |
             UA Project Manager 1.0.7
 
-- Rebuilt the interface changes under a new version so WordPress can offer the update to sites already on 1.0.6.
+            - Rebuilt the interface changes under a new version so WordPress can offer the update to sites already on 1.0.6.
             - Ukrainian project management interface and compact navigation.
             - Custom project types can be entered and saved.
             - Project website, documentation and GitHub links open in new tabs.
