@@ -445,8 +445,12 @@ final class UAPM_Admin {
             }
             if (!empty($project->github_repository)) {
                 $github_url = trim($project->github_repository);
-                if (strpos($github_url, 'http://') !== 0 && strpos($github_url, 'https://') !== 0) {
-                    $github_url = 'https://github.com/' . ltrim($github_url, '/');
+                if (!preg_match('#^https?://#i', $github_url)) {
+                    if (stripos($github_url, 'github.com/') === 0) {
+                        $github_url = 'https://' . $github_url;
+                    } else {
+                        $github_url = 'https://github.com/' . ltrim($github_url, '/');
+                    }
                 }
                 $project_links[] = '<a href="' . esc_url($github_url) . '" target="_blank" rel="noopener noreferrer">GitHub</a>';
             }
