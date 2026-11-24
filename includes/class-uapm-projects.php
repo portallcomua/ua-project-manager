@@ -824,7 +824,7 @@ final class UAPM_Projects {
             self::redirect_with_notice('error', $result->get_error_message());
         }
 
-        self::redirect_with_notice('success', __('Project saved successfully.', 'ua-project-manager'));
+        self::redirect_with_notice('success', __('Проєкт успішно збережено.', 'ua-project-manager'), 'uapm-projects');
     }
 
     /**
@@ -906,10 +906,10 @@ final class UAPM_Projects {
      * @param string $type    Notice type.
      * @param string $message Notice message.
      */
-    private static function redirect_with_notice($type, $message) {
+    private static function redirect_with_notice($type, $message, $page = 'uapm') {
         $url = add_query_arg(
             array(
-                'page' => 'uapm',
+                'page' => sanitize_key($page),
                 'uapm_notice' => sanitize_key($type),
                 'uapm_message' => rawurlencode($message),
             ),
