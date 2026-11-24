@@ -209,7 +209,7 @@ class UPB_Admin {
 						<td><?php echo ! empty( $s['enabled'] ) ? '🟢 Увімкнено' : '⚪ Вимкнено'; ?></td>
 						<td class="upb-actions">
 							<a href="<?php echo esc_url( self::url( 'uapm-paybox-services', array( 'action' => 'edit', 'id' => $id ) ) ); ?>">Редагувати</a> |
-							<a class="upb-del" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=upb_delete_service&id=' . (int) $id ), 'uapm_upb_delete_' . (int) $id ) ); ?>" onclick="return confirm('Видалити послугу? Користувачі, які вже мають PRO, збережуть його до кінця терміну.');">Видалити</a>
+							<a class="upb-del" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=uapm_upb_delete_service&id=' . (int) $id ), 'uapm_upb_delete_' . (int) $id ) ); ?>" onclick="return confirm('Видалити послугу? Користувачі, які вже мають PRO, збережуть його до кінця терміну.');">Видалити</a>
 						</td>
 					</tr>
 				<?php endforeach; ?>
