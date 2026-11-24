@@ -44,13 +44,13 @@ class UPB_Admin {
 	}
 
 	public static function menu() {
-		add_submenu_page( 'uapm', 'UA Pay Box — Ліцензії Freemius', 'UA Pay Box', 'manage_options', 'upb-premiums', array( __CLASS__, 'page_premiums' ) );
-		add_submenu_page( 'uapm', 'Послуги', 'Послуги', 'manage_options', 'upb-services', array( __CLASS__, 'page_services' ) );
-		add_submenu_page( 'uapm', 'Налаштування', 'Налаштування', 'manage_options', 'upb-settings', array( __CLASS__, 'page_settings' ) );
+		add_menu_page( 'UA Pay Box', 'UA Pay Box', 'manage_options', 'uapm-paybox-services', array( __CLASS__, 'page_services' ), 'dashicons-cart', 4 );
+		add_submenu_page( 'uapm-paybox-services', 'Послуги', 'Послуги', 'manage_options', 'uapm-paybox-services', array( __CLASS__, 'page_services' ) );
+		add_submenu_page( 'uapm-paybox-services', 'Налаштування Pay Box', 'Налаштування', 'manage_options', 'uapm-paybox-settings', array( __CLASS__, 'page_settings' ) );
 	}
 
 	public static function assets( $hook ) {
-		if ( false === strpos( $hook, 'upb' ) ) {
+		if ( false === strpos( $hook, 'upb' ) && false === strpos( $hook, 'uapm-paybox-' ) ) {
 			return;
 		}
 		wp_enqueue_style( 'upb-admin', UPB_URL . 'assets/css/admin.css', array(), UPB_VERSION );
@@ -162,10 +162,33 @@ class UPB_Admin {
 		}
 		$services = UPB_Services::all();
 		ksort( $services );
+		// Collapse exact duplicate service names in the UI without deleting either record or its licenses.
+		$groups = array();
+		foreach ( $services as $service_id => $service ) {
+			$name_key = strtolower( trim( preg_replace( '/\\s+/u', ' ', (string) ( $service['name'] ?? '' ) ) ) );
+			if ( '' === $name_key ) { $name_key = 'service-' . (int) $service_id; }
+			if ( ! isset( $groups[ $name_key ] ) ) { $groups[ $name_key ] = array(); }
+			$groups[ $name_key ][ (int) $service_id ] = $service;
+		}
+		$services = array();
+		foreach ( $groups as $group ) {
+			$primary_id = (int) array_key_first( $group );
+			foreach ( $group as $candidate_id => $candidate ) {
+				$candidate_ready = ! empty( $candidate['freemius_product_id'] ) && ! empty( $candidate['freemius_plan_id'] ) && ! empty( $candidate['freemius_secret_key'] );
+				$primary = $group[ $primary_id ];
+				$primary_ready = ! empty( $primary['freemius_product_id'] ) && ! empty( $primary['freemius_plan_id'] ) && ! empty( $primary['freemius_secret_key'] );
+				if ( $candidate_ready && ! $primary_ready ) { $primary_id = (int) $candidate_id; }
+			}
+			$primary = $group[ $primary_id ];
+			$duplicate_ids = array_values( array_diff( array_map( 'intval', array_keys( $group ) ), array( $primary_id ) ) );
+			if ( $duplicate_ids ) { $primary['_uapm_duplicate_ids'] = $duplicate_ids; }
+			$services[ $primary_id ] = $primary;
+		}
+		ksort( $services );
 		?>
 		<div class="wrap upb-wrap">
 			<h1 class="wp-heading-inline">Послуги</h1>
-			<a href="<?php echo esc_url( self::url( 'upb-services', array( 'action' => 'add' ) ) ); ?>" class="page-title-action">Додати послугу</a>
+			<a href="<?php echo esc_url( self::url( 'uapm-paybox-services', array( 'action' => 'add' ) ) ); ?>" class="page-title-action">Додати послугу</a>
 			<hr class="wp-header-end">
 			<?php self::notice(); ?>
 
@@ -178,14 +201,14 @@ class UPB_Admin {
 				<?php foreach ( $services as $id => $s ) : ?>
 					<tr>
 						<td><strong><?php echo (int) $id; ?></strong></td>
-						<td><?php echo esc_html( $s['name'] ); ?><?php if ( ! empty( $s['slug'] ) ) : ?><br><span class="upb-id"><?php echo esc_html( $s['slug'] ); ?></span><?php endif; ?><?php if ( empty( $s['freemius_product_id'] ) || empty( $s['freemius_plan_id'] ) || empty( $s['freemius_secret_key'] ) ) : ?><br><strong style="color:#b32d2e">⚠️ Freemius не налаштовано</strong><?php endif; ?></td>
+						<td><?php echo esc_html( $s['name'] ); ?><?php if ( ! empty( $s['slug'] ) ) : ?><br><span class="upb-id"><?php echo esc_html( $s['slug'] ); ?></span><?php endif; ?><?php if ( empty( $s['freemius_product_id'] ) || empty( $s['freemius_plan_id'] ) || empty( $s['freemius_secret_key'] ) ) : ?><br><strong style="color:#b32d2e">⚠️ Freemius не налаштовано</strong><?php endif; ?><?php if ( ! empty( $s['_uapm_duplicate_ids'] ) ) : ?><br><small>Збережені дублікати (дані не видалено): <?php foreach ( $s['_uapm_duplicate_ids'] as $duplicate_id ) : ?><a href="<?php echo esc_url( self::url( 'uapm-paybox-services', array( 'action' => 'edit', 'id' => (int) $duplicate_id ) ) ); ?>">#<?php echo (int) $duplicate_id; ?></a> <?php endforeach; ?></small><?php endif; ?></td>
 						<td><?php echo esc_html( $s['price'] ); ?></td>
 						<td>Freemius</td>
 						<td><input type="text" readonly class="upb-code" value="[universal_pay_box id=&quot;<?php echo (int) $id; ?>&quot;]" onclick="this.select()"></td>
 						<td><input type="text" readonly class="upb-code" value="wcc_check_user_premium($user_id, <?php echo (int) $id; ?>)" onclick="this.select()"></td>
 						<td><?php echo ! empty( $s['enabled'] ) ? '🟢 Увімкнено' : '⚪ Вимкнено'; ?></td>
 						<td class="upb-actions">
-							<a href="<?php echo esc_url( self::url( 'upb-services', array( 'action' => 'edit', 'id' => $id ) ) ); ?>">Редагувати</a> |
+							<a href="<?php echo esc_url( self::url( 'uapm-paybox-services', array( 'action' => 'edit', 'id' => $id ) ) ); ?>">Редагувати</a> |
 							<a class="upb-del" href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=upb_delete_service&id=' . (int) $id ), 'upb_delete_' . (int) $id ) ); ?>" onclick="return confirm('Видалити послугу? Користувачі, які вже мають PRO, збережуть його до кінця терміну.');">Видалити</a>
 						</td>
 					</tr>
@@ -283,7 +306,7 @@ class UPB_Admin {
 					</tr>
 				</table>
 				<?php submit_button( 'Зберегти послугу' ); ?>
-				<a href="<?php echo esc_url( self::url( 'upb-services' ) ); ?>">← До списку</a>
+				<a href="<?php echo esc_url( self::url( 'uapm-paybox-services' ) ); ?>">← До списку</a>
 			</form>
 
 			<?php if ( $id && $svc ) : $svc['id'] = $id; ?>
@@ -340,7 +363,7 @@ class UPB_Admin {
 		if ( '' === $data['freemius_checkout_url'] && $freemius_ready ) { $data['freemius_checkout_url'] = UPB_Freemius::checkout_url( $data ); }
 		if ( '' === $data['freemius_api_token'] && $old && ! empty( $old['freemius_api_token'] ) ) { $data['freemius_api_token'] = $old['freemius_api_token']; }
 		if ( '' === $data['name'] || ! $freemius_ready ) {
-			wp_safe_redirect( self::url( 'upb-services', $id ? array( 'action' => 'edit', 'id' => $id, 'upb_notice' => 'err_required' ) : array( 'action' => 'add', 'upb_notice' => 'err_required' ) ) );
+			wp_safe_redirect( self::url( 'uapm-paybox-services', $id ? array( 'action' => 'edit', 'id' => $id, 'upb_notice' => 'err_required' ) : array( 'action' => 'add', 'upb_notice' => 'err_required' ) ) );
 			exit;
 		}
 
@@ -358,12 +381,12 @@ class UPB_Admin {
 			&& (string) $saved['freemius_secret_key'] === (string) $data['freemius_secret_key'];
 
 		if ( ! $verified ) {
-			wp_safe_redirect( self::url( 'upb-services', array( 'action' => 'edit', 'id' => $saved_id, 'upb_notice' => 'save_failed' ) ) );
+			wp_safe_redirect( self::url( 'uapm-paybox-services', array( 'action' => 'edit', 'id' => $saved_id, 'upb_notice' => 'save_failed' ) ) );
 			exit;
 		}
 
 		// Return to the same service so the administrator can immediately confirm saved values.
-		wp_safe_redirect( self::url( 'upb-services', array( 'action' => 'edit', 'id' => $saved_id, 'upb_notice' => 'saved' ) ) );
+		wp_safe_redirect( self::url( 'uapm-paybox-services', array( 'action' => 'edit', 'id' => $saved_id, 'upb_notice' => 'saved' ) ) );
 		exit;
 	}
 
@@ -372,7 +395,7 @@ class UPB_Admin {
 		$id = isset( $_GET['id'] ) ? absint( $_GET['id'] ) : 0;
 		check_admin_referer( 'upb_delete_' . $id );
 		UPB_Services::delete( $id );
-		wp_safe_redirect( self::url( 'upb-services', array( 'upb_notice' => 'deleted' ) ) );
+		wp_safe_redirect( self::url( 'uapm-paybox-services', array( 'upb_notice' => 'deleted' ) ) );
 		exit;
 	}
 
@@ -443,7 +466,7 @@ echo upb_buy_button( 1, 'Купити PRO' );</pre>
 			),
 			false
 		);
-		wp_safe_redirect( self::url( 'upb-settings', array( 'upb_notice' => 'settings' ) ) );
+		wp_safe_redirect( self::url( 'uapm-paybox-settings', array( 'upb_notice' => 'settings' ) ) );
 		exit;
 	}
 }
