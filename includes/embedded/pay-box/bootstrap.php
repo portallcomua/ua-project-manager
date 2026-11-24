@@ -48,16 +48,14 @@ function sync_project_to_paybox($project_id, $project_data = array()) {
     $map = get_option('uapm_paybox_project_map', array());
     $map = is_array($map) ? $map : array();
 
-    $service = null;
-    $service_id = isset($map[$project_id]) ? absint($map[$project_id]) : 0;
-    if ($service_id) {
-        $service = UPB_Services::get($service_id);
-        if ($service && sanitize_title((string) ($service['slug'] ?? '')) !== $slug) {
-            $service = null;
-            $service_id = 0;
-        }
-    }
+    // Match by display name first so duplicate project records (for example, WooCommerce twice)
+    // share one Pay Box service instead of creating duplicate products.
+    $service = UPB_Services::by_name($project->name);
 
+    $service_id = isset($map[$project_id]) ? absint($map[$project_id]) : 0;
+    if (!$service && $service_id) {
+        $service = UPB_Services::get($service_id);
+    }
     if (!$service) {
         $service = UPB_Services::by_slug($slug);
     }
@@ -65,12 +63,19 @@ function sync_project_to_paybox($project_id, $project_data = array()) {
         $service = UPB_Services::by_slug($project->slug);
     }
 
-    // A project is not automatically a paid product. Never create a Pay Box service here.
-    if (!$service || empty($service['id'])) {
-        return 0;
+    if ($service && !empty($service['id'])) {
+        $service_id = (int) $service['id'];
+    } else {
+        // Create one service for a genuinely new project name; repeated names reuse the same record.
+        $service_id = UPB_Services::register($slug, $project->name, array(
+            'description' => (string) $project->description,
+            'enabled' => 0,
+        ));
     }
 
-    $service_id = (int) $service['id'];
+    if (!$service_id) {
+        return 0;
+    }
 
     if ($service_id) {
         $map[(int) $project_id] = (int) $service_id;
@@ -82,7 +87,7 @@ function sync_project_to_paybox($project_id, $project_data = array()) {
 }
 
 function sync_existing_projects_to_paybox() {
-    if (!current_user_can('manage_options') || get_option('uapm_paybox_projects_synced_v2')) {
+    if (!current_user_can('manage_options') || get_option('uapm_paybox_projects_synced_v3')) {
         return;
     }
     if (!class_exists('UAPM_Projects')) {
@@ -101,7 +106,7 @@ function sync_existing_projects_to_paybox() {
         $offset += $count;
     } while ($count === 200);
 
-    update_option('uapm_paybox_projects_synced_v2', 1, false);
+    update_option('uapm_paybox_projects_synced_v3', 1, false);
 }
 
 add_action('uapm_project_created', __NAMESPACE__ . '\\sync_project_to_paybox', 10, 2);
