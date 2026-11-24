@@ -20,9 +20,9 @@ add_action('admin_enqueue_scripts', function () {
     $s = cmsf_settings();
     wp_localize_script('cmsf-admin', 'CMSF', [
         'ajax' => admin_url('admin-ajax.php'),
-        'nonce' => wp_create_nonce('cmsf'),
+        'nonce' => wp_create_nonce('uapm_cmsf'),
         'exportUrl' => admin_url('admin-post.php'),
-        'exportNonce' => wp_create_nonce('cmsf_export'),
+        'exportNonce' => wp_create_nonce('uapm_cmsf_export'),
         'page' => $page,
         'listsUrl' => admin_url('admin.php?page=uapm-finder-lists'),
         'concurrency' => (int)$s['concurrency'],
