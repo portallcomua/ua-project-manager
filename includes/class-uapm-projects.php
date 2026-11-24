@@ -79,6 +79,7 @@ final class UAPM_Projects {
             array(
                 'name' => $prepared['name'],
                 'slug' => self::unique_slug($prepared['slug']),
+                'project_key' => $prepared['project_key'] ? $prepared['project_key'] : self::unique_slug($prepared['slug']),
                 'description' => $prepared['description'],
                 'project_type' => $prepared['project_type'],
                 'status' => $prepared['status'],
@@ -154,6 +155,7 @@ final class UAPM_Projects {
             array(
                 'name' => $prepared['name'],
                 'slug' => $slug,
+                'project_key' => $prepared['project_key'] ? $prepared['project_key'] : $slug,
                 'description' => $prepared['description'],
                 'project_type' => $prepared['project_type'],
                 'status' => $prepared['status'],
@@ -650,6 +652,9 @@ final class UAPM_Projects {
             'slug' => isset($data['slug']) && $data['slug']
                 ? sanitize_title($data['slug'])
                 : sanitize_title($name),
+            'project_key' => isset($data['project_key']) && $data['project_key']
+                ? sanitize_title($data['project_key'])
+                : (isset($data['slug']) && $data['slug'] ? sanitize_title($data['slug']) : sanitize_title($name)),
             'description' => isset($data['description'])
                 ? sanitize_textarea_field($data['description'])
                 : '',
