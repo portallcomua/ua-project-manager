@@ -41,7 +41,7 @@ jobs:
           if [ -f README.md ]; then cp README.md build/ua-project-manager/; fi
           cd build
           zip -qr ../ua-project-manager-1.0.4.zip ua-project-manager
-          unzip -t ../ua-project-manager-1.0.3.zip
+          unzip -t ../ua-project-manager-1.0.4.zip
 
       - name: Upload installable ZIP
         uses: actions/upload-artifact@v4
