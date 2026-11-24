@@ -356,7 +356,7 @@ add_action('admin_footer', function () {
             message.style.color = '#555';
 
             try {
-                const result = await sendRequest('cmsf_smtp_save', {
+                const result = await sendRequest('uapm_cmsf_smtp_save', {
                     enabled: document.getElementById('cmsf-smtp-enabled').checked ? '1' : '0',
                     host: document.getElementById('cmsf-smtp-host').value,
                     port: document.getElementById('cmsf-smtp-port').value,
@@ -384,7 +384,7 @@ add_action('admin_footer', function () {
             message.style.color = '#555';
 
             try {
-                const result = await sendRequest('cmsf_smtp_test', {
+                const result = await sendRequest('uapm_cmsf_smtp_test', {
                     to: document.getElementById('cmsf-smtp-to').value
                 });
 
