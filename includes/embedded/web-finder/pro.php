@@ -38,7 +38,7 @@ function cmsf_pro_options() {
 
 /** Verify Freemius' HMAC-signed hosted-checkout return URL. */
 function cmsf_freemius_capture_purchase() {
-    if (empty($_GET['page']) || sanitize_key(wp_unslash($_GET['page'])) !== 'cmsf-pro' || empty($_GET['signature'])) return;
+    if (empty($_GET['page']) || sanitize_key(wp_unslash($_GET['page'])) !== 'uapm-finder-pro' || empty($_GET['signature'])) return;
     $o = cmsf_pro_options();
     if (!$o['secret_key']) return;
 
@@ -73,33 +73,33 @@ function cmsf_freemius_capture_purchase() {
 }
 add_action('admin_init', __NAMESPACE__ . '\\cmsf_freemius_capture_purchase', 1);
 
-add_action('admin_post_cmsf_save_pro', function () {
+add_action('admin_post_uapm_cmsf_save_pro', function () {
     if (!current_user_can('manage_options')) wp_die('Недостатньо прав.');
-    check_admin_referer('cmsf_save_pro');
+    check_admin_referer('uapm_cmsf_save_pro');
     $url = esc_url_raw(trim(wp_unslash($_POST['checkout_url'] ?? '')));
     if ($url && (!wp_parse_url($url, PHP_URL_HOST) || !preg_match('~(^|\.)freemius\.com$~i', wp_parse_url($url, PHP_URL_HOST)))) {
-        wp_safe_redirect(add_query_arg(['page'=>'cmsf-pro','cmsf_saved'=>'0'], admin_url('admin.php'))); exit;
+        wp_safe_redirect(add_query_arg(['page'=>'uapm-finder-pro','cmsf_saved'=>'0'], admin_url('admin.php'))); exit;
     }
     update_option('cmsf_freemius_checkout_url', $url, false);
     $new_secret = sanitize_text_field(wp_unslash($_POST['secret_key'] ?? ''));
     if ($new_secret !== '') update_option('cmsf_freemius_secret_key', $new_secret, false);
     update_option('cmsf_freemius_plan_id', sanitize_text_field(wp_unslash($_POST['plan_id'] ?? '')), false);
-    wp_safe_redirect(add_query_arg(['page'=>'cmsf-pro','cmsf_saved'=>'1'], admin_url('admin.php'))); exit;
+    wp_safe_redirect(add_query_arg(['page'=>'uapm-finder-pro','cmsf_saved'=>'1'], admin_url('admin.php'))); exit;
 });
 
 add_action('admin_notices', function () {
-    if (!is_admin() || empty($_GET['page']) || !in_array(sanitize_key(wp_unslash($_GET['page'])), ['cms-checker','cmsf-import','cmsf-lists','cmsf-templates','cmsf-settings','cmsf-pro','cmsf-contacts'], true)) return;
+    if (!is_admin() || empty($_GET['page']) || !in_array(sanitize_key(wp_unslash($_GET['page'])), ['uapm-finder-search','uapm-finder-import','uapm-finder-lists','uapm-finder-templates','uapm-finder-settings','uapm-finder-pro','uapm-finder-contacts'], true)) return;
     if (cmsf_pro_is_active()) {
         echo '<div class="notice notice-success"><p><strong>UA Web Finder Pro</strong> — Pro активовано.</p></div>';
     } elseif (cmsf_trial_is_active()) {
-        echo '<div class="notice notice-info"><p><strong>Пробний період:</strong> залишилося ' . esc_html(cmsf_trial_days_left()) . ' днів із 30. <a href="' . esc_url(admin_url('admin.php?page=cmsf-pro')) . '">Переглянути Pro та активувати</a></p></div>';
+        echo '<div class="notice notice-info"><p><strong>Пробний період:</strong> залишилося ' . esc_html(cmsf_trial_days_left()) . ' днів із 30. <a href="' . esc_url(admin_url('admin.php?page=uapm-finder-pro')) . '">Переглянути Pro та активувати</a></p></div>';
     } else {
-        echo '<div class="notice notice-warning"><p><strong>Пробний період завершився.</strong> <a href="' . esc_url(admin_url('admin.php?page=cmsf-pro')) . '">Активуйте UA Web Finder Pro</a>, щоб продовжити роботу.</p></div>';
+        echo '<div class="notice notice-warning"><p><strong>Пробний період завершився.</strong> <a href="' . esc_url(admin_url('admin.php?page=uapm-finder-pro')) . '">Активуйте UA Web Finder Pro</a>, щоб продовжити роботу.</p></div>';
     }
 });
 
 add_action('admin_menu', function () {
-    add_submenu_page('uapm', 'UA Web Finder Pro', 'Pro / Активація', 'manage_options', 'cmsf-pro', __NAMESPACE__ . '\\cmsf_pro_render_page');
+    add_submenu_page('uapm-finder-contacts', 'UA Web Finder Pro', 'Pro / Активація', 'manage_options', 'uapm-finder-pro', __NAMESPACE__ . '\\cmsf_pro_render_page');
 }, 20);
 
 function cmsf_pro_render_page() {
@@ -107,7 +107,7 @@ function cmsf_pro_render_page() {
     $o = cmsf_pro_options();
     $active = cmsf_pro_is_active();
     $days = cmsf_trial_days_left();
-    $return_url = add_query_arg('page', 'cmsf-pro', admin_url('admin.php'));
+    $return_url = add_query_arg('page', 'uapm-finder-pro', admin_url('admin.php'));
     ?>
     <div class="wrap cmsf">
       <h1>UA Web Finder Pro</h1>
@@ -143,8 +143,8 @@ function cmsf_pro_render_page() {
         <p>У Freemius створіть одноразовий Lifetime-план, скопіюйте Production Hosted Checkout Link і налаштуйте перенаправлення після успішної покупки на цю адресу:</p>
         <p><code><?php echo esc_html($return_url); ?></code></p>
         <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-          <input type="hidden" name="action" value="cmsf_save_pro">
-          <?php wp_nonce_field('cmsf_save_pro'); ?>
+          <input type="hidden" name="action" value="uapm_cmsf_save_pro">
+          <?php wp_nonce_field('uapm_cmsf_save_pro'); ?>
           <table class="form-table"><tbody>
             <tr><th><label for="cmsf-checkout-url">Hosted Checkout URL</label></th><td><input class="regular-text" type="url" id="cmsf-checkout-url" name="checkout_url" value="<?php echo esc_attr($o['checkout_url']); ?>" placeholder="https://checkout.freemius.com/..." /></td></tr>
             <tr><th><label for="cmsf-secret-key">Freemius Product Secret Key</label></th><td><input class="regular-text" type="password" autocomplete="new-password" id="cmsf-secret-key" name="secret_key" value="" placeholder="<?php echo $o['secret_key'] ? 'Налаштовано — залиште порожнім, щоб не змінювати' : 'Вставте Product Secret Key'; ?>" /><p class="description">Потрібен лише для перевірки підпису redirect. Не вставляйте його у публічні поля або листування.</p></td></tr>

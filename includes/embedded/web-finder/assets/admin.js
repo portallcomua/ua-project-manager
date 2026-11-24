@@ -41,7 +41,7 @@
 
   function api(action, data) {
     const fd = new FormData();
-    fd.append('action', 'cmsf_' + action);
+    fd.append('action', 'uapm_cmsf_' + action);
     fd.append('nonce', C.nonce);
     Object.keys(data || {}).forEach(k => {
       const v = data[k];
@@ -288,7 +288,7 @@
       const f = document.createElement('form');
       f.method = 'POST'; f.action = C.exportUrl; f.style.display = 'none';
       const add = (k, v) => { const i = document.createElement('input'); i.type = 'hidden'; i.name = k; i.value = v; f.appendChild(i); };
-      add('action', 'cmsf_export'); add('_wpnonce', C.exportNonce); add('list_id', listId);
+      add('action', 'uapm_cmsf_export'); add('_wpnonce', C.exportNonce); add('list_id', listId);
       if (S.sel.size) add('ids', Array.from(S.sel).join(','));
       else { const fl = filters(); Object.keys(fl).forEach(k => add(k, fl[k])); }
       document.body.appendChild(f); f.submit(); setTimeout(() => f.remove(), 2000);

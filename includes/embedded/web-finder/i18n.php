@@ -4,8 +4,10 @@ namespace UAPM\WebFinder;
 if (!defined('ABSPATH')) exit;
 
 function cmsf_is_english_locale() {
-    $locale = strtolower((string) get_locale());
-    return strpos($locale, 'uk') !== 0;
+    if (class_exists('\\UAPM_Localization')) {
+        return \UAPM_Localization::get_language() === 'en';
+    }
+    return false;
 }
 
 /** Ukrainian source strings => English admin strings. */
@@ -124,5 +126,5 @@ function cmsf_translate_admin_html($html) {
 }
 add_action('admin_init', function () {
     $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
-    if (strpos($page, 'cmsf') === 0 || $page === 'cms-checker') ob_start(__NAMESPACE__ . '\\cmsf_translate_admin_html');
+    if (strpos($page, 'uapm-finder-') === 0) ob_start(__NAMESPACE__ . '\\cmsf_translate_admin_html');
 }, 0);

@@ -4,8 +4,8 @@ namespace UAPM\WebFinder;
 if (!defined('ABSPATH')) exit;
 
 function cmsf_ajax($action, $fn) {
-    add_action('wp_ajax_cmsf_' . $action, function () use ($fn, $action) {
-        check_ajax_referer('cmsf', 'nonce');
+    add_action('wp_ajax_uapm_cmsf_' . $action, function () use ($fn, $action) {
+        check_ajax_referer('uapm_cmsf', 'nonce');
         if (!current_user_can('manage_options')) wp_send_json_error('Немає прав');
         if (function_exists(__NAMESPACE__ . '\\cmsf_trial_blocks_action') && cmsf_trial_blocks_action($action)) {
             wp_send_json_error('Пробний період завершився. Активуйте UA Web Finder Pro у розділі «Pro / Активація».');
@@ -456,9 +456,9 @@ function cmsf_csv_safe($v) {
     return ($v !== '' && strpos("=+-@\t\r", $v[0]) !== false) ? "'" . $v : $v;
 }
 
-add_action('admin_post_cmsf_export', function () {
+add_action('admin_post_uapm_cmsf_export', function () {
     if (!current_user_can('manage_options')) wp_die('Немає прав');
-    check_admin_referer('cmsf_export');
+    check_admin_referer('uapm_cmsf_export');
     global $wpdb;
     $list_id = (int)($_POST['list_id'] ?? 0);
     $t = cmsf_t('sites');

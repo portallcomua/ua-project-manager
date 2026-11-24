@@ -75,6 +75,29 @@ class UPB_Services {
 		return null;
 	}
 
+	/** Find a service by its exact normalized display name, preferring the configured Freemius record. */
+	public static function by_name( $name ) {
+		$normalize = function ( $value ) {
+			$value = trim( preg_replace( '/\\s+/u', ' ', (string) $value ) );
+			return function_exists( 'mb_strtolower' ) ? mb_strtolower( $value, 'UTF-8' ) : strtolower( $value );
+		};
+		$needle = $normalize( $name );
+		if ( '' === $needle ) { return null; }
+		$best = null;
+		$best_score = -1;
+		foreach ( self::all() as $service ) {
+			if ( $normalize( $service['name'] ?? '' ) !== $needle ) { continue; }
+			$score = 0;
+			if ( ! empty( $service['freemius_product_id'] ) && ! empty( $service['freemius_plan_id'] ) && ! empty( $service['freemius_secret_key'] ) ) { $score += 2; }
+			if ( ! empty( $service['freemius_api_token'] ) ) { $score++; }
+			if ( null === $best || $score > $best_score || ( $score === $best_score && (int) ( $service['id'] ?? 0 ) < (int) ( $best['id'] ?? 0 ) ) ) {
+				$best = $service;
+				$best_score = $score;
+			}
+		}
+		return $best;
+	}
+
 	/** Автореєстрація проекту іншим плагіном (ідемпотентно). Повертає ID. */
 	public static function register( $slug, $name, array $extra = array() ) {
 		$slug = sanitize_title( $slug );

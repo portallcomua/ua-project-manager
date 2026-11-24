@@ -223,7 +223,7 @@
 
         async function loadLists() {
 
-            const rows = await request('cmsfc_lists', {});
+            const rows = await request('uapm_cmsfc_lists', {});
 
             const viewSelect = $('cmsfc-view-list');
             const campaignSelect = $('cmsfc-campaign-list');
@@ -356,7 +356,7 @@
 
             try {
 
-                const data = await request('cmsfc_contacts', {
+                const data = await request('uapm_cmsfc_contacts', {
 
                     list_id: listId,
                     page: currentPage,
@@ -544,7 +544,7 @@
                 try {
 
                     const data = await request(
-                        'cmsfc_start',
+                        'uapm_cmsfc_start',
                         {
                             domain: domain,
                             name: $('cmsfc-name').value.trim(),
@@ -599,7 +599,7 @@
             try {
 
                 const data = await request(
-                    'cmsfc_step',
+                    'uapm_cmsfc_step',
                     {
                         list_id: currentListId
                     }
@@ -689,7 +689,7 @@
             try {
 
                 await request(
-                    'cmsfc_control',
+                    'uapm_cmsfc_control',
                     {
                         list_id: currentListId,
                         command: command
@@ -885,7 +885,7 @@
                 try {
 
                     const result = await request(
-                        'cmsfc_contacts_delete',
+                        'uapm_cmsfc_contacts_delete',
                         {
                             ids: ids
                         }
@@ -970,7 +970,7 @@
                 try {
 
                     const data = await request(
-                        'cmsfc_contacts_copy',
+                        'uapm_cmsfc_contacts_copy',
                         {
                             list_id: listId
                         }
@@ -1030,7 +1030,7 @@
 
                 url.searchParams.set(
                     'action',
-                    'cmsfc_export'
+                    'uapm_cmsfc_export'
                 );
 
                 url.searchParams.set(
@@ -1074,7 +1074,7 @@
                 try {
 
                     const result = await request(
-                        'cmsfc_blacklist_add',
+                        'uapm_cmsfc_blacklist_add',
                         {
                             email: email,
                             reason: reason
@@ -1109,7 +1109,7 @@
         async function loadBlacklist() {
 
             const rows = await request(
-                'cmsfc_blacklist',
+                'uapm_cmsfc_blacklist',
                 {}
             );
 
@@ -1207,7 +1207,7 @@
                         try {
 
                             await request(
-                                'cmsfc_blacklist_remove',
+                                'uapm_cmsfc_blacklist_remove',
                                 {
                                     id: item.id
                                 }
@@ -1287,7 +1287,7 @@
                 try {
 
                     const data = await request(
-                        'cmsfc_campaign_start',
+                        'uapm_cmsfc_campaign_start',
                         {
                             list_id: listId,
                             template_id: templateId,
@@ -1332,7 +1332,7 @@
             try {
 
                 const data = await request(
-                    'cmsfc_campaign_step',
+                    'uapm_cmsfc_campaign_step',
                     {
                         campaign_id: campaignId
                     }

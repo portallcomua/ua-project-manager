@@ -618,7 +618,7 @@ function cmsfc_scan_step($list_id) {
  * --------------------------------------------------------- */
 
 function cmsfc_ajax_guard() {
-    check_ajax_referer('cmsfc', 'nonce');
+    check_ajax_referer('uapm_cmsfc', 'nonce');
 
     if (!current_user_can('manage_options')) {
         wp_send_json_error('Недостатньо прав.');
@@ -633,7 +633,7 @@ function cmsfc_ajax_guard() {
  * 10. AJAX: запуск і керування скануванням
  * --------------------------------------------------------- */
 
-add_action('wp_ajax_cmsfc_start', function () {
+add_action('wp_ajax_uapm_cmsfc_start', function () {
     cmsfc_ajax_guard();
 
     $id = cmsfc_create_list(
@@ -650,7 +650,7 @@ add_action('wp_ajax_cmsfc_start', function () {
     wp_send_json_success(['list_id' => $id]);
 });
 
-add_action('wp_ajax_cmsfc_step', function () {
+add_action('wp_ajax_uapm_cmsfc_step', function () {
     cmsfc_ajax_guard();
 
     $result = cmsfc_scan_step((int)($_POST['list_id'] ?? 0));
@@ -662,7 +662,7 @@ add_action('wp_ajax_cmsfc_step', function () {
     wp_send_json_success($result);
 });
 
-add_action('wp_ajax_cmsfc_control', function () {
+add_action('wp_ajax_uapm_cmsfc_control', function () {
     cmsfc_ajax_guard();
 
     global $wpdb;
@@ -696,7 +696,7 @@ add_action('wp_ajax_cmsfc_control', function () {
  * 11. AJAX: список списків контактів
  * --------------------------------------------------------- */
 
-add_action('wp_ajax_cmsfc_lists', function () {
+add_action('wp_ajax_uapm_cmsfc_lists', function () {
     cmsfc_ajax_guard();
 
     global $wpdb;
@@ -727,7 +727,7 @@ add_action('wp_ajax_cmsfc_lists', function () {
  * 12. AJAX: перегляд і пошук email у вибраному списку
  * --------------------------------------------------------- */
 
-add_action('wp_ajax_cmsfc_contacts', function () {
+add_action('wp_ajax_uapm_cmsfc_contacts', function () {
     cmsfc_ajax_guard();
 
     global $wpdb;
@@ -800,7 +800,7 @@ add_action('wp_ajax_cmsfc_contacts', function () {
  * 13. AJAX: видалення одного або кількох контактів
  * --------------------------------------------------------- */
 
-add_action('wp_ajax_cmsfc_contacts_delete', function () {
+add_action('wp_ajax_uapm_cmsfc_contacts_delete', function () {
     cmsfc_ajax_guard();
 
     global $wpdb;
@@ -826,7 +826,7 @@ add_action('wp_ajax_cmsfc_contacts_delete', function () {
  * 14. AJAX: копіювання адрес і CSV-експорт
  * --------------------------------------------------------- */
 
-add_action('wp_ajax_cmsfc_contacts_copy', function () {
+add_action('wp_ajax_uapm_cmsfc_contacts_copy', function () {
     cmsfc_ajax_guard();
 
     global $wpdb;
@@ -847,12 +847,12 @@ add_action('wp_ajax_cmsfc_contacts_copy', function () {
     ]);
 });
 
-add_action('admin_post_cmsfc_export', function () {
+add_action('admin_post_uapm_cmsfc_export', function () {
     if (!current_user_can('manage_options')) {
         wp_die('Недостатньо прав.');
     }
 
-    check_admin_referer('cmsfc_export');
+    check_admin_referer('uapm_cmsfc_export');
 
     global $wpdb;
 
@@ -899,7 +899,7 @@ add_action('admin_post_cmsfc_export', function () {
  * 15. AJAX: глобальний блеклист
  * --------------------------------------------------------- */
 
-add_action('wp_ajax_cmsfc_blacklist_add', function () {
+add_action('wp_ajax_uapm_cmsfc_blacklist_add', function () {
     cmsfc_ajax_guard();
 
     $email = sanitize_email(wp_unslash($_POST['email'] ?? ''));
@@ -914,7 +914,7 @@ add_action('wp_ajax_cmsfc_blacklist_add', function () {
     wp_send_json_success('Адресу додано до глобального блеклиста.');
 });
 
-add_action('wp_ajax_cmsfc_blacklist', function () {
+add_action('wp_ajax_uapm_cmsfc_blacklist', function () {
     cmsfc_ajax_guard();
 
     global $wpdb;
@@ -927,7 +927,7 @@ add_action('wp_ajax_cmsfc_blacklist', function () {
     wp_send_json_success($rows);
 });
 
-add_action('wp_ajax_cmsfc_blacklist_remove', function () {
+add_action('wp_ajax_uapm_cmsfc_blacklist_remove', function () {
     cmsfc_ajax_guard();
 
     global $wpdb;
@@ -944,7 +944,7 @@ add_action('wp_ajax_cmsfc_blacklist_remove', function () {
  * 16. Створення кампанії на основі наявного шаблону
  * --------------------------------------------------------- */
 
-add_action('wp_ajax_cmsfc_campaign_start', function () {
+add_action('wp_ajax_uapm_cmsfc_campaign_start', function () {
     cmsfc_ajax_guard();
 
     global $wpdb;
@@ -1023,7 +1023,7 @@ add_action('wp_ajax_cmsfc_campaign_start', function () {
  * 17. AJAX: відправлення наступної порції кампанії
  * --------------------------------------------------------- */
 
-add_action('wp_ajax_cmsfc_campaign_step', function () {
+add_action('wp_ajax_uapm_cmsfc_campaign_step', function () {
     cmsfc_ajax_guard();
 
     global $wpdb;
@@ -1166,14 +1166,25 @@ add_action('wp_ajax_cmsfc_campaign_step', function () {
  * --------------------------------------------------------- */
 
 add_action('admin_menu', function () {
+    add_menu_page(
+        'UA Web Finder — Контакти та розсилки',
+        'Finder: Контакти / розсилки',
+        'manage_options',
+        'uapm-finder-contacts',
+        __NAMESPACE__ . '\\cmsfc_admin_page',
+        'dashicons-email-alt',
+        6
+    );
     add_submenu_page(
-        'uapm',
-        'Збір email',
+        'uapm-finder-contacts',
+        'Збір email та розсилки',
         'Збір email',
         'manage_options',
-        'cmsf-contacts',
+        'uapm-finder-contacts',
         __NAMESPACE__ . '\\cmsfc_admin_page'
     );
+    add_submenu_page('uapm-finder-contacts', 'Шаблони листів', 'Шаблони листів', 'manage_options', 'uapm-finder-templates', __NAMESPACE__ . '\\cmsf_page_templates');
+    add_submenu_page('uapm-finder-contacts', 'Налаштування Finder', 'Налаштування', 'manage_options', 'uapm-finder-settings', __NAMESPACE__ . '\\cmsf_page_settings');
 });
 
 /* ---------------------------------------------------------
@@ -1181,7 +1192,7 @@ add_action('admin_menu', function () {
  * --------------------------------------------------------- */
 
 add_action('admin_enqueue_scripts', function ($hook) {
-    if (($_GET['page'] ?? '') !== 'cmsf-contacts') {
+    if (($_GET['page'] ?? '') !== 'uapm-finder-contacts') {
         return;
     }
 
@@ -1202,9 +1213,9 @@ add_action('admin_enqueue_scripts', function ($hook) {
 
     wp_localize_script('cmsfc-contacts', 'CMSFC', [
         'ajax' => admin_url('admin-ajax.php'),
-        'nonce' => wp_create_nonce('cmsfc'),
+        'nonce' => wp_create_nonce('uapm_cmsfc'),
         'exportUrl' => admin_url('admin-post.php'),
-        'exportNonce' => wp_create_nonce('cmsfc_export'),
+        'exportNonce' => wp_create_nonce('uapm_cmsfc_export'),
         'locale' => cmsf_is_english_locale() ? 'en' : 'uk',
         'translations' => cmsf_is_english_locale() ? cmsf_i18n_dictionary() : []
     ]);
