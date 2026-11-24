@@ -3,7 +3,7 @@
  * Plugin Name: UA Project Manager
  * Plugin URI: https://uaserver.pp.ua/
  * Description: Central management system for UA projects, plugins, releases, licenses, payments and integrations.
- * Version: 1.0.2
+ * Version: 1.0.3
  * Author: UA Tools
  * Author URI: https://uaserver.pp.ua/
  * Text Domain: ua-project-manager
@@ -17,7 +17,7 @@ if (!defined('ABSPATH')) {
 }
 
 if (!defined('UAPM_VERSION')) {
-    define('UAPM_VERSION', '1.0.2');
+    define('UAPM_VERSION', '1.0.3');
 }
 
 if (!defined('UAPM_DB_VERSION')) {
@@ -322,8 +322,6 @@ function uapm_is_plugin_active($plugin_file) {
 }
 
 function uapm_activate_plugin() {
-    global $wpdb;
-    $wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name LIKE 'uapm\\_schema\\_%'");
 
     $installer = UAPM_PATH . 'includes/class-uapm-installer.php';
 
