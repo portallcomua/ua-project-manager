@@ -54,6 +54,15 @@ final class UAPM_Admin {
             'uapm-payments',
             array(__CLASS__, 'render_payments')
         );
+
+        add_submenu_page(
+            'uapm',
+            __('Import / Export', 'ua-project-manager'),
+            __('Імпорт даних', 'ua-project-manager'),
+            'uapm_manage_settings',
+            'uapm-import',
+            array('UAPM_Import', 'render_page')
+        );
     }
 
     public static function enqueue_styles($hook) {
