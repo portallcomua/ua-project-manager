@@ -1183,6 +1183,8 @@ add_action('admin_menu', function () {
         'uapm-finder-contacts',
         __NAMESPACE__ . '\\cmsfc_admin_page'
     );
+    add_submenu_page('uapm-finder-contacts', 'Шаблони листів', 'Шаблони листів', 'manage_options', 'uapm-finder-templates', __NAMESPACE__ . '\\cmsf_page_templates');
+    add_submenu_page('uapm-finder-contacts', 'Налаштування Finder', 'Налаштування', 'manage_options', 'uapm-finder-settings', __NAMESPACE__ . '\\cmsf_page_settings');
 });
 
 /* ---------------------------------------------------------
