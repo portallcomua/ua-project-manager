@@ -503,7 +503,20 @@ final class UAPM_Admin {
         $status = sanitize_key($status);
         $class = 'uapm-status-' . $status;
 
-        return '<span class="uapm-status ' . esc_attr($class) . '">' . esc_html(ucfirst($status)) . '</span>';
+        $labels = array(
+            'active' => 'Активний',
+            'development' => 'У розробці',
+            'paused' => 'Призупинений',
+            'archived' => 'Архівний',
+            'pending' => 'Очікує',
+            'partial' => 'Частково оплачено',
+            'paid' => 'Оплачено',
+            'revoked' => 'Скасовано',
+            'provisional' => 'Попередній',
+            'confirmed' => 'Підтверджено',
+        );
+        $label = isset($labels[$status]) ? $labels[$status] : ucfirst($status);
+        return '<span class="uapm-status ' . esc_attr($class) . '">' . esc_html($label) . '</span>';
     }
 
     public static function render_payments() {
