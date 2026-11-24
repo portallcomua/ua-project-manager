@@ -52,6 +52,10 @@ function sync_project_to_paybox($project_id, $project_data = array()) {
     $service_id = isset($map[$project_id]) ? absint($map[$project_id]) : 0;
     if ($service_id) {
         $service = UPB_Services::get($service_id);
+        if ($service && sanitize_title((string) ($service['slug'] ?? '')) !== $slug) {
+            $service = null;
+            $service_id = 0;
+        }
     }
 
     if (!$service) {
@@ -61,23 +65,12 @@ function sync_project_to_paybox($project_id, $project_data = array()) {
         $service = UPB_Services::by_slug($project->slug);
     }
 
-    if ($service && !empty($service['id'])) {
-        $service_id = (int) $service['id'];
-        $data = wp_parse_args($service, UPB_Services::defaults());
-        $data['slug'] = $slug;
-        $data['name'] = sanitize_text_field($project->name);
-        $data['description'] = sanitize_textarea_field((string) $project->description);
-        if (isset($project->status) && $project->status === 'archived') {
-            $data['enabled'] = 0;
-        }
-        UPB_Services::save($service_id, $data);
-    } else {
-        $service_id = UPB_Services::register($slug, $project->name, array(
-            'description' => (string) $project->description,
-            // New services remain disabled until Freemius credentials are configured.
-            'enabled' => 0,
-        ));
+    // A project is not automatically a paid product. Never create a Pay Box service here.
+    if (!$service || empty($service['id'])) {
+        return 0;
     }
+
+    $service_id = (int) $service['id'];
 
     if ($service_id) {
         $map[(int) $project_id] = (int) $service_id;
@@ -89,7 +82,7 @@ function sync_project_to_paybox($project_id, $project_data = array()) {
 }
 
 function sync_existing_projects_to_paybox() {
-    if (!current_user_can('manage_options') || get_option('uapm_paybox_projects_synced_v1')) {
+    if (!current_user_can('manage_options') || get_option('uapm_paybox_projects_synced_v2')) {
         return;
     }
     if (!class_exists('UAPM_Projects')) {
@@ -108,7 +101,7 @@ function sync_existing_projects_to_paybox() {
         $offset += $count;
     } while ($count === 200);
 
-    update_option('uapm_paybox_projects_synced_v1', 1, false);
+    update_option('uapm_paybox_projects_synced_v2', 1, false);
 }
 
 add_action('uapm_project_created', __NAMESPACE__ . '\\sync_project_to_paybox', 10, 2);
