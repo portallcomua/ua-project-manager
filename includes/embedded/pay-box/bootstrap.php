@@ -22,6 +22,7 @@ $files = array(
     'class-upb-rest.php',
     'class-upb-freemius.php',
     'functions.php',
+    'compat.php',
     'class-upb-admin.php',
 );
 

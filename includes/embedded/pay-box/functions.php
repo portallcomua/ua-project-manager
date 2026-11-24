@@ -8,7 +8,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-if ( ! function_exists( 'wcc_check_user_premium' ) ) {
+if ( ! function_exists( __NAMESPACE__ . '\\wcc_check_user_premium' ) ) {
 	/**
 	 * Чи має користувач чинний PRO по послузі.
 	 *
@@ -26,14 +26,14 @@ if ( ! function_exists( 'wcc_check_user_premium' ) ) {
 	}
 }
 
-if ( ! function_exists( 'upb_check_user_premium' ) ) {
+if ( ! function_exists( __NAMESPACE__ . '\\upb_check_user_premium' ) ) {
 	/** Аліас. */
 	function upb_check_user_premium( $user_id = 0, $service_id = 0 ) {
 		return wcc_check_user_premium( $user_id, $service_id );
 	}
 }
 
-if ( ! function_exists( 'wcc_get_user_premium_expiry' ) ) {
+if ( ! function_exists( __NAMESPACE__ . '\\wcc_get_user_premium_expiry' ) ) {
 	/**
 	 * Термін дії PRO: unix timestamp, 0 = безстроково, false = PRO немає.
 	 */
@@ -47,7 +47,7 @@ if ( ! function_exists( 'wcc_get_user_premium_expiry' ) ) {
 	}
 }
 
-if ( ! function_exists( 'upb_enqueue_assets' ) ) {
+if ( ! function_exists( __NAMESPACE__ . '\\upb_enqueue_assets' ) ) {
 	/**
 	 * Підключити JS/CSS модального вікна на поточній сторінці
 	 * (для кнопок з атрибутом data-upb-buy="ID" всередині інших плагінів/ігор).
@@ -57,7 +57,7 @@ if ( ! function_exists( 'upb_enqueue_assets' ) ) {
 	}
 }
 
-if ( ! function_exists( 'upb_service_id' ) ) {
+if ( ! function_exists( __NAMESPACE__ . '\\upb_service_id' ) ) {
 	/**
 	 * ID проекту за slug плагіна (або числовим ID). 0, якщо проекту немає.
 	 */
@@ -71,7 +71,7 @@ if ( ! function_exists( 'upb_service_id' ) ) {
 	}
 }
 
-if ( ! function_exists( 'upb_register_service' ) ) {
+if ( ! function_exists( __NAMESPACE__ . '\\upb_register_service' ) ) {
 	/**
 	 * Створює проект у Pay Box, якщо його ще немає (викликається іншим плагіном).
 	 * Дані Freemius для оплати адмін налаштовує в UA Pay Box → Послуги.
@@ -81,14 +81,14 @@ if ( ! function_exists( 'upb_register_service' ) ) {
 	}
 }
 
-if ( ! function_exists( 'upb_get_service' ) ) {
+if ( ! function_exists( __NAMESPACE__ . '\\upb_get_service' ) ) {
 	function upb_get_service( $slug_or_id ) {
 		$id = upb_service_id( $slug_or_id );
 		return $id ? UPB_Services::get( $id ) : null;
 	}
 }
 
-if ( ! function_exists( 'upb_buy_button' ) ) {
+if ( ! function_exists( __NAMESPACE__ . '\\upb_buy_button' ) ) {
 	/**
 	 * HTML кнопки «Купити PRO». Працює і на сайті, і в wp-admin.
 	 * Відкриває попап Freemius Checkout; PRO вмикається після підтвердженого webhook.
