@@ -142,7 +142,7 @@ function cmsf_send_site($site_id, $template_id) {
     foreach ($parts as $part) {
         $email = strtolower(sanitize_email($part));
         if (!is_email($email)) continue;
-        if (function_exists('cmsf_contact_is_blocked') && cmsf_contact_is_blocked($email)) continue;
+        if (function_exists(__NAMESPACE__ . '\\cmsf_contact_is_blocked') && cmsf_contact_is_blocked($email)) continue;
         $recipients[$email] = $email;
     }
     $recipients = array_values($recipients);
