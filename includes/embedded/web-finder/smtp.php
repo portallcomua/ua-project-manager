@@ -69,12 +69,12 @@ add_action('phpmailer_init', function ($phpmailer) {
 /**
  * Save SMTP settings.
  */
-add_action('wp_ajax_cmsf_smtp_save', function () {
+add_action('wp_ajax_uapm_cmsf_smtp_save', function () {
     if (!current_user_can('manage_options')) {
         wp_send_json_error('Недостатньо прав.');
     }
 
-    check_ajax_referer('cmsf', 'nonce');
+    check_ajax_referer('uapm_cmsf', 'nonce');
 
     $old = cmsf_smtp_settings();
 
@@ -116,12 +116,12 @@ add_action('wp_ajax_cmsf_smtp_save', function () {
 /**
  * Send test email.
  */
-add_action('wp_ajax_cmsf_smtp_test', function () {
+add_action('wp_ajax_uapm_cmsf_smtp_test', function () {
     if (!current_user_can('manage_options')) {
         wp_send_json_error('Недостатньо прав.');
     }
 
-    check_ajax_referer('cmsf', 'nonce');
+    check_ajax_referer('uapm_cmsf', 'nonce');
 
     $s = cmsf_smtp_settings();
 
@@ -191,7 +191,7 @@ add_action('admin_footer', function () {
     }
 
     $s = cmsf_smtp_settings();
-    $nonce = wp_create_nonce('cmsf');
+    $nonce = wp_create_nonce('uapm_cmsf';
     ?>
     <style>
         #cmsf-smtp-box {
