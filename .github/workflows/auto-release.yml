@@ -68,6 +68,7 @@ jobs:
           cd build
           zip -qr "../ua-project-manager-$VERSION.zip" ua-project-manager
           unzip -t "../ua-project-manager-$VERSION.zip"
+          cp "../ua-project-manager-$VERSION.zip" ../ua-project-manager.zip
 
       - name: Publish GitHub release for WordPress updater
         if: steps.release_check.outputs.exists == 'false'
@@ -86,7 +87,9 @@ jobs:
             - Added project-level display settings for the All Projects link, HTML banner and advertising availability.
             - Connected Finder website lists and email-collection lists to one or more main projects without replacing their existing records.
             - Added a central synchronization dashboard and preserved existing Pay Box, Finder and project data.
-          files: ua-project-manager-${{ steps.meta.outputs.version }}.zip
+          files: |
+            ua-project-manager-${{ steps.meta.outputs.version }}.zip
+            ua-project-manager.zip
           make_latest: true
           overwrite_files: true
 
