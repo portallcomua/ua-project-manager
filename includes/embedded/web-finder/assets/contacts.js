@@ -551,7 +551,8 @@
                             max_pages:
                                 $('cmsfc-max-pages').value,
                             max_depth:
-                                $('cmsfc-max-depth').value
+                                $('cmsfc-max-depth').value,
+                            project_ids: Array.from($('cmsfc-projects').selectedOptions).map(function (o) { return o.value; })
                         }
                     );
 
