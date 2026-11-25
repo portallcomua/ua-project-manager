@@ -577,12 +577,31 @@ final class UAPM_Advertising {
     }
 
     public static function project_embed_code($project_id) {
-        $project=UAPM_Projects::get($project_id);
+        $project = UAPM_Projects::get($project_id);
         if (!$project) return '';
-        $url=rest_url('uapm/v1/ad/' . rawurlencode($project->slug));
-        $config_url=rest_url('uapm/v1/project-config/' . rawurlencode($project->slug));
-        $html = "WordPress plugin admin placement (banner at top, All Projects link at bottom):\nadd_action('admin_notices', function () { if (current_user_can('manage_options')) echo do_shortcode('[uapm_project_header project=\"" . $project->slug . "\"]'); });\nadd_action('admin_footer', function () { if (current_user_can('manage_options')) echo do_shortcode('[uapm_project_footer project=\"" . $project->slug . "\"]'); });\n\nWordPress frontend shortcodes:\n[uapm_project_display project=\"" . $project->slug . "\"]\n[uapm_ad project=\"" . $project->slug . "\"]\n\nAndroid / other app REST configuration:\nGET " . $config_url . "\nREST advertising banner endpoint:\nGET " . $url . "\n\nThe configuration endpoint returns the enabled All Projects URL and project HTML banner. The advertising endpoint returns JSON with active, html and block_id.");
-        return $html;
+        $url = rest_url('uapm/v1/ad/' . rawurlencode($project->slug));
+        $config_url = rest_url('uapm/v1/project-config/' . rawurlencode($project->slug));
+        $template = <<<'UAPM_CODE'
+WordPress plugin admin placement (banner at top, All Projects link at bottom):
+add_action('admin_notices', function () { if (current_user_can('manage_options')) echo do_shortcode('[uapm_project_header project="%SLUG%"]'); });
+add_action('admin_footer', function () { if (current_user_can('manage_options')) echo do_shortcode('[uapm_project_footer project="%SLUG%"]'); });
+
+WordPress frontend shortcodes:
+[uapm_project_display project="%SLUG%"]
+[uapm_ad project="%SLUG%"]
+
+Android / other app REST configuration:
+GET %CONFIG_URL%
+REST advertising banner endpoint:
+GET %AD_URL%
+
+The configuration endpoint returns the enabled All Projects URL and project HTML banner. The advertising endpoint returns JSON with active, html and block_id.
+UAPM_CODE;
+        return str_replace(
+            array('%SLUG%', '%CONFIG_URL%', '%AD_URL%'),
+            array($project->slug, $config_url, $url),
+            $template
+        );
     }
 
     public static function project_ad_summary($project_id) {
