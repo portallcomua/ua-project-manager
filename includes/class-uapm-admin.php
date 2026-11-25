@@ -410,6 +410,15 @@ final class UAPM_Admin {
         if ($is_edit && class_exists('UAPM_Advertising')) {
             echo '<div class="uapm-field"><label>Код підключення рекламного блоку</label><textarea readonly rows="5" class="large-text code" onclick="this.select()">' . esc_textarea(UAPM_Advertising::project_embed_code($value('id', 0))) . '</textarea></div>';
         }
+        if ($is_edit && class_exists('UAPM_Shared_Sync')) {
+            $finder = UAPM_Shared_Sync::project_finder_summary($value('id', 0));
+            echo '<hr><h3>Пов’язані дані Web Finder</h3>';
+            echo '<p>Списки пошуку: <strong>' . count($finder['search_lists']) . '</strong> · Сайтів: <strong>' . (int)$finder['sites'] . '</strong></p>';
+            echo '<p>Списки контактів: <strong>' . count($finder['contact_lists']) . '</strong> · Email: <strong>' . (int)$finder['emails'] . '</strong> · Кампанії: <strong>' . (int)$finder['campaigns'] . '</strong></p>';
+            if ($finder['search_lists']) echo '<p><strong>Списки сайтів:</strong> ' . esc_html(implode(', ', $finder['search_lists'])) . '</p>';
+            if ($finder['contact_lists']) echo '<p><strong>Списки контактів:</strong> ' . esc_html(implode(', ', $finder['contact_lists'])) . '</p>';
+            if (!$finder['search_lists'] && !$finder['contact_lists']) echo '<p class="description">Ще немає пов’язаних списків. У Finder можна створити новий список або прив’язати наявний до цього проєкту.</p>';
+        }
 
         echo '<p class="submit">';
         echo '<button type="submit" class="button button-primary">' . esc_html($is_edit ? __('Зберегти зміни', 'ua-project-manager') : __('Створити проєкт', 'ua-project-manager')) . '</button> ';
