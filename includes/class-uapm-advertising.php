@@ -486,7 +486,13 @@ final class UAPM_Advertising {
         $click = add_query_arg(array('uapm_ad_click'=>(int)$block->id), home_url('/'));
         if (!empty($block->banner_html)) {
             $html = $block->banner_html;
-            if (!empty($block->target_url)) $html = '<a href="' . esc_url($click) . '" target="_blank" rel="sponsored noopener">' . $html . '</a>';
+            if (!empty($block->target_url)) {
+                if (preg_match('/<a\\b/i', $html)) {
+                    $html = preg_replace('/href\\s*=\\s*([\"\']).*?\\1/i', 'href="' . esc_url($click) . '" target="_blank" rel="sponsored noopener"', $html);
+                } else {
+                    $html = '<a href="' . esc_url($click) . '" target="_blank" rel="sponsored noopener">' . $html . '</a>';
+                }
+            }
             return $html;
         }
         if (!empty($block->banner_image)) {
