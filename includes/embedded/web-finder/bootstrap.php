@@ -51,10 +51,10 @@ function cmsf_contacts_maybe_install() {
     }
 
     $installed_version = get_option('cmsf_contacts_db_version', '');
-    if ($installed_version !== '1.1' || !cmsf_contacts_tables_exist()) {
+    if ($installed_version !== '1.2' || !cmsf_contacts_tables_exist()) {
         cmsf_contacts_install();
         if (cmsf_contacts_tables_exist()) {
-            update_option('cmsf_contacts_db_version', '1.1', false);
+            update_option('cmsf_contacts_db_version', '1.2', false);
         }
     }
 }
