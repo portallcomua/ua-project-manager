@@ -22,6 +22,7 @@ class UPB_Services {
 
 	public static function defaults() {
 		return array(
+			'service_type'    => 'license',
 			'slug'            => '',
 			'name'            => '',
 			'price'           => '',
@@ -47,6 +48,7 @@ class UPB_Services {
 			$days = 9999;
 		}
 		return array(
+			'service_type'    => in_array( sanitize_key( $in['service_type'] ?? 'license' ), array( 'license', 'advertising' ), true ) ? sanitize_key( $in['service_type'] ?? 'license' ) : 'license',
 			'slug'            => sanitize_title( isset( $in['slug'] ) ? $in['slug'] : '' ),
 			'name'            => sanitize_text_field( isset( $in['name'] ) ? $in['name'] : '' ),
 			'price'           => sanitize_text_field( isset( $in['price'] ) ? $in['price'] : '' ),
@@ -86,6 +88,7 @@ class UPB_Services {
 		$best = null;
 		$best_score = -1;
 		foreach ( self::all() as $service ) {
+			if ( ( $service['service_type'] ?? 'license' ) !== 'license' ) { continue; }
 			if ( $normalize( $service['name'] ?? '' ) !== $needle ) { continue; }
 			$score = 0;
 			if ( ! empty( $service['freemius_product_id'] ) && ! empty( $service['freemius_plan_id'] ) && ! empty( $service['freemius_secret_key'] ) ) { $score += 2; }
