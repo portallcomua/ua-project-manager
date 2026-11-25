@@ -66,6 +66,12 @@ function sync_project_to_paybox($project_id, $project_data = array()) {
 
     if ($service && !empty($service['id'])) {
         $service_id = (int) $service['id'];
+        // Keep the Pay Box record aligned with the main project while preserving its Freemius credentials and price.
+        $service_data = wp_parse_args($service, UPB_Services::defaults());
+        $service_data['name'] = sanitize_text_field($project->name);
+        $service_data['description'] = sanitize_textarea_field((string) $project->description);
+        if ($project->status === 'archived') { $service_data['enabled'] = 0; }
+        UPB_Services::save($service_id, $service_data);
     } else {
         // Create one service for a genuinely new project name; repeated names reuse the same record.
         $service_id = UPB_Services::register($slug, $project->name, array(
