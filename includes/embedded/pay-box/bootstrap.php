@@ -5,7 +5,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define(__NAMESPACE__ . '\\UPB_VERSION', '1.3.10');
+define(__NAMESPACE__ . '\\UPB_VERSION', '1.3.11');
 define(__NAMESPACE__ . '\\UPB_GITHUB', 'portallcomua/UA-Pay-Box');
 define(__NAMESPACE__ . '\\UPB_FILE', \UAPM_FILE);
 define(__NAMESPACE__ . '\\UPB_DIR', __DIR__ . '/');
