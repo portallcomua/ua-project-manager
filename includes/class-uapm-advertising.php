@@ -502,6 +502,21 @@ final class UAPM_Advertising {
     }
 
     public static function register_shortcodes() {
+        add_shortcode('uapm_project_header', function ($atts) {
+            $atts = shortcode_atts(array('project'=>''), $atts);
+            $project = UAPM_Projects::get_by_slug($atts['project']);
+            if (!$project) return '';
+            $extra = self::get_project_extras($project->id);
+            return !empty($extra['project_banner_visible']) ? (string)$extra['project_banner_html'] : '';
+        });
+        add_shortcode('uapm_project_footer', function ($atts) {
+            $atts = shortcode_atts(array('project'=>''), $atts);
+            $project = UAPM_Projects::get_by_slug($atts['project']);
+            if (!$project) return '';
+            $extra = self::get_project_extras($project->id);
+            if (empty($extra['all_projects_visible']) || empty($extra['all_projects_url'])) return '';
+            return '<p class="uapm-all-projects"><a href="' . esc_url($extra['all_projects_url']) . '">Всі проєкти</a></p>';
+        });
         add_shortcode('uapm_project_display', function ($atts) {
             $atts = shortcode_atts(array('project'=>''), $atts);
             $project = UAPM_Projects::get_by_slug($atts['project']);
@@ -566,7 +581,7 @@ final class UAPM_Advertising {
         if (!$project) return '';
         $url=rest_url('uapm/v1/ad/' . rawurlencode($project->slug));
         $config_url=rest_url('uapm/v1/project-config/' . rawurlencode($project->slug));
-        $html = "WordPress plugin / project display:\n[uapm_project_display project=\"" . $project->slug . "\"]\n[uapm_ad project=\"" . $project->slug . "\"]\n\nREST configuration for Android / app:\nGET " . $config_url . "\nREST advertising banner endpoint:\nGET " . $url . "\n\nThe configuration endpoint returns the visible project link and HTML banner. The advertising endpoint returns JSON with active, html and block_id.";
+        $html = "WordPress plugin admin placement (banner at top, All Projects link at bottom):\nadd_action('admin_notices', function () { if (current_user_can('manage_options')) echo do_shortcode('[uapm_project_header project=\"" . $project->slug . "\"]'); });\nadd_action('admin_footer', function () { if (current_user_can('manage_options')) echo do_shortcode('[uapm_project_footer project=\"" . $project->slug . "\"]'); });\n\nWordPress frontend shortcodes:\n[uapm_project_display project=\"" . $project->slug . "\"]\n[uapm_ad project=\"" . $project->slug . "\"]\n\nAndroid / other app REST configuration:\nGET " . $config_url . "\nREST advertising banner endpoint:\nGET " . $url . "\n\nThe configuration endpoint returns the enabled All Projects URL and project HTML banner. The advertising endpoint returns JSON with active, html and block_id.");
         return $html;
     }
 
