@@ -36,6 +36,13 @@ class TaskStore(context: Context) : SQLiteOpenHelper(context, "uapm_tasks.db", n
         }
         writableDatabase.insertWithOnConflict("tasks", null, v, SQLiteDatabase.CONFLICT_REPLACE)
     }
+    fun update(uuid: String, title: String, description: String, notes: String, executor: String) {
+        val v = ContentValues().apply {
+            put("title", title); put("description", description); put("notes", notes)
+            put("executor", executor); put("pending", 1)
+        }
+        writableDatabase.update("tasks", v, "uuid=?", arrayOf(uuid))
+    }
     fun setStatus(uuid: String, status: String) {
         writableDatabase.execSQL("UPDATE tasks SET status=?, pending=1 WHERE uuid=?", arrayOf(status, uuid))
     }
