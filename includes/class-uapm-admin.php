@@ -26,6 +26,17 @@ final class UAPM_Admin {
         if (function_exists('\\UAPM\\WebFinder\\cmsf_page_search')) {
             remove_menu_page('cms-checker');
         }
+
+        // Keep the standalone Click Counter active until the owner chooses to switch.
+        // The embedded module intentionally avoids duplicate AJAX/shortcode handlers.
+        if (class_exists('\\\\UACC')) {
+            add_action('admin_notices', function () {
+                if (!current_user_can('manage_options')) {
+                    return;
+                }
+                echo '<div class="notice notice-info"><p><strong>UA Project Manager:</strong> Щоб перенести меню UA Click Counter всередину цього плагіна, деактивуйте окремий плагін UA Click Counter після перевірки. Його кнопки, лічильники та email залишаються у базі й будуть доступні вбудованому модулю.</p></div>';
+            });
+        }
     }
 
     public static function register_menu() {
