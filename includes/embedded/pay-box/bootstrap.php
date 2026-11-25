@@ -55,6 +55,7 @@ function sync_project_to_paybox($project_id, $project_data = array()) {
     $service_id = isset($map[$project_id]) ? absint($map[$project_id]) : 0;
     if (!$service && $service_id) {
         $service = UPB_Services::get($service_id);
+        if ($service && (($service['service_type'] ?? 'license') !== 'license')) { $service = null; $service_id = 0; }
     }
     if (!$service) {
         $service = UPB_Services::by_slug($slug);
@@ -87,7 +88,7 @@ function sync_project_to_paybox($project_id, $project_data = array()) {
 }
 
 function sync_existing_projects_to_paybox() {
-    if (!current_user_can('manage_options') || get_option('uapm_paybox_projects_synced_v3')) {
+    if (!current_user_can('manage_options') || get_option('uapm_paybox_projects_synced_v4')) {
         return;
     }
     if (!class_exists('UAPM_Projects')) {
@@ -106,7 +107,7 @@ function sync_existing_projects_to_paybox() {
         $offset += $count;
     } while ($count === 200);
 
-    update_option('uapm_paybox_projects_synced_v3', 1, false);
+    update_option('uapm_paybox_projects_synced_v4', 1, false);
 }
 
 add_action('uapm_project_created', __NAMESPACE__ . '\\sync_project_to_paybox', 10, 2);
