@@ -208,6 +208,12 @@ final class UAPM_Advertising {
         $banner_html = self::sanitize_banner_html(wp_unslash($_POST['banner_html'] ?? ''));
         $banner_image = esc_url_raw(wp_unslash($_POST['banner_image'] ?? ''));
         if ('' === trim($banner_html) && '' === $banner_image) wp_die('Додай HTML-код або завантаж зображення банера.');
+        $amount = max(0, (float) str_replace(',', '.', sanitize_text_field(wp_unslash($_POST['payment_amount'] ?? '0'))));
+        $payment_currency = strtoupper(sanitize_key(wp_unslash($_POST['payment_currency'] ?? $currency)));
+        if (!in_array($payment_currency, array('UAH','USD'), true)) $payment_currency = $currency;
+        $type = sanitize_key(wp_unslash($_POST['payment_type'] ?? 'cash'));
+        if (!in_array($type, array('freemius','privat_envelope','cash'), true)) $type = 'cash';
+        if ($type === 'freemius' && $amount <= 0) $amount = max(0, (float) str_replace(',', '.', sanitize_text_field(wp_unslash($_POST['monthly_price'] ?? '0'))));
         $data = array(
             'advertiser_id' => $advertiser_id,
             'project_ids' => wp_json_encode($projects),
@@ -218,7 +224,7 @@ final class UAPM_Advertising {
             'currency' => $currency,
             'start_date' => $start,
             'end_date' => $end,
-            'status' => 'active',
+            'status' => ($amount > 0 && $type !== 'freemius') ? 'active' : 'pending_payment',
             'service_id' => $service_id,
             'created_at' => current_time('mysql'),
             'updated_at' => current_time('mysql'),
@@ -228,12 +234,7 @@ final class UAPM_Advertising {
         if (!$block_id) {
             wp_die('Не вдалося зберегти рекламний блок: ' . esc_html($wpdb->last_error));
         }
-        $amount = max(0, (float) str_replace(',', '.', sanitize_text_field(wp_unslash($_POST['payment_amount'] ?? '0'))));
-        $payment_currency = strtoupper(sanitize_key(wp_unslash($_POST['payment_currency'] ?? $currency)));
-        if (!in_array($payment_currency, array('UAH','USD'), true)) $payment_currency = $currency;
-        $type = sanitize_key(wp_unslash($_POST['payment_type'] ?? 'cash'));
-        if (!in_array($type, array('freemius','privat_envelope','cash'), true)) $type = 'cash';
-        if ($type === 'freemius' && $amount <= 0) $amount = (float)$data['monthly_price'];
+
         if ($amount > 0) {
             $payment_date = sanitize_text_field(wp_unslash($_POST['payment_date'] ?? current_time('Y-m-d')));
             $payment_status = $type === 'freemius' ? 'pending' : 'paid';
@@ -269,6 +270,7 @@ final class UAPM_Advertising {
         $date = sanitize_text_field(wp_unslash($_POST['payment_date'] ?? current_time('Y-m-d')));
         $status = $type === 'freemius' ? 'pending' : 'paid';
         $wpdb->insert(self::table('payments'), array('block_id'=>$block_id,'amount'=>$amount,'currency'=>$currency,'payment_type'=>$type,'payment_date'=>$date,'status'=>$status,'created_at'=>current_time('mysql')));
+        if ($type !== 'freemius') $wpdb->update(self::table('blocks'), array('status'=>'active'), array('id'=>$block_id));
         if ($type === 'freemius' && !empty($block->service_id)) {
             $services = class_exists('\\UAPM\\PayBox\\UPB_Services') ? \UAPM\PayBox\UPB_Services::all() : array();
             $advertiser_email = $wpdb->get_var($wpdb->prepare("SELECT email FROM " . self::table('advertisers') . " WHERE id=%d", (int)$block->advertiser_id));
@@ -322,7 +324,7 @@ final class UAPM_Advertising {
     private static function booked_project_ids() {
         global $wpdb;
         $rows = $wpdb->get_col($wpdb->prepare(
-            "SELECT project_ids FROM " . self::table('blocks') . " WHERE status='active' AND end_date >= %s",
+            "SELECT project_ids FROM " . self::table('blocks') . " WHERE status IN ('active','pending_payment') AND end_date >= %s",
             current_time('Y-m-d')
         ));
         $ids = array();
@@ -577,6 +579,7 @@ final class UAPM_Advertising {
             $payment = $wpdb->get_row($wpdb->prepare("SELECT p.* FROM " . self::table('payments') . " p INNER JOIN " . self::table('blocks') . " b ON b.id=p.block_id INNER JOIN " . self::table('advertisers') . " a ON a.id=b.advertiser_id WHERE b.service_id=%d AND LOWER(a.email)=LOWER(%s) AND p.payment_type='freemius' AND p.status='pending' ORDER BY p.id DESC LIMIT 1", $service_id, $email));
             if ($payment) {
                 $wpdb->update(self::table('payments'), array('status'=>'paid','reference'=>sanitize_text_field($license_id),'payment_date'=>current_time('Y-m-d')), array('id'=>(int)$payment->id));
+                $wpdb->update(self::table('blocks'), array('status'=>'active'), array('id'=>(int)$payment->block_id));
                 return true;
             }
             return false;
