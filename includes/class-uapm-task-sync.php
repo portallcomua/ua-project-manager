@@ -19,51 +19,94 @@ final class UAPM_Task_Sync {
 
     public static function upgrade_schema() {
         global $wpdb;
+
         $table = $wpdb->prefix . 'uapm_tasks';
         $found = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table)));
         if ($found !== $table) {
             return;
         }
 
-        $needs_upgrade = get_option('uapm_task_sync_db_version', '') !== '1.0';
-        if ($needs_upgrade) {
-            require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-            $charset = $wpdb->get_charset_collate();
-        dbDelta("CREATE TABLE {$table} (
-            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-            project_id bigint(20) unsigned NOT NULL DEFAULT 0,
-            title varchar(255) NOT NULL,
-            description longtext NULL,
-            status varchar(30) NOT NULL DEFAULT 'pending',
-            priority varchar(20) NOT NULL DEFAULT 'normal',
-            assigned_user_id bigint(20) unsigned NOT NULL DEFAULT 0,
-            created_by bigint(20) unsigned NOT NULL DEFAULT 0,
-            due_date datetime NULL,
-            completed_at datetime NULL,
-            created_at datetime NOT NULL,
-            updated_at datetime NOT NULL,
-            task_uuid char(36) NOT NULL DEFAULT '',
-            revision bigint(20) unsigned NOT NULL DEFAULT 1,
-            executor varchar(100) NOT NULL DEFAULT '',
-            notes longtext NULL,
-            device_id varchar(64) NOT NULL DEFAULT '',
-            deleted_at datetime NULL,
-            PRIMARY KEY  (id),
-            KEY project_id (project_id),
-            KEY status (status),
-            KEY priority (priority),
-            KEY assigned_user_id (assigned_user_id),
-            KEY due_date (due_date),
-            KEY task_uuid (task_uuid),
-            KEY updated_at (updated_at),
-            KEY deleted_at (deleted_at)
-        ) {$charset};");
-            update_option('uapm_task_sync_db_version', '1.0', false);
+        /*
+         * Do not use dbDelta() for this extension. The base task table is
+         * created by UAPM_Tasks; dbDelta() here could attempt to add columns
+         * and indexes that already exist on sites upgraded from earlier builds.
+         * Inspect the live schema and add only missing elements.
+         */
+        $required_columns = array(
+            'task_uuid' => "char(36) NOT NULL DEFAULT ''",
+            'revision' => 'bigint(20) unsigned NOT NULL DEFAULT 1',
+            'executor' => "varchar(100) NOT NULL DEFAULT ''",
+            'notes' => 'longtext NULL',
+            'device_id' => "varchar(64) NOT NULL DEFAULT ''",
+            'deleted_at' => 'datetime NULL',
+        );
+
+        $existing_columns = $wpdb->get_col("SHOW COLUMNS FROM {$table}", 0);
+        $existing_columns = is_array($existing_columns) ? $existing_columns : array();
+        $complete = true;
+
+        foreach ($required_columns as $column => $definition) {
+            if (in_array($column, $existing_columns, true)) {
+                continue;
+            }
+
+            $wpdb->query("ALTER TABLE {$table} ADD COLUMN {$column} {$definition}");
+            $existing_columns = $wpdb->get_col("SHOW COLUMNS FROM {$table}", 0);
+            $existing_columns = is_array($existing_columns) ? $existing_columns : array();
+
+            if (!in_array($column, $existing_columns, true)) {
+                $complete = false;
+            }
         }
 
-        $rows = $wpdb->get_col("SELECT id FROM {$table} WHERE task_uuid = '' OR task_uuid IS NULL LIMIT 500");
-        foreach ((array) $rows as $id) {
-            $wpdb->update($table, array('task_uuid' => wp_generate_uuid4()), array('id' => (int) $id), array('%s'), array('%d'));
+        $required_indexes = array(
+            'task_uuid' => '(task_uuid)',
+            'updated_at' => '(updated_at)',
+            'deleted_at' => '(deleted_at)',
+        );
+
+        $index_rows = $wpdb->get_results("SHOW INDEX FROM {$table}", ARRAY_A);
+        $existing_indexes = array();
+        foreach ((array) $index_rows as $index_row) {
+            if (!empty($index_row['Key_name'])) {
+                $existing_indexes[] = $index_row['Key_name'];
+            }
+        }
+
+        foreach ($required_indexes as $index_name => $columns_sql) {
+            if (in_array($index_name, $existing_indexes, true)) {
+                continue;
+            }
+
+            $wpdb->query("ALTER TABLE {$table} ADD KEY {$index_name} {$columns_sql}");
+            $index_rows = $wpdb->get_results("SHOW INDEX FROM {$table}", ARRAY_A);
+            $existing_indexes = array();
+            foreach ((array) $index_rows as $index_row) {
+                if (!empty($index_row['Key_name'])) {
+                    $existing_indexes[] = $index_row['Key_name'];
+                }
+            }
+
+            if (!in_array($index_name, $existing_indexes, true)) {
+                $complete = false;
+            }
+        }
+
+        if ($complete) {
+            update_option('uapm_task_sync_db_version', '1.1', false);
+        }
+
+        if (in_array('task_uuid', $existing_columns, true)) {
+            $rows = $wpdb->get_col("SELECT id FROM {$table} WHERE task_uuid = '' OR task_uuid IS NULL LIMIT 500");
+            foreach ((array) $rows as $id) {
+                $wpdb->update(
+                    $table,
+                    array('task_uuid' => wp_generate_uuid4()),
+                    array('id' => (int) $id),
+                    array('%s'),
+                    array('%d')
+                );
+            }
         }
     }
 
