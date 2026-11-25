@@ -25,8 +25,10 @@ final class UAPM_Task_Sync {
             return;
         }
 
-        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-        $charset = $wpdb->get_charset_collate();
+        $needs_upgrade = get_option('uapm_task_sync_db_version', '') !== '1.0';
+        if ($needs_upgrade) {
+            require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+            $charset = $wpdb->get_charset_collate();
         dbDelta("CREATE TABLE {$table} (
             id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             project_id bigint(20) unsigned NOT NULL DEFAULT 0,
@@ -56,6 +58,8 @@ final class UAPM_Task_Sync {
             KEY updated_at (updated_at),
             KEY deleted_at (deleted_at)
         ) {$charset};");
+            update_option('uapm_task_sync_db_version', '1.0', false);
+        }
 
         $rows = $wpdb->get_col("SELECT id FROM {$table} WHERE task_uuid = '' OR task_uuid IS NULL LIMIT 500");
         foreach ((array) $rows as $id) {
