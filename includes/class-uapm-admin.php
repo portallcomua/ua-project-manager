@@ -446,6 +446,7 @@ final class UAPM_Admin {
         echo '<th>' . esc_html__('Тип', 'ua-project-manager') . '</th>';
         echo '<th>' . esc_html__('Версія', 'ua-project-manager') . '</th>';
         echo '<th>' . esc_html__('Статус', 'ua-project-manager') . '</th>';
+        echo '<th>Рекламодавець / покази / кліки / період</th>';
 
         if ($show_actions) {
             echo '<th>' . esc_html__('Дії', 'ua-project-manager') . '</th>';
@@ -482,6 +483,14 @@ final class UAPM_Admin {
             echo '<td>' . esc_html(ucwords(str_replace(array('-', '_'), ' ', $project->project_type))) . '</td>';
             echo '<td>' . esc_html($project->version) . '</td>';
             echo '<td>' . self::status_badge($project->status) . '</td>';
+            echo '<td>';
+            if (class_exists('UAPM_Advertising')) {
+                $ad = UAPM_Advertising::project_ad_summary($project->id);
+                if ($ad) {
+                    echo '<strong>' . esc_html($ad['advertiser']) . '</strong><br>Покази: ' . (int)$ad['impressions'] . ' · Кліки: ' . (int)$ad['clicks'] . '<br><small>' . esc_html($ad['start'] . ' — ' . $ad['end']) . '</small>';
+                } else { echo '—'; }
+            } else { echo '—'; }
+            echo '</td>';
 
             if ($show_actions) {
                 echo '<td><div class="uapm-actions">';
