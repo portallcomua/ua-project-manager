@@ -20,3 +20,5 @@ GitHub Actions workflow `.github/workflows/android-apk.yml` збирає debug A
 
 
 Build verification is performed by GitHub Actions for each Android source update. Install only the APK artifact from a successful run; failed runs do not provide an installable APK.
+
+APK build workflow is enabled on the main branch. The build log is uploaded as a separate Actions artifact if compilation fails.
