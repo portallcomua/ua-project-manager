@@ -508,7 +508,7 @@ final class UAPM_Advertising {
         $block = $wpdb->get_row($wpdb->prepare("SELECT * FROM " . self::table('blocks') . " WHERE id=%d", $id));
         if (!$block || $block->status !== 'active' || empty($block->target_url)) wp_die('Рекламне посилання недоступне.', '', array('response'=>404));
         self::record_event($id, 'click');
-        wp_safe_redirect($block->target_url);
+        wp_redirect(esc_url_raw($block->target_url), 302, 'UA Project Manager Advertising');
         exit;
     }
 
@@ -596,18 +596,18 @@ final class UAPM_Advertising {
         global $wpdb;
         $today=current_time('Y-m-d');
         $soon=date('Y-m-d',strtotime('+7 days',current_time('timestamp')));
-        $blocks=$wpdb->get_results($wpdb->prepare("SELECT b.*,a.name advertiser,a.email FROM " . self::table('blocks') . " b INNER JOIN " . self::table('advertisers') . " a ON a.id=b.advertiser_id WHERE b.status='active' AND b.end_date BETWEEN %s AND %s", $today,$soon));
+        $blocks=$wpdb->get_results($wpdb->prepare("SELECT b.*,a.name advertiser,a.email FROM " . self::table('blocks') . " b INNER JOIN " . self::table('advertisers') . " a ON a.id=b.advertiser_id WHERE b.status='active' AND b.end_date <= %s AND (b.reminder_7_sent=0 OR b.reminder_end_sent=0)", $soon));
         foreach ($blocks as $b) {
             if (!is_email($b->email)) continue;
-            if ($b->end_date === $soon && !$b->reminder_7_sent) {
-                wp_mail($b->email,'Нагадування: завершується розміщення реклами','Добрий день, '.$b->advertiser.'! Розміщення реклами завершується '.$b->end_date.'. Можна продовжити розміщення — дайте відповідь на цей лист або скористайтеся посиланням продовження в день завершення.');
-                $wpdb->update(self::table('blocks'),array('reminder_7_sent'=>1),array('id'=>(int)$b->id));
+            if ($b->end_date > $today && $b->end_date <= $soon && !$b->reminder_7_sent) {
+                $sent = wp_mail($b->email,'Нагадування: завершується розміщення реклами','Добрий день, '.$b->advertiser.'! Розміщення реклами завершується '.$b->end_date.'. Можна продовжити розміщення — у день завершення надішлемо посилання на оплату через Freemius.');
+                if ($sent) $wpdb->update(self::table('blocks'),array('reminder_7_sent'=>1),array('id'=>(int)$b->id));
             }
-            if ($b->end_date === $today && !$b->reminder_end_sent) {
+            if ($b->end_date <= $today && !$b->reminder_end_sent) {
                 $url=self::create_renewal_url($b);
                 $body='Добрий день, '.$b->advertiser.'! Сьогодні завершується розміщення реклами. Для продовження на наступний місяць перейдіть за посиланням: '.$url;
-                wp_mail($b->email,'Розміщення реклами завершується сьогодні — продовжити',$body);
-                $wpdb->update(self::table('blocks'),array('reminder_end_sent'=>1),array('id'=>(int)$b->id));
+                $sent = wp_mail($b->email,'Розміщення реклами завершується — продовжити',$body);
+                if ($sent) $wpdb->update(self::table('blocks'),array('reminder_end_sent'=>1),array('id'=>(int)$b->id));
             }
         }
         self::send_monthly_reports();
@@ -628,10 +628,10 @@ final class UAPM_Advertising {
 
     private static function send_monthly_reports() {
         global $wpdb;
-        $month=current_time('Y-m');
-        if (current_time('j') !== '1' || get_option('uapm_ad_report_sent_month') === $month) return;
-        $from=date('Y-m-01',strtotime('first day of last month',current_time('timestamp')));
-        $to=date('Y-m-t',strtotime('last month',current_time('timestamp')));
+        $report_month = wp_date('Y-m', strtotime('first day of last month', current_time('timestamp')));
+        if (get_option('uapm_ad_report_sent_month') === $report_month) return;
+        $from = $report_month . '-01';
+        $to = wp_date('Y-m-t', strtotime('last day of last month', current_time('timestamp')));
         $advertisers=$wpdb->get_results("SELECT * FROM " . self::table('advertisers') . " WHERE email<>''");
         foreach ($advertisers as $a) {
             if (!is_email($a->email)) continue;
@@ -643,6 +643,6 @@ final class UAPM_Advertising {
             }
             wp_mail($a->email,'Щомісячний звіт рекламного розміщення',$body);
         }
-        update_option('uapm_ad_report_sent_month',$month,false);
+        update_option('uapm_ad_report_sent_month',$report_month,false);
     }
 }
