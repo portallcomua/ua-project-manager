@@ -456,6 +456,16 @@ final class UAPM_Advertising {
     }
 
     public static function register_shortcodes() {
+        add_shortcode('uapm_project_display', function ($atts) {
+            $atts = shortcode_atts(array('project'=>''), $atts);
+            $project = UAPM_Projects::get_by_slug($atts['project']);
+            if (!$project) return '';
+            $extra = self::get_project_extras($project->id);
+            $html = '';
+            if (!empty($extra['all_projects_visible']) && !empty($extra['all_projects_url'])) $html .= '<p class="uapm-all-projects"><a href="' . esc_url($extra['all_projects_url']) . '">Всі проєкти</a></p>';
+            if (!empty($extra['project_banner_visible']) && !empty($extra['project_banner_html'])) $html .= '<div class="uapm-project-banner">' . $extra['project_banner_html'] . '</div>';
+            return $html;
+        });
         add_shortcode('uapm_ad', function ($atts) {
             $atts = shortcode_atts(array('project'=>''), $atts);
             $project = UAPM_Projects::get_by_slug($atts['project']);
@@ -479,6 +489,19 @@ final class UAPM_Advertising {
     }
 
     public static function register_routes() {
+        register_rest_route('uapm/v1', '/project-config/(?P<project>[a-z0-9-]+)', array(
+            'methods'=>'GET','permission_callback'=>'__return_true',
+            'callback'=>function($request) {
+                $project=UAPM_Projects::get_by_slug($request['project']);
+                if (!$project) return new WP_REST_Response(array('visible'=>false),404);
+                $extra=self::get_project_extras($project->id);
+                return array(
+                    'all_projects_url'=>!empty($extra['all_projects_visible']) ? $extra['all_projects_url'] : '',
+                    'project_banner_html'=>!empty($extra['project_banner_visible']) ? $extra['project_banner_html'] : '',
+                    'advertising_available'=>(bool)$extra['ads_available']
+                );
+            }
+        ));
         register_rest_route('uapm/v1', '/ad/(?P<project>[a-z0-9-]+)', array(
             'methods'=>'GET','permission_callback'=>'__return_true',
             'callback'=>function($request) {
@@ -496,7 +519,8 @@ final class UAPM_Advertising {
         $project=UAPM_Projects::get($project_id);
         if (!$project) return '';
         $url=rest_url('uapm/v1/ad/' . rawurlencode($project->slug));
-        $html = "WordPress plugin shortcode:\n[uapm_ad project=\"" . $project->slug . "\"]\n\nHTML / JavaScript app:\n<div id=\"uapm-ad-slot\"></div>\n<script>fetch('" . $url . "').then(r=>r.json()).then(d=>{if(d.active)document.getElementById('uapm-ad-slot').innerHTML=d.html;});</script>\n\nAndroid / Kotlin: use GET " . $url . " and parse JSON fields active and html.\n\nThe REST endpoint returns an empty html field when no active campaign exists.";
+        $config_url=rest_url('uapm/v1/project-config/' . rawurlencode($project->slug));
+        $html = "WordPress plugin / project display:\n[uapm_project_display project=\"" . $project->slug . "\"]\n[uapm_ad project=\"" . $project->slug . "\"]\n\nREST configuration for Android / app:\nGET " . $config_url . "\nREST advertising banner endpoint:\nGET " . $url . "\n\nThe configuration endpoint returns the visible project link and HTML banner. The advertising endpoint returns JSON with active, html and block_id.";
         return $html;
     }
 
