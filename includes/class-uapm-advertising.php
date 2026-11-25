@@ -424,10 +424,15 @@ final class UAPM_Advertising {
             $stats = self::counts($b->id);
             $payments = $wpdb->get_results($wpdb->prepare("SELECT * FROM " . self::table('payments') . " WHERE block_id=%d ORDER BY payment_date DESC", $b->id));
             $paid = array();
-            foreach ($payments as $p) $paid[] = number_format_i18n((float)$p->amount,2) . ' ' . esc_html($p->currency) . ' · ' . esc_html($p->payment_type) . ' · ' . esc_html($p->payment_date) . ' (' . esc_html($p->status) . ')';
+            foreach ($payments as $p) {
+                $type_label = array('freemius'=>'Freemius','privat_envelope'=>'Приват Конверт','cash'=>'Готівка')[$p->payment_type] ?? $p->payment_type;
+                $status_label = $p->status === 'paid' ? 'Оплачено' : 'Очікує підтвердження';
+                $paid[] = number_format_i18n((float)$p->amount,2) . ' ' . esc_html($p->currency) . ' · ' . esc_html($type_label) . ' · ' . esc_html($p->payment_date) . ' (' . esc_html($status_label) . ')';
+            }
+            $status_label = $b->status === 'pending_payment' ? 'Очікує оплати' : ($b->end_date < current_time('Y-m-d') ? 'Завершено' : 'Активне');
             echo '<tr><td>' . esc_html(implode(', ', $names)) . '</td><td>' . esc_html($b->start_date . ' — ' . $b->end_date) . '</td><td>' . esc_html(number_format_i18n((float)$b->monthly_price,2) . ' ' . $b->currency) . '</td><td>' . (int)$stats['impressions'] . '</td><td>' . (int)$stats['clicks'] . '</td><td>' . ($paid ? implode('<br>', $paid) : '—') . '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin-top:6px"><input type="hidden" name="action" value="uapm_ad_save_payment"><input type="hidden" name="block_id" value="' . (int)$b->id . '">';
             wp_nonce_field('uapm_ad_save_payment');
-            echo '<input type="number" min="0" step="0.01" name="amount" placeholder="Сума" required style="width:90px"><select name="currency"><option value="UAH">грн</option><option value="USD">USD</option></select><select name="payment_type"><option value="privat_envelope">Приват Конверт</option><option value="cash">Готівка</option><option value="freemius">Freemius</option></select><input type="date" name="payment_date" value="' . esc_attr(current_time('Y-m-d')) . '"><button class="button button-small">Додати оплату</button></form></td><td>' . esc_html($b->status) . '</td></tr>';
+            echo '<input type="number" min="0" step="0.01" name="amount" placeholder="Сума" required style="width:90px"><select name="currency"><option value="UAH">грн</option><option value="USD">USD</option></select><select name="payment_type"><option value="privat_envelope">Приват Конверт</option><option value="cash">Готівка</option><option value="freemius">Freemius</option></select><input type="date" name="payment_date" value="' . esc_attr(current_time('Y-m-d')) . '"><button class="button button-small">Додати оплату</button></form></td><td>' . esc_html($status_label) . '</td></tr>';
         }
         if (!$blocks) echo '<tr><td colspan="7">Рекламних блоків ще немає.</td></tr>';
         echo '</tbody></table>';
