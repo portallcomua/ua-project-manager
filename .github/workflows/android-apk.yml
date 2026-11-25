@@ -6,6 +6,7 @@ on:
     branches:
       - next-1.1.0-shared-sync-advertising
       - test-1.1.1-integrated
+      - main
     paths:
       - "android/**"
       - ".github/workflows/android-apk.yml"
@@ -39,7 +40,7 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const log = fs.existsSync('android-build.log') ? fs.readFileSync('android-build.log', 'utf8').slice(-12000) : 'No Gradle log file was produced.';
+            const log = fs.existsSync('android/android-build.log') ? fs.readFileSync('android/android-build.log', 'utf8').slice(-12000) : 'No Gradle log file was produced.';
             const prs = await github.rest.pulls.list({owner: context.repo.owner, repo: context.repo.repo, state: 'open', head: 'portallcomua:test-1.1.1-integrated'});
             if (prs.data.length) {
               await github.rest.issues.createComment({
@@ -54,7 +55,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: android-build-log
-          path: android-build.log
+          path: android/android-build.log
           if-no-files-found: ignore
           retention-days: 7
       - name: Upload APK
