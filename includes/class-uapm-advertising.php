@@ -265,7 +265,7 @@ final class UAPM_Advertising {
         $status = $type === 'freemius' ? 'pending' : 'paid';
         $wpdb->insert(self::table('payments'), array('block_id'=>$block_id,'amount'=>$amount,'currency'=>$currency,'payment_type'=>$type,'payment_date'=>$date,'status'=>$status,'created_at'=>current_time('mysql')));
         if ($type === 'freemius' && !empty($block->service_id)) {
-            $services = class_exists('\\\\UAPM\\\\PayBox\\\\UPB_Services') ? \\UAPM\\PayBox\\UPB_Services::all() : array();
+            $services = class_exists('\\UAPM\\PayBox\\UPB_Services') ? \UAPM\PayBox\UPB_Services::all() : array();
             $advertiser_email = $wpdb->get_var($wpdb->prepare("SELECT email FROM " . self::table('advertisers') . " WHERE id=%d", (int)$block->advertiser_id));
             if (is_email($advertiser_email) && !empty($services[(int)$block->service_id])) {
                 $checkout = \UAPM\PayBox\UPB_Freemius::checkout_url($services[(int)$block->service_id]);
