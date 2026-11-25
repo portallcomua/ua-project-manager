@@ -54,6 +54,53 @@ final class UAPM_Shared_Sync {
         return (int)$wpdb->get_var("SELECT COUNT(*) FROM " . $full);
     }
 
+    public static function project_finder_summary($project_id) {
+        global $wpdb;
+        $project_id = absint($project_id);
+        $out = array('search_lists'=>array(),'contact_lists'=>array(),'sites'=>0,'emails'=>0,'campaigns'=>0);
+        $search_lists_table = $wpdb->prefix . 'cmsf_lists';
+        $search_sites_table = $wpdb->prefix . 'cmsf_sites';
+        $contact_lists_table = $wpdb->prefix . 'cmsfc_lists';
+        $contacts_table = $wpdb->prefix . 'cmsfc_contacts';
+        $campaigns_table = $wpdb->prefix . 'cmsfc_campaigns';
+        $exists = function($table) use ($wpdb) {
+            return $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table))) === $table;
+        };
+        $search_ids = array();
+        if ($exists($search_lists_table)) {
+            $rows = $wpdb->get_results("SELECT id,name,params FROM " . $search_lists_table, ARRAY_A);
+            foreach ((array)$rows as $row) {
+                $params = json_decode($row['params'] ?? '{}', true);
+                $ids = array_map('absint', (array)($params['project_ids'] ?? array()));
+                if (in_array($project_id, $ids, true)) {
+                    $out['search_lists'][] = $row['name'];
+                    $search_ids[] = (int)$row['id'];
+                }
+            }
+        }
+        if ($search_ids && $exists($search_sites_table)) {
+            $placeholders = implode(',', array_fill(0, count($search_ids), '%d'));
+            $out['sites'] = (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM " . $search_sites_table . " WHERE list_id IN ($placeholders)", $search_ids));
+        }
+        $contact_ids = array();
+        if ($exists($contact_lists_table)) {
+            $rows = $wpdb->get_results("SELECT id,name,project_ids FROM " . $contact_lists_table, ARRAY_A);
+            foreach ((array)$rows as $row) {
+                $ids = array_map('absint', (array)json_decode($row['project_ids'] ?? '[]', true));
+                if (in_array($project_id, $ids, true)) {
+                    $out['contact_lists'][] = $row['name'];
+                    $contact_ids[] = (int)$row['id'];
+                }
+            }
+        }
+        if ($contact_ids) {
+            $placeholders = implode(',', array_fill(0, count($contact_ids), '%d'));
+            if ($exists($contacts_table)) $out['emails'] = (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM " . $contacts_table . " WHERE list_id IN ($placeholders)", $contact_ids));
+            if ($exists($campaigns_table)) $out['campaigns'] = (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM " . $campaigns_table . " WHERE list_id IN ($placeholders)", $contact_ids));
+        }
+        return $out;
+    }
+
     public static function render() {
         if (!current_user_can('manage_options')) wp_die('Недостатньо прав.');
         $last = (string)get_option('uapm_shared_sync_last_run','');
