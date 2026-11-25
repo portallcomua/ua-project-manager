@@ -397,6 +397,12 @@ class UAPM_Tasks {
         echo '</form>';
 
         echo '<hr><h2>Список завдань</h2>';
+        $completed_count = count(array_filter((array) $tasks, function ($task) {
+            return isset($task->status) && $task->status === 'completed';
+        }));
+        if ($completed_count) {
+            echo '<p><button type="button" class="button" id="uapm-toggle-completed">Показати виконані (' . absint($completed_count) . ')</button></p>';
+        }
         echo '<table class="widefat striped">';
         echo '<thead><tr><th>Завдання</th><th>Статус</th><th>Пріоритет</th><th>Відповідальний</th><th>Термін</th><th>Дія</th></tr></thead><tbody>';
 
@@ -415,7 +421,8 @@ class UAPM_Tasks {
                     'cancelled' => 'Скасовано',
                 );
 
-                echo '<tr>';
+                $row_class = $task->status === 'completed' ? ' class="uapm-task-completed"' : '';
+                echo '<tr' . $row_class . '>';
                 echo '<td><strong>' . esc_html($task->title) . '</strong><br>';
                 echo esc_html($task->description) . '</td>';
                 echo '<td>' . esc_html(isset($statuses[$task->status]) ? $statuses[$task->status] : $task->status) . '</td>';
@@ -455,6 +462,8 @@ class UAPM_Tasks {
         }
 
         echo '</tbody></table>';
+        echo '<style>.uapm-task-completed{display:none}.uapm-task-completed.uapm-visible{display:table-row}</style>';
+        echo '<script>(function(){var b=document.getElementById("uapm-toggle-completed");if(!b)return;b.addEventListener("click",function(){var rows=document.querySelectorAll(".uapm-task-completed");var open=b.getAttribute("aria-expanded")==="true";rows.forEach(function(r){r.classList.toggle("uapm-visible",!open);});b.setAttribute("aria-expanded",open?"false":"true");b.textContent=open?"Показати виконані":"Сховати виконані";});})();</script>';
         echo '</div>';
     }
 
