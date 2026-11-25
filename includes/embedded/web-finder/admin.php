@@ -4,10 +4,9 @@ namespace UAPM\WebFinder;
 if (!defined('ABSPATH')) exit;
 
 add_action('admin_menu', function () {
-    add_menu_page('UA Web Finder — Збір сайтів', 'Finder: Збір сайтів', 'manage_options', 'uapm-finder-search', __NAMESPACE__ . '\\cmsf_page_search', 'dashicons-search', 5);
-    add_submenu_page('uapm-finder-search', 'Пошук сайтів', 'Пошук сайтів', 'manage_options', 'uapm-finder-search', __NAMESPACE__ . '\\cmsf_page_search');
-    add_submenu_page('uapm-finder-search', 'Свій список доменів', 'Свій список', 'manage_options', 'uapm-finder-import', __NAMESPACE__ . '\\cmsf_page_import');
-    add_submenu_page('uapm-finder-search', 'Збережені списки', 'Списки', 'manage_options', 'uapm-finder-lists', __NAMESPACE__ . '\\cmsf_page_lists');
+    add_submenu_page('uapm', 'Збір і розсилка — пошук сайтів', 'Збір і розсилка: пошук сайтів', 'manage_options', 'uapm-finder-search', __NAMESPACE__ . '\\cmsf_page_search');
+    add_submenu_page('uapm', 'Імпорт доменів', 'Збір і розсилка: імпорт доменів', 'manage_options', 'uapm-finder-import', __NAMESPACE__ . '\\cmsf_page_import');
+    add_submenu_page('uapm', 'Збережені списки сайтів', 'Збір і розсилка: списки', 'manage_options', 'uapm-finder-lists', __NAMESPACE__ . '\\cmsf_page_lists');
 });
 
 add_action('admin_enqueue_scripts', function () {
