@@ -70,6 +70,7 @@ class UPB_Services {
 			return null;
 		}
 		foreach ( self::all() as $svc ) {
+			if ( ( $svc['service_type'] ?? 'license' ) !== 'license' ) { continue; }
 			if ( isset( $svc['slug'] ) && $svc['slug'] === $slug ) {
 				return $svc;
 			}
