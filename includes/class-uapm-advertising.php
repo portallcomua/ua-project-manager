@@ -207,7 +207,9 @@ final class UAPM_Advertising {
         }
         $banner_html = self::sanitize_banner_html(wp_unslash($_POST['banner_html'] ?? ''));
         $banner_image = esc_url_raw(wp_unslash($_POST['banner_image'] ?? ''));
+        $target_url = esc_url_raw(wp_unslash($_POST['target_url'] ?? ''));
         if ('' === trim($banner_html) && '' === $banner_image) wp_die('Додай HTML-код або завантаж зображення банера.');
+        if (!$target_url || !preg_match('~^https?://~i', $target_url)) wp_die('Вкажи коректне посилання для переходу з банера.');
         $monthly_price = max(0, (float) str_replace(',', '.', sanitize_text_field(wp_unslash($_POST['monthly_price'] ?? '0'))));
         if ($monthly_price <= 0) wp_die('Вкажіть ціну розміщення за місяць, більшу за нуль.');
         $amount = max(0, (float) str_replace(',', '.', sanitize_text_field(wp_unslash($_POST['payment_amount'] ?? '0'))));
@@ -221,7 +223,7 @@ final class UAPM_Advertising {
             'project_ids' => wp_json_encode($projects),
             'banner_html' => $banner_html,
             'banner_image' => $banner_image,
-            'target_url' => esc_url_raw(wp_unslash($_POST['target_url'] ?? '')),
+            'target_url' => $target_url,
             'monthly_price' => $monthly_price,
             'currency' => $currency,
             'start_date' => $start,
@@ -401,7 +403,7 @@ final class UAPM_Advertising {
         echo '</select></label></p>';
         echo '<p><label>HTML-код банера<br><textarea name="banner_html" rows="5" class="large-text code" placeholder="Вставте HTML банера"></textarea></label></p>';
         echo '<p><label>Завантажити банер<br><input type="url" id="uapm-ad-image" name="banner_image" class="regular-text" placeholder="URL з медіатеки"> <button class="button uapm-ad-media">Вибрати банер</button></label><br><img id="uapm-ad-image-preview" style="max-width:240px;max-height:120px;display:none" alt=""></p>';
-        echo '<p><label>Посилання банера<br><input type="url" name="target_url" class="large-text" placeholder="https://..."></label></p>';
+        echo '<p><label>Посилання банера<br><input type="url" name="target_url" class="large-text" placeholder="https://..." required></label></p>';
         echo '<p><label>Ціна за місяць<br><input type="number" min="0" step="0.01" name="monthly_price" required> <select name="currency"><option value="UAH">грн</option><option value="USD">USD</option></select></label></p>';
         echo '<p><label>Початок розміщення <input type="date" name="start_date" required value="' . esc_attr(current_time('Y-m-d')) . '"></label>　<label>Закінчення <input type="date" name="end_date" required></label></p>';
         echo '<p><label>Послуга Pay Box для реклами<br><select name="service_id" required><option value="0">— не прив’язувати —</option>';
