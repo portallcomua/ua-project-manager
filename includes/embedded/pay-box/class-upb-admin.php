@@ -193,15 +193,16 @@ class UPB_Admin {
 			<?php self::notice(); ?>
 
 			<table class="widefat striped">
-				<thead><tr><th>ID</th><th>Назва / плагін</th><th>Вартість</th><th>Платіжна система</th><th>Шорткод</th><th>PHP-перевірка</th><th>Статус</th><th></th></tr></thead>
+				<thead><tr><th>ID</th><th>Назва / плагін</th><th>Призначення</th><th>Вартість</th><th>Платіжна система</th><th>Шорткод</th><th>PHP-перевірка</th><th>Статус</th><th></th></tr></thead>
 				<tbody>
 				<?php if ( ! $services ) : ?>
-					<tr><td colspan="8">Послуг ще немає. Натисніть «Додати послугу».</td></tr>
+					<tr><td colspan="9">Послуг ще немає. Натисніть «Додати послугу».</td></tr>
 				<?php endif; ?>
 				<?php foreach ( $services as $id => $s ) : ?>
 					<tr>
 						<td><strong><?php echo (int) $id; ?></strong></td>
 						<td><?php echo esc_html( $s['name'] ); ?><?php if ( ! empty( $s['slug'] ) ) : ?><br><span class="upb-id"><?php echo esc_html( $s['slug'] ); ?></span><?php endif; ?><?php if ( empty( $s['freemius_product_id'] ) || empty( $s['freemius_plan_id'] ) || empty( $s['freemius_secret_key'] ) ) : ?><br><strong style="color:#b32d2e">⚠️ Freemius не налаштовано</strong><?php endif; ?><?php if ( ! empty( $s['_uapm_duplicate_ids'] ) ) : ?><br><small>Збережені дублікати (дані не видалено): <?php foreach ( $s['_uapm_duplicate_ids'] as $duplicate_id ) : ?><a href="<?php echo esc_url( self::url( 'uapm-paybox-services', array( 'action' => 'edit', 'id' => (int) $duplicate_id ) ) ); ?>">#<?php echo (int) $duplicate_id; ?></a> <?php endforeach; ?></small><?php endif; ?></td>
+						<td><?php echo esc_html( ( $s['service_type'] ?? 'license' ) === 'advertising' ? 'Реклама' : 'PRO / ліцензія' ); ?></td>
 						<td><?php echo esc_html( $s['price'] ); ?></td>
 						<td>Freemius</td>
 						<td><input type="text" readonly class="upb-code" value="[universal_pay_box id=&quot;<?php echo (int) $id; ?>&quot;]" onclick="this.select()"></td>
