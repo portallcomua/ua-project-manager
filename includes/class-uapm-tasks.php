@@ -174,7 +174,7 @@ class UAPM_Tasks {
                 'revision' => isset($task->revision) ? ((int) $task->revision + 1) : 1,
             ),
             array('id' => absint($task_id)),
-            array('%s', '%s', '%s'),
+            array('%s', '%s', '%s', '%d'),
             array('%d')
         );
 
@@ -244,7 +244,7 @@ class UAPM_Tasks {
         $sql = "SELECT * FROM {$table}
                 WHERE " . implode(' AND ', $where) . "
                 ORDER BY
-                    FIELD(status, 'pending', 'in_progress', 'completed', 'cancelled'),
+                    FIELD(status, 'pending', 'in_progress', 'cancelled', 'completed'),
                     FIELD(priority, 'urgent', 'high', 'normal', 'low'),
                     due_date ASC,
                     id DESC
