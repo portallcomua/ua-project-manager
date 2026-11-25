@@ -17,3 +17,6 @@ GitHub Actions workflow `.github/workflows/android-apk.yml` збирає debug A
 - APK поки синхронізує лише задачі.
 - Якщо сервер і телефон одночасно змінили одну задачу, API повертає HTTP 409; автоматичного злиття полів ще немає, щоб не перезаписувати дані непомітно.
 - Доступ зберігається в Android EncryptedSharedPreferences.
+
+
+Build verification is performed by GitHub Actions for each Android source update. Install only the APK artifact from a successful run; failed runs do not provide an installable APK.
