@@ -224,17 +224,25 @@ final class UAPM_Advertising {
             wp_die('Не вдалося зберегти рекламний блок: ' . esc_html($wpdb->last_error));
         }
         $amount = max(0, (float) str_replace(',', '.', sanitize_text_field(wp_unslash($_POST['payment_amount'] ?? '0'))));
+        $payment_currency = strtoupper(sanitize_key(wp_unslash($_POST['payment_currency'] ?? $currency)));
+        if (!in_array($payment_currency, array('UAH','USD'), true)) $payment_currency = $currency;
+        $type = sanitize_key(wp_unslash($_POST['payment_type'] ?? 'cash'));
+        if (!in_array($type, array('freemius','privat_envelope','cash'), true)) $type = 'cash';
+        if ($type === 'freemius' && $amount <= 0) $amount = (float)$data['monthly_price'];
         if ($amount > 0) {
-            $payment_currency = strtoupper(sanitize_key(wp_unslash($_POST['payment_currency'] ?? $currency)));
-            if (!in_array($payment_currency, array('UAH','USD'), true)) $payment_currency = $currency;
-            $type = sanitize_key(wp_unslash($_POST['payment_type'] ?? 'cash'));
-            if (!in_array($type, array('freemius','privat_envelope','cash'), true)) $type = 'cash';
             $payment_date = sanitize_text_field(wp_unslash($_POST['payment_date'] ?? current_time('Y-m-d')));
             $payment_status = $type === 'freemius' ? 'pending' : 'paid';
             $wpdb->insert(self::table('payments'), array(
                 'block_id'=>$block_id,'amount'=>$amount,'currency'=>$payment_currency,'payment_type'=>$type,
                 'payment_date'=>$payment_date,'status'=>$payment_status,'created_at'=>current_time('mysql')
             ));
+        }
+        if ($type === 'freemius' && is_email($advertiser->email)) {
+            $checkout = class_exists('\\UAPM\\PayBox\\UPB_Freemius') ? \\UAPM\\PayBox\\UPB_Freemius::checkout_url($services[$service_id]) : '';
+            if ($checkout) {
+                $checkout = add_query_arg('user_email', rawurlencode($advertiser->email), $checkout);
+                wp_mail($advertiser->email, 'Оплата розміщення реклами', 'Для оплати розміщення реклами перейдіть за посиланням: ' . $checkout);
+            }
         }
         wp_safe_redirect(add_query_arg(array('page'=>'uapm-advertising','advertiser_id'=>$advertiser_id,'block_saved'=>$block_id), admin_url('admin.php')));
         exit;
