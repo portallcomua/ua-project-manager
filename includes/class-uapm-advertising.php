@@ -190,19 +190,24 @@ final class UAPM_Advertising {
         }
         $start = sanitize_text_field(wp_unslash($_POST['start_date'] ?? ''));
         $end = sanitize_text_field(wp_unslash($_POST['end_date'] ?? ''));
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end) || $end < $start) {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end) || !checkdate((int)substr($start,5,2),(int)substr($start,8,2),(int)substr($start,0,4)) || !checkdate((int)substr($end,5,2),(int)substr($end,8,2),(int)substr($end,0,4)) || $end < $start) {
             wp_die('Перевірте дати початку та закінчення розміщення.');
         }
         $currency = strtoupper(sanitize_key(wp_unslash($_POST['currency'] ?? 'UAH')));
         if (!in_array($currency, array('UAH','USD'), true)) $currency = 'UAH';
         $service_id = absint($_POST['service_id'] ?? 0);
         $services = class_exists('\\UAPM\\PayBox\\UPB_Services') ? \UAPM\PayBox\UPB_Services::all() : array();
-        if (!$service_id || empty($services[$service_id]) || (($services[$service_id]['service_type'] ?? 'license') !== 'advertising')) $service_id = 0;
+        if (!$service_id || empty($services[$service_id]) || (($services[$service_id]['service_type'] ?? 'license') !== 'advertising')) {
+            wp_die('Створи або вибери в Pay Box окрему активну послугу з типом «Розміщення реклами». Вона потрібна для оплати та автоматичного продовження.');
+        }
+        $banner_html = wp_kses_post(wp_unslash($_POST['banner_html'] ?? ''));
+        $banner_image = esc_url_raw(wp_unslash($_POST['banner_image'] ?? ''));
+        if ('' === trim($banner_html) && '' === $banner_image) wp_die('Додай HTML-код або завантаж зображення банера.');
         $data = array(
             'advertiser_id' => $advertiser_id,
             'project_ids' => wp_json_encode($projects),
-            'banner_html' => wp_kses_post(wp_unslash($_POST['banner_html'] ?? '')),
-            'banner_image' => esc_url_raw(wp_unslash($_POST['banner_image'] ?? '')),
+            'banner_html' => $banner_html,
+            'banner_image' => $banner_image,
             'target_url' => esc_url_raw(wp_unslash($_POST['target_url'] ?? '')),
             'monthly_price' => max(0, (float) str_replace(',', '.', sanitize_text_field(wp_unslash($_POST['monthly_price'] ?? '0')))),
             'currency' => $currency,
@@ -243,6 +248,7 @@ final class UAPM_Advertising {
         $block = $wpdb->get_row($wpdb->prepare("SELECT * FROM " . self::table('blocks') . " WHERE id=%d", $block_id));
         if (!$block) wp_die('Рекламний блок не знайдено.');
         $amount = max(0, (float) str_replace(',', '.', sanitize_text_field(wp_unslash($_POST['amount'] ?? '0'))));
+        if ($amount <= 0) wp_die('Сума оплати має бути більшою за нуль.');
         $currency = strtoupper(sanitize_key(wp_unslash($_POST['currency'] ?? $block->currency)));
         if (!in_array($currency, array('UAH','USD'), true)) $currency = $block->currency;
         $type = sanitize_key(wp_unslash($_POST['payment_type'] ?? 'cash'));
