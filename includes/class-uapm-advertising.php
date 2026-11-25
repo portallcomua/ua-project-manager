@@ -496,7 +496,20 @@ final class UAPM_Advertising {
         $project=UAPM_Projects::get($project_id);
         if (!$project) return '';
         $url=rest_url('uapm/v1/ad/' . rawurlencode($project->slug));
-        return "WordPress shortcode:\n[uapm_ad project=\"" . $project->slug . "\"]\n\nREST endpoint for Android / app:\nGET " . $url . "\n\nThe endpoint returns JSON: {\"active\":true,\"html\":\"...\",\"block_id\":123}";
+        $html = "WordPress plugin shortcode:\n[uapm_ad project=\"" . $project->slug . "\"]\n\nHTML / JavaScript app:\n<div id=\"uapm-ad-slot\"></div>\n<script>fetch('" . $url . "').then(r=>r.json()).then(d=>{if(d.active)document.getElementById('uapm-ad-slot').innerHTML=d.html;});</script>\n\nAndroid / Kotlin: use GET " . $url . " and parse JSON fields active and html.\n\nThe REST endpoint returns an empty html field when no active campaign exists.";
+        return $html;
+    }
+
+    public static function project_ad_summary($project_id) {
+        global $wpdb;
+        $blocks = $wpdb->get_results("SELECT * FROM " . self::table('blocks') . " WHERE status='active' ORDER BY end_date DESC");
+        foreach ($blocks as $block) {
+            if (!in_array((int)$project_id, array_map('intval', (array)json_decode($block->project_ids, true)), true)) continue;
+            $advertiser = $wpdb->get_var($wpdb->prepare("SELECT name FROM " . self::table('advertisers') . " WHERE id=%d", (int)$block->advertiser_id));
+            $counts = self::counts($block->id);
+            return array('advertiser'=>(string)$advertiser,'impressions'=>$counts['impressions'],'clicks'=>$counts['clicks'],'start'=>$block->start_date,'end'=>$block->end_date);
+        }
+        return array();
     }
 
     public static function handle_freemius_license($service_id, $email, $license_id) {
@@ -506,7 +519,15 @@ final class UAPM_Advertising {
         $services=class_exists('\\UAPM\\PayBox\\UPB_Services') ? \UAPM\PayBox\UPB_Services::all() : array();
         if (empty($services[$service_id]) || ($services[$service_id]['service_type'] ?? 'license') !== 'advertising') return false;
         $order=$wpdb->get_row($wpdb->prepare("SELECT * FROM " . self::table('renewals') . " WHERE service_id=%d AND status='pending' AND advertiser_id IN (SELECT id FROM " . self::table('advertisers') . " WHERE LOWER(email)=LOWER(%s)) ORDER BY id DESC LIMIT 1", $service_id, $email));
-        if (!$order) return false;
+        if (!$order) {
+            // Initial placement payment: confirm the newest pending Freemius payment for this advertiser and service.
+            $payment = $wpdb->get_row($wpdb->prepare("SELECT p.* FROM " . self::table('payments') . " p INNER JOIN " . self::table('blocks') . " b ON b.id=p.block_id INNER JOIN " . self::table('advertisers') . " a ON a.id=b.advertiser_id WHERE b.service_id=%d AND LOWER(a.email)=LOWER(%s) AND p.payment_type='freemius' AND p.status='pending' ORDER BY p.id DESC LIMIT 1", $service_id, $email));
+            if ($payment) {
+                $wpdb->update(self::table('payments'), array('status'=>'paid','reference'=>sanitize_text_field($license_id),'payment_date'=>current_time('Y-m-d')), array('id'=>(int)$payment->id));
+                return true;
+            }
+            return false;
+        }
         $old=$wpdb->get_row($wpdb->prepare("SELECT * FROM " . self::table('blocks') . " WHERE id=%d", (int)$order->block_id));
         if (!$old) return false;
         $start = $old->end_date >= current_time('Y-m-d') ? date('Y-m-d', strtotime($old->end_date . ' +1 day')) : current_time('Y-m-d');
