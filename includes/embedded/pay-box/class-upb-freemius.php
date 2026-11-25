@@ -237,7 +237,7 @@ class UPB_Freemius {
 
 		// Advertising placements are renewed only from a verified, active Freemius webhook.
 		if ( ! $revoked && class_exists( '\\UAPM_Advertising' ) ) {
-			\\UAPM_Advertising::handle_freemius_license( $service_id, $email, $license_id );
+			\UAPM_Advertising::handle_freemius_license( $service_id, $email, $license_id );
 		}
 
 		return new WP_REST_Response(
