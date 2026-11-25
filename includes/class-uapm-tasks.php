@@ -94,7 +94,7 @@ class UAPM_Tasks {
                 'project_id' => $project_id,
                 'title' => $title,
                 'description' => isset($data['description'])
-                    ? sanitize_textarea_field($data['description'])
+                    ? wp_kses_post($data['description'])
                     : '',
                 'status' => 'pending',
                 'priority' => self::sanitize_priority(
@@ -115,6 +115,20 @@ class UAPM_Tasks {
         }
 
         $task_id = (int) $wpdb->insert_id;
+
+        // Extended fields are added safely by UAPM_Task_Sync without replacing existing task records.
+        $wpdb->update(
+            $wpdb->prefix . self::TABLE,
+            array(
+                'executor' => sanitize_text_field(isset($data['executor']) ? $data['executor'] : ''),
+                'notes' => sanitize_textarea_field(isset($data['notes']) ? $data['notes'] : ''),
+                'task_uuid' => wp_generate_uuid4(),
+                'revision' => 1,
+            ),
+            array('id' => $task_id),
+            array('%s', '%s', '%s', '%d'),
+            array('%d')
+        );
 
         do_action('uapm_task_created', $task_id, $data);
 
@@ -335,7 +349,9 @@ class UAPM_Tasks {
 
         echo '<h2>Нове завдання</h2>';
         echo '<p><input type="text" name="title" class="large-text" placeholder="Назва завдання" required></p>';
-        echo '<p><textarea name="description" class="large-text" rows="3" placeholder="Опис"></textarea></p>';
+        wp_editor('', 'uapm_task_description', array('textarea_name' => 'description', 'textarea_rows' => 5, 'media_buttons' => false));
+        echo '<p><label>Виконавець<br><select name="executor"><option value="">— Оберіть виконавця —</option><option>Google AI</option><option>ChatGPT</option><option>AI Studio</option><option>DeepSeek</option><option>GitHub Copilot</option><option value="custom">+ Додати власного</option></select></label> <input type="text" name="executor_custom" placeholder="Власний виконавець" /></p>';
+        echo '<p><label>Власні нотатки<br><textarea name="notes" class="large-text" rows="3" placeholder="Нотатки до задачі"></textarea></label></p>';
 
         echo '<p><label>Пріоритет ';
         echo '<select name="priority">';
@@ -452,8 +468,10 @@ class UAPM_Tasks {
                 ? sanitize_text_field(wp_unslash($_POST['title']))
                 : '',
             'description' => isset($_POST['description'])
-                ? sanitize_textarea_field(wp_unslash($_POST['description']))
+                ? wp_kses_post(wp_unslash($_POST['description']))
                 : '',
+            'executor' => isset($_POST['executor']) && wp_unslash($_POST['executor']) === 'custom' ? sanitize_text_field(wp_unslash($_POST['executor_custom'] ?? '')) : (isset($_POST['executor']) ? sanitize_text_field(wp_unslash($_POST['executor'])) : ''),
+            'notes' => isset($_POST['notes']) ? sanitize_textarea_field(wp_unslash($_POST['notes'])) : '',
             'project_id' => isset($_POST['project_id'])
                 ? absint($_POST['project_id'])
                 : 0,
