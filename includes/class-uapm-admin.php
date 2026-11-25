@@ -401,6 +401,16 @@ final class UAPM_Admin {
         echo '<textarea id="uapm-project-description" name="project[description]">' . esc_textarea($value('description')) . '</textarea>';
         echo '</div>';
 
+        // Додаткові параметри відображення та рекламні налаштування проєкту.
+        $display = class_exists('UAPM_Advertising') ? UAPM_Advertising::get_project_extras($value('id', 0)) : array();
+        echo '<hr><h3>Відображення проєкту та реклама</h3>';
+        echo '<div class="uapm-field"><label for="uapm-all-projects-url">Посилання «Всі проєкти»</label><input type="url" id="uapm-all-projects-url" name="project[all_projects_url]" value="' . esc_attr($display['all_projects_url'] ?? '') . '" placeholder="https://uaserver.pp.ua/..."> <label><input type="checkbox" name="project[all_projects_visible]" value="1" ' . checked(!empty($display['all_projects_visible']), true, false) . '> Відображати посилання у плагіні / додатку</label></div>';
+        echo '<div class="uapm-field"><label for="uapm-project-banner-html">HTML banner для цього проєкту</label><textarea id="uapm-project-banner-html" name="project[project_banner_html]" rows="5" class="large-text code">' . esc_textarea($display['project_banner_html'] ?? '') . '</textarea><label><input type="checkbox" name="project[project_banner_visible]" value="1" ' . checked(!empty($display['project_banner_visible']), true, false) . '> Відображати банер у плагіні / додатку</label></div>';
+        echo '<div class="uapm-field"><label><input type="checkbox" name="project[ads_available]" value="1" ' . checked(!empty($display['ads_available']), true, false) . '> Доступний для розміщення реклами</label><p class="description">Якщо галочка вимкнена, проєкт не з’являється у виборі рекламного блоку.</p></div>';
+        if ($is_edit && class_exists('UAPM_Advertising')) {
+            echo '<div class="uapm-field"><label>Код підключення рекламного блоку</label><textarea readonly rows="5" class="large-text code" onclick="this.select()">' . esc_textarea(UAPM_Advertising::project_embed_code($value('id', 0))) . '</textarea></div>';
+        }
+
         echo '<p class="submit">';
         echo '<button type="submit" class="button button-primary">' . esc_html($is_edit ? __('Зберегти зміни', 'ua-project-manager') : __('Створити проєкт', 'ua-project-manager')) . '</button> ';
 
