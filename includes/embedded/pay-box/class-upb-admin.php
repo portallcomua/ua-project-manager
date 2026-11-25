@@ -242,6 +242,10 @@ class UPB_Admin {
 
 				<table class="form-table" role="presentation">
 					<tr>
+						<th><label for="upb-service-type">Призначення послуги</label></th>
+						<td><select id="upb-service-type" name="svc[service_type]"><option value="license" <?php selected( $v['service_type'] ?? 'license', 'license' ); ?>>PRO / ліцензія розширення</option><option value="advertising" <?php selected( $v['service_type'] ?? 'license', 'advertising' ); ?>>Розміщення реклами</option></select><p class="description">Послуги PRO і рекламні платежі зберігаються окремо. Для рекламного блоку обирайте «Розміщення реклами».</p></td>
+					</tr>
+					<tr>
 						<th><label for="upb-slug">Slug плагіна</label></th>
 						<td><input id="upb-slug" name="svc[slug]" type="text" class="regular-text code" value="<?php echo esc_attr( $v['slug'] ); ?>" placeholder="voice-add-woocommerce">
 						<p class="description">Ідентифікатор для підключення плагіна (латиницею). Плагіни Voice ADD реєструють проект самі — тут він уже буде заповнений.</p></td>
