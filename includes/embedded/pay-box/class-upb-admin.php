@@ -45,6 +45,7 @@ class UPB_Admin {
 
 	public static function menu() {
 		add_submenu_page( 'uapm', 'Оплати — послуги Pay Box', 'Оплати: послуги', 'manage_options', 'uapm-paybox-services', array( __CLASS__, 'page_services' ) );
+		add_submenu_page( 'uapm', 'PRO ліцензії Freemius', 'Оплати: PRO ліцензії', 'manage_options', 'uapm-paybox-premiums', array( __CLASS__, 'page_premiums' ) );
 		add_submenu_page( 'uapm', 'Налаштування Pay Box', 'Оплати: налаштування', 'manage_options', 'uapm-paybox-settings', array( __CLASS__, 'page_settings' ) );
 	}
 
