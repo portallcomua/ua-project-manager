@@ -29,7 +29,7 @@ final class UAPM_Admin {
 
         // Keep the standalone Click Counter active until the owner chooses to switch.
         // The embedded module intentionally avoids duplicate AJAX/shortcode handlers.
-        if (class_exists('\\\\UACC')) {
+        if (class_exists('\\UACC')) {
             add_action('admin_notices', function () {
                 if (!current_user_can('manage_options')) {
                     return;
