@@ -135,6 +135,7 @@ final class UAPM_Plugin {
             'class-uapm-search.php',
             'class-uapm-notes.php',
             'class-uapm-tasks.php',
+            'class-uapm-task-sync.php',
             'class-uapm-comments.php',
             'class-uapm-attachments.php',
             'class-uapm-activity-calendar.php',
