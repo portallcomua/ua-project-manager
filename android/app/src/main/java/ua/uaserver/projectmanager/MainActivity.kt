@@ -59,6 +59,22 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun editTask(task: LocalTask) {
+        val title = EditText(this).apply { hint = "Назва задачі"; setText(task.title) }
+        val description = EditText(this).apply { hint = "Опис задачі"; minLines = 3; setText(task.description) }
+        val notes = EditText(this).apply { hint = "Власні нотатки"; minLines = 2; setText(task.notes) }
+        val executor = EditText(this).apply { hint = "Виконавець"; setText(task.executor) }
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24,12,24,12) }
+        box.addView(title); box.addView(description); box.addView(notes); box.addView(executor)
+        AlertDialogBuilder.show(this, box) {
+            val t = title.text.toString().trim()
+            if (t.isNotEmpty()) {
+                store.update(task.uuid,t,description.text.toString(),notes.text.toString(),executor.text.toString())
+                refresh(); scheduleSync()
+            }
+        }
+    }
+
     private fun refresh() {
         list.removeAllViews()
         for (task in store.all()) {
@@ -71,6 +87,7 @@ class MainActivity : Activity() {
                 store.setStatus(task.uuid, if(checked) "completed" else "pending"); refresh(); scheduleSync()
             }}
             card.addView(done)
+            card.addView(Button(this).apply { text = "Редагувати"; setOnClickListener { editTask(task) } })
             card.addView(TextView(this).apply { text = if(task.pending) "Очікує синхронізації" else "Синхронізовано"; textSize = 12f })
             list.addView(card); list.addView(View(this).apply { setBackgroundColor(0xFFDDDDDD.toInt()) }, LinearLayout.LayoutParams(-1,1))
         }
