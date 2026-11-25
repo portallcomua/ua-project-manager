@@ -1301,6 +1301,7 @@ function cmsfc_admin_page() {
                         <tr>
                             <th>Назва списку</th>
                             <th>Домен</th>
+                            <th>Пов’язані проєкти</th>
                             <th>Сторінок</th>
                             <th>Email</th>
                             <th>Статус</th>
