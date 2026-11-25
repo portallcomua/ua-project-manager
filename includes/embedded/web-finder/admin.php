@@ -42,6 +42,15 @@ function cmsf_pills($name, $items, $checked = []) {
     }
 }
 
+function cmsf_project_picker() {
+    if (!class_exists('UAPM_Projects')) return;
+    $projects = \UAPM_Projects::get_all(array('status' => 'active', 'limit' => 200, 'orderby' => 'name', 'order' => 'ASC'));
+    if (!$projects) return;
+    echo '<label class="cmsf-wide"><span>Пов’язані проєкти з головного блоку (можна вибрати декілька)</span><select name="project_ids[]" multiple size="4">';
+    foreach ($projects as $project) echo '<option value="' . (int)$project->id . '">' . esc_html($project->name) . '</option>';
+    echo '</select></label>';
+}
+
 function cmsf_page_search() {
     if (!current_user_can('manage_options')) return;
     $platforms = array_combine(cmsf_platforms(), cmsf_platforms());
@@ -58,6 +67,7 @@ function cmsf_page_search() {
             <form id="cmsf-search-form" onsubmit="return false">
                 <div class="cmsf-grid">
                     <label class="cmsf-wide"><span>Назва списку</span><input type="text" name="name" placeholder="Напр.: Joomla · Україна (залиште порожнім — назва буде автоматична)"></label>
+                    <?php cmsf_project_picker(); ?>
 
                     <fieldset class="cmsf-wide"><legend>CMS / платформа / плагін (можна кілька; без вибору = будь-яка визначена CMS)</legend>
                         <div class="cmsf-pills"><?php cmsf_pills('cms', $platforms); ?></div>
@@ -121,6 +131,7 @@ function cmsf_page_import() {
             <form id="cmsf-search-form" onsubmit="return false">
                 <div class="cmsf-grid">
                     <label class="cmsf-wide"><span>Назва списку</span><input type="text" name="name" placeholder="Напр.: Клієнти, База 2026 (порожньо — назва автоматична)"></label>
+                    <?php cmsf_project_picker(); ?>
                     <label class="cmsf-wide"><span>Домени (по одному в рядок, через кому чи пробіл)</span>
                         <textarea name="domains" rows="8" placeholder="example.com.ua&#10;https://site2.com"></textarea>
                         <input type="file" id="cmsf-file" accept=".txt,.csv,text/plain">
