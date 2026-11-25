@@ -220,12 +220,14 @@ final class UAPM_Advertising {
         }
         $amount = max(0, (float) str_replace(',', '.', sanitize_text_field(wp_unslash($_POST['payment_amount'] ?? '0'))));
         if ($amount > 0) {
+            $payment_currency = strtoupper(sanitize_key(wp_unslash($_POST['payment_currency'] ?? $currency)));
+            if (!in_array($payment_currency, array('UAH','USD'), true)) $payment_currency = $currency;
             $type = sanitize_key(wp_unslash($_POST['payment_type'] ?? 'cash'));
             if (!in_array($type, array('freemius','privat_envelope','cash'), true)) $type = 'cash';
             $payment_date = sanitize_text_field(wp_unslash($_POST['payment_date'] ?? current_time('Y-m-d')));
             $payment_status = $type === 'freemius' ? 'pending' : 'paid';
             $wpdb->insert(self::table('payments'), array(
-                'block_id'=>$block_id,'amount'=>$amount,'currency'=>$currency,'payment_type'=>$type,
+                'block_id'=>$block_id,'amount'=>$amount,'currency'=>$payment_currency,'payment_type'=>$type,
                 'payment_date'=>$payment_date,'status'=>$payment_status,'created_at'=>current_time('mysql')
             ));
         }
@@ -375,7 +377,7 @@ final class UAPM_Advertising {
         foreach ($services as $id=>$name) echo '<option value="' . (int)$id . '">' . esc_html($name) . '</option>';
         echo '</select></label> <span class="description">Створи в Pay Box окрему послугу з типом «Розміщення реклами».</span></p>';
         echo '<h3>Початкова оплата (можна залишити порожньою)</h3>';
-        echo '<p><label>Сума <input type="number" min="0" step="0.01" name="payment_amount"></label> <label>Тип <select name="payment_type"><option value="freemius">Freemius</option><option value="privat_envelope">Приват Конверт</option><option value="cash">Готівка</option></select></label> <label>Дата <input type="date" name="payment_date" value="' . esc_attr(current_time('Y-m-d')) . '"></label></p>';
+        echo '<p><label>Сума <input type="number" min="0" step="0.01" name="payment_amount"></label> <label>Валюта <select name="payment_currency"><option value="UAH">грн</option><option value="USD">USD</option></select></label> <label>Тип <select name="payment_type"><option value="freemius">Freemius</option><option value="privat_envelope">Приват Конверт</option><option value="cash">Готівка</option></select></label> <label>Дата <input type="date" name="payment_date" value="' . esc_attr(current_time('Y-m-d')) . '"></label></p>';
         submit_button('Додати рекламний блок');
         echo '</form></div>';
     }
