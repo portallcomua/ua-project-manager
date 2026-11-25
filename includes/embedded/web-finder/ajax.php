@@ -37,8 +37,16 @@ function cmsf_params_from_post() {
         'sources' => cmsf_post_list('sources', $sources),
         'limit' => max(1, min(50000, (int)cmsf_post('limit', 500))),
         'require_terms' => !empty($_POST['require_terms']) ? 1 : 0,
+        'project_ids' => array_values(array_filter(array_map('absint', (array) cmsf_post('project_ids', array())))),
         'terms' => array_values(array_unique(array_merge(cmsf_split_terms(sanitize_text_field(cmsf_post('categories'))), cmsf_split_terms(sanitize_text_field(cmsf_post('tags'))), cmsf_split_terms(sanitize_text_field(cmsf_post('query')))))),
     ];
+}
+
+function cmsf_project_names($ids) {
+    $names = array();
+    if (!class_exists('UAPM_Projects')) return $names;
+    foreach (array_map('absint', $ids) as $id) { $project = \UAPM_Projects::get($id); if ($project) $names[] = $project->name; }
+    return $names;
 }
 
 function cmsf_row_out($r) {
@@ -128,7 +136,8 @@ cmsf_ajax('lists', function () {
     $out = [];
     foreach (cmsf_lists_all() as $l) {
         $out[] = ['id' => (int)$l['id'], 'name' => $l['name'], 'created' => mysql2date('d.m.Y H:i', $l['created_at']), 'updated' => mysql2date('d.m.Y H:i', $l['updated_at']),
-            'cms' => (array)($l['params']['cms'] ?? []), 'regions' => (array)($l['params']['regions'] ?? []), 'stats' => $l['stats']];
+            'cms' => (array)($l['params']['cms'] ?? []), 'regions' => (array)($l['params']['regions'] ?? []),
+            'projects' => cmsf_project_names((array)($l['params']['project_ids'] ?? [])), 'stats' => $l['stats']];
     }
     wp_send_json_success($out);
 });
