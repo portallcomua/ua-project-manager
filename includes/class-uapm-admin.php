@@ -59,8 +59,8 @@ final class UAPM_Admin {
 
         add_submenu_page(
             'uapm',
-            __('Платежі', 'ua-project-manager'),
-            __('Платежі', 'ua-project-manager'),
+            __('Оплати', 'ua-project-manager'),
+            __('Оплати', 'ua-project-manager'),
             'uapm_manage_payments',
             'uapm-payments',
             array(__CLASS__, 'render_payments')
