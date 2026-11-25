@@ -87,6 +87,10 @@ jobs:
             - Added project-level display settings for the All Projects link, HTML banner and advertising availability.
             - Connected Finder website lists and email-collection lists to one or more main projects without replacing their existing records.
             - Added a central synchronization dashboard and preserved existing Pay Box, Finder and project data.
+            - Embedded UA Click Counter 2.0.0 with existing download buttons, click counters and email records retained in the original uacc_* tables.
+            - Reorganized Advertising, Pay Box, Web Finder and task pages under the UA Project Manager admin menu.
+            - Added task executor presets, rich task descriptions, private notes and revision-aware REST synchronization for the Android task client.
+            - Added the initial Android offline task app source and an APK build workflow; APK is distributed as a separate Actions artifact and is not included in the WordPress ZIP.
           files: |
             ua-project-manager-${{ steps.meta.outputs.version }}.zip
             ua-project-manager.zip

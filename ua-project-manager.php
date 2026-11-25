@@ -4,7 +4,7 @@
  * Plugin URI: https://uaserver.pp.ua/
  * Update URI: https://github.com/portallcomua/ua-project-manager
  * Description: Central management system for UA projects, plugins, releases, licenses, payments and integrations.
- * Version: 1.1.0
+ * Version: 1.1.1
  * Author: UA Tools
  * Author URI: https://uaserver.pp.ua/
  * Text Domain: ua-project-manager
@@ -18,7 +18,7 @@ if (!defined('ABSPATH')) {
 }
 
 if (!defined('UAPM_VERSION')) {
-    define('UAPM_VERSION', '1.1.0');
+    define('UAPM_VERSION', '1.1.1');
 }
 
 if (!defined('UAPM_DB_VERSION')) {
@@ -105,6 +105,7 @@ final class UAPM_Plugin {
             'class-uapm-integrations.php',
             'embedded/pay-box/bootstrap.php',
             'embedded/web-finder/bootstrap.php',
+            'embedded/click-counter/ua-click-counter.php',
             'class-uapm-notifications.php',
             'class-uapm-email-templates.php',
             'class-uapm-queue.php',
@@ -134,6 +135,7 @@ final class UAPM_Plugin {
             'class-uapm-search.php',
             'class-uapm-notes.php',
             'class-uapm-tasks.php',
+            'class-uapm-task-sync.php',
             'class-uapm-comments.php',
             'class-uapm-attachments.php',
             'class-uapm-activity-calendar.php',
@@ -268,10 +270,6 @@ final class UAPM_Plugin {
         }
 
         $dependencies = array(
-            'UA Click Counter' => array(
-                'slug' => 'ua-click-counter/ua-click-counter.php',
-                'description' => 'Облік натискань на кнопки та посилання.',
-            ),
             'UA Plugins Monitor' => array(
                 'slug' => 'ua-plugins-monitor/ua-plugins-monitor.php',
                 'description' => 'Моніторинг встановлень та оновлень.',

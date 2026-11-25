@@ -44,9 +44,9 @@ class UPB_Admin {
 	}
 
 	public static function menu() {
-		add_menu_page( 'UA Pay Box', 'UA Pay Box', 'manage_options', 'uapm-paybox-services', array( __CLASS__, 'page_services' ), 'dashicons-cart', 4 );
-		add_submenu_page( 'uapm-paybox-services', 'Послуги', 'Послуги', 'manage_options', 'uapm-paybox-services', array( __CLASS__, 'page_services' ) );
-		add_submenu_page( 'uapm-paybox-services', 'Налаштування Pay Box', 'Налаштування', 'manage_options', 'uapm-paybox-settings', array( __CLASS__, 'page_settings' ) );
+		add_submenu_page( 'uapm', 'Оплати — послуги Pay Box', 'Оплати: послуги', 'manage_options', 'uapm-paybox-services', array( __CLASS__, 'page_services' ) );
+		add_submenu_page( 'uapm', 'PRO ліцензії Freemius', 'Оплати: PRO ліцензії', 'manage_options', 'uapm-paybox-premiums', array( __CLASS__, 'page_premiums' ) );
+		add_submenu_page( 'uapm', 'Налаштування Pay Box', 'Оплати: налаштування', 'manage_options', 'uapm-paybox-settings', array( __CLASS__, 'page_settings' ) );
 	}
 
 	public static function assets( $hook ) {

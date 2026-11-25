@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - pro-development
+      - next-1.1.0-shared-sync-advertising
+      - test-1.1.1-integrated
   pull_request:
     branches:
       - main

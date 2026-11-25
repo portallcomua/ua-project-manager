@@ -126,9 +126,8 @@ final class UAPM_Advertising {
     }
 
     public static function menu() {
-        add_menu_page('Реклама', 'Реклама', 'manage_options', 'uapm-advertising', array(__CLASS__, 'render_page'), 'dashicons-megaphone', 7);
-        add_submenu_page('uapm-advertising', 'Рекламодавці та блоки', 'Рекламодавці', 'manage_options', 'uapm-advertising', array(__CLASS__, 'render_page'));
-        add_submenu_page('uapm-advertising', 'Звіти реклами', 'Звіти', 'manage_options', 'uapm-ad-reports', array(__CLASS__, 'render_reports'));
+        add_submenu_page('uapm', 'Реклама — рекламодавці та блоки', 'Реклама', 'manage_options', 'uapm-advertising', array(__CLASS__, 'render_page'));
+        add_submenu_page('uapm', 'Звіти реклами', 'Звіти реклами', 'manage_options', 'uapm-ad-reports', array(__CLASS__, 'render_reports'));
     }
 
     public static function assets($hook) {
