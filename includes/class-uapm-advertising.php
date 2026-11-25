@@ -268,7 +268,7 @@ final class UAPM_Advertising {
             $services = class_exists('\\\\UAPM\\\\PayBox\\\\UPB_Services') ? \\UAPM\\PayBox\\UPB_Services::all() : array();
             $advertiser_email = $wpdb->get_var($wpdb->prepare("SELECT email FROM " . self::table('advertisers') . " WHERE id=%d", (int)$block->advertiser_id));
             if (is_email($advertiser_email) && !empty($services[(int)$block->service_id])) {
-                $checkout = \\UAPM\\PayBox\\UPB_Freemius::checkout_url($services[(int)$block->service_id]);
+                $checkout = \UAPM\PayBox\UPB_Freemius::checkout_url($services[(int)$block->service_id]);
                 if ($checkout) wp_mail($advertiser_email, 'Оплата розміщення реклами', 'Для оплати розміщення реклами перейдіть за посиланням: ' . add_query_arg('user_email', rawurlencode($advertiser_email), $checkout));
             }
         }
