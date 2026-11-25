@@ -565,7 +565,7 @@
         lists.map(l => `<tr data-id="${l.id}">
           <td data-label="Назва"><a href="#" class="l-open"><b>${esc(l.name)}</b></a></td>
           <td data-label="CMS / країна">${esc(l.cms.join(', ') || 'будь-яка')} · ${esc(l.regions.map(r => regs[r] || r).join(', ') || '—')}</td>
-          <td data-label="Проєкти">${esc((l.projects || []).join(', ') || '—')}</td>
+          <td data-label="Проєкти"><div>${esc((l.projects || []).join(', ') || '—')}</div><select class="l-projects" multiple size="3">${(C.projects || []).map(p => `<option value="${p.id}" ${(l.project_ids || []).includes(Number(p.id)) ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select><button type="button" class="button button-small l-save-projects">Зберегти зв’язок</button></td>
           <td data-label="Створено">${esc(l.created)}</td>
           <td data-label="Сайтів">${l.stats.ok}${l.stats.queued ? ' <small>(+' + l.stats.queued + ' у черзі)</small>' : ''}</td>
           <td data-label="Надіслано"><span class="cmsf-ok">${l.stats.sent}</span>${l.stats.sent_fail ? ' / <span class="cmsf-bad">' + l.stats.sent_fail + ' помилок</span>' : ''}</td>
@@ -579,7 +579,12 @@
     box.addEventListener('click', async e => {
       const tr = e.target.closest('tr[data-id]'); if (!tr) return;
       const id = Number(tr.dataset.id), name = tr.querySelector('.l-open b').textContent;
-      if (e.target.closest('.l-open')) { e.preventDefault(); openList(id, name); }
+      if (e.target.closest('.l-save-projects')) {
+        const projectIds = Array.from(tr.querySelector('.l-projects').selectedOptions).map(o => o.value);
+        try { await api('list_set_projects', { list_id: id, project_ids: projectIds }); await render(); }
+        catch (err) { alert(err.message); }
+      }
+      else if (e.target.closest('.l-open')) { e.preventDefault(); openList(id, name); }
       else if (e.target.closest('.l-ren')) { const n = prompt('Нова назва списку:', name); if (n) { await api('list_rename', { list_id: id, name: n }); render(); } }
       else if (e.target.closest('.l-del')) { if (confirm('Видалити список «' + name + '» разом з усіма сайтами та історією відправок?')) { await api('list_delete', { list_id: id }); render(); } }
     });
