@@ -389,6 +389,8 @@ class UPB_Admin {
 			exit;
 		}
 
+		// Notify the central manager so project-to-service links are refreshed immediately.
+		do_action( 'uapm_paybox_service_saved', $saved_id, $saved );
 		// Return to the same service so the administrator can immediately confirm saved values.
 		wp_safe_redirect( self::url( 'uapm-paybox-services', array( 'action' => 'edit', 'id' => $saved_id, 'upb_notice' => 'saved' ) ) );
 		exit;
