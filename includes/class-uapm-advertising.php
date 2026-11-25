@@ -208,19 +208,21 @@ final class UAPM_Advertising {
         $banner_html = self::sanitize_banner_html(wp_unslash($_POST['banner_html'] ?? ''));
         $banner_image = esc_url_raw(wp_unslash($_POST['banner_image'] ?? ''));
         if ('' === trim($banner_html) && '' === $banner_image) wp_die('Додай HTML-код або завантаж зображення банера.');
+        $monthly_price = max(0, (float) str_replace(',', '.', sanitize_text_field(wp_unslash($_POST['monthly_price'] ?? '0'))));
+        if ($monthly_price <= 0) wp_die('Вкажіть ціну розміщення за місяць, більшу за нуль.');
         $amount = max(0, (float) str_replace(',', '.', sanitize_text_field(wp_unslash($_POST['payment_amount'] ?? '0'))));
         $payment_currency = strtoupper(sanitize_key(wp_unslash($_POST['payment_currency'] ?? $currency)));
         if (!in_array($payment_currency, array('UAH','USD'), true)) $payment_currency = $currency;
         $type = sanitize_key(wp_unslash($_POST['payment_type'] ?? 'cash'));
         if (!in_array($type, array('freemius','privat_envelope','cash'), true)) $type = 'cash';
-        if ($type === 'freemius' && $amount <= 0) $amount = max(0, (float) str_replace(',', '.', sanitize_text_field(wp_unslash($_POST['monthly_price'] ?? '0'))));
+        if ($type === 'freemius' && $amount <= 0) $amount = $monthly_price;
         $data = array(
             'advertiser_id' => $advertiser_id,
             'project_ids' => wp_json_encode($projects),
             'banner_html' => $banner_html,
             'banner_image' => $banner_image,
             'target_url' => esc_url_raw(wp_unslash($_POST['target_url'] ?? '')),
-            'monthly_price' => max(0, (float) str_replace(',', '.', sanitize_text_field(wp_unslash($_POST['monthly_price'] ?? '0')))),
+            'monthly_price' => $monthly_price,
             'currency' => $currency,
             'start_date' => $start,
             'end_date' => $end,
