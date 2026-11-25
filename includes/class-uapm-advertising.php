@@ -31,6 +31,11 @@ final class UAPM_Advertising {
         return $wpdb->prefix . 'uapm_ad_' . $name;
     }
 
+    private static function sanitize_banner_html($html) {
+        $html = (string)$html;
+        return current_user_can('unfiltered_html') ? $html : wp_kses_post($html);
+    }
+
     public static function install() {
         global $wpdb;
         if (get_option('uapm_ad_db_version') === self::DB_VERSION) {
@@ -200,7 +205,7 @@ final class UAPM_Advertising {
         if (!$service_id || empty($services[$service_id]) || (($services[$service_id]['service_type'] ?? 'license') !== 'advertising')) {
             wp_die('Створи або вибери в Pay Box окрему активну послугу з типом «Розміщення реклами». Вона потрібна для оплати та автоматичного продовження.');
         }
-        $banner_html = wp_kses_post(wp_unslash($_POST['banner_html'] ?? ''));
+        $banner_html = self::sanitize_banner_html(wp_unslash($_POST['banner_html'] ?? ''));
         $banner_image = esc_url_raw(wp_unslash($_POST['banner_image'] ?? ''));
         if ('' === trim($banner_html) && '' === $banner_image) wp_die('Додай HTML-код або завантаж зображення банера.');
         $data = array(
@@ -290,7 +295,7 @@ final class UAPM_Advertising {
         $all[$project_id] = array(
             'all_projects_url' => esc_url_raw($data['all_projects_url'] ?? ''),
             'all_projects_visible' => !empty($data['all_projects_visible']) ? 1 : 0,
-            'project_banner_html' => wp_kses_post($data['project_banner_html'] ?? ''),
+            'project_banner_html' => self::sanitize_banner_html($data['project_banner_html'] ?? ''),
             'project_banner_visible' => !empty($data['project_banner_visible']) ? 1 : 0,
             'ads_available' => !empty($data['ads_available']) ? 1 : 0,
         );
@@ -395,7 +400,7 @@ final class UAPM_Advertising {
         echo '<p><label>Посилання банера<br><input type="url" name="target_url" class="large-text" placeholder="https://..."></label></p>';
         echo '<p><label>Ціна за місяць<br><input type="number" min="0" step="0.01" name="monthly_price" required> <select name="currency"><option value="UAH">грн</option><option value="USD">USD</option></select></label></p>';
         echo '<p><label>Початок розміщення <input type="date" name="start_date" required value="' . esc_attr(current_time('Y-m-d')) . '"></label>　<label>Закінчення <input type="date" name="end_date" required></label></p>';
-        echo '<p><label>Послуга Pay Box для реклами<br><select name="service_id"><option value="0">— не прив’язувати —</option>';
+        echo '<p><label>Послуга Pay Box для реклами<br><select name="service_id" required><option value="0">— не прив’язувати —</option>';
         foreach ($services as $id=>$name) echo '<option value="' . (int)$id . '">' . esc_html($name) . '</option>';
         echo '</select></label> <span class="description">Створи в Pay Box окрему послугу з типом «Розміщення реклами».</span></p>';
         echo '<h3>Початкова оплата (можна залишити порожньою)</h3>';
