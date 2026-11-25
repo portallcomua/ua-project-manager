@@ -297,6 +297,7 @@
                     [
                         item.name,
                         item.domain,
+                        (item.projects || []).join(', ') || '—',
                         item.pages_done,
                         item.emails_found,
                         item.status
