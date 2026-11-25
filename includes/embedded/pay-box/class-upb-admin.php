@@ -193,15 +193,16 @@ class UPB_Admin {
 			<?php self::notice(); ?>
 
 			<table class="widefat striped">
-				<thead><tr><th>ID</th><th>Назва / плагін</th><th>Вартість</th><th>Платіжна система</th><th>Шорткод</th><th>PHP-перевірка</th><th>Статус</th><th></th></tr></thead>
+				<thead><tr><th>ID</th><th>Назва / плагін</th><th>Призначення</th><th>Вартість</th><th>Платіжна система</th><th>Шорткод</th><th>PHP-перевірка</th><th>Статус</th><th></th></tr></thead>
 				<tbody>
 				<?php if ( ! $services ) : ?>
-					<tr><td colspan="8">Послуг ще немає. Натисніть «Додати послугу».</td></tr>
+					<tr><td colspan="9">Послуг ще немає. Натисніть «Додати послугу».</td></tr>
 				<?php endif; ?>
 				<?php foreach ( $services as $id => $s ) : ?>
 					<tr>
 						<td><strong><?php echo (int) $id; ?></strong></td>
 						<td><?php echo esc_html( $s['name'] ); ?><?php if ( ! empty( $s['slug'] ) ) : ?><br><span class="upb-id"><?php echo esc_html( $s['slug'] ); ?></span><?php endif; ?><?php if ( empty( $s['freemius_product_id'] ) || empty( $s['freemius_plan_id'] ) || empty( $s['freemius_secret_key'] ) ) : ?><br><strong style="color:#b32d2e">⚠️ Freemius не налаштовано</strong><?php endif; ?><?php if ( ! empty( $s['_uapm_duplicate_ids'] ) ) : ?><br><small>Збережені дублікати (дані не видалено): <?php foreach ( $s['_uapm_duplicate_ids'] as $duplicate_id ) : ?><a href="<?php echo esc_url( self::url( 'uapm-paybox-services', array( 'action' => 'edit', 'id' => (int) $duplicate_id ) ) ); ?>">#<?php echo (int) $duplicate_id; ?></a> <?php endforeach; ?></small><?php endif; ?></td>
+						<td><?php echo esc_html( ( $s['service_type'] ?? 'license' ) === 'advertising' ? 'Реклама' : 'PRO / ліцензія' ); ?></td>
 						<td><?php echo esc_html( $s['price'] ); ?></td>
 						<td>Freemius</td>
 						<td><input type="text" readonly class="upb-code" value="[universal_pay_box id=&quot;<?php echo (int) $id; ?>&quot;]" onclick="this.select()"></td>
@@ -241,6 +242,10 @@ class UPB_Admin {
 				<?php wp_nonce_field( 'uapm_upb_save_service_' . (int) $id ); ?>
 
 				<table class="form-table" role="presentation">
+					<tr>
+						<th><label for="upb-service-type">Призначення послуги</label></th>
+						<td><select id="upb-service-type" name="svc[service_type]"><option value="license" <?php selected( $v['service_type'] ?? 'license', 'license' ); ?>>PRO / ліцензія розширення</option><option value="advertising" <?php selected( $v['service_type'] ?? 'license', 'advertising' ); ?>>Розміщення реклами</option></select><p class="description">Послуги PRO і рекламні платежі зберігаються окремо. Для рекламного блоку обирайте «Розміщення реклами».</p></td>
+					</tr>
 					<tr>
 						<th><label for="upb-slug">Slug плагіна</label></th>
 						<td><input id="upb-slug" name="svc[slug]" type="text" class="regular-text code" value="<?php echo esc_attr( $v['slug'] ); ?>" placeholder="voice-add-woocommerce">
@@ -385,6 +390,8 @@ class UPB_Admin {
 			exit;
 		}
 
+		// Notify the central manager so project-to-service links are refreshed immediately.
+		do_action( 'uapm_paybox_service_saved', $saved_id, $saved );
 		// Return to the same service so the administrator can immediately confirm saved values.
 		wp_safe_redirect( self::url( 'uapm-paybox-services', array( 'action' => 'edit', 'id' => $saved_id, 'upb_notice' => 'saved' ) ) );
 		exit;

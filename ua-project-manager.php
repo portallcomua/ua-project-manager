@@ -4,7 +4,7 @@
  * Plugin URI: https://uaserver.pp.ua/
  * Update URI: https://github.com/portallcomua/ua-project-manager
  * Description: Central management system for UA projects, plugins, releases, licenses, payments and integrations.
- * Version: 1.0.9
+ * Version: 1.1.0
  * Author: UA Tools
  * Author URI: https://uaserver.pp.ua/
  * Text Domain: ua-project-manager
@@ -18,11 +18,11 @@ if (!defined('ABSPATH')) {
 }
 
 if (!defined('UAPM_VERSION')) {
-    define('UAPM_VERSION', '1.0.9');
+    define('UAPM_VERSION', '1.1.0');
 }
 
 if (!defined('UAPM_DB_VERSION')) {
-    define('UAPM_DB_VERSION', '1.3.0');
+    define('UAPM_DB_VERSION', '1.4.0');
 }
 
 if (!defined('UAPM_FILE')) {
@@ -90,6 +90,8 @@ final class UAPM_Plugin {
             'class-uapm-roles.php',
             'class-uapm-settings.php',
             'class-uapm-projects.php',
+            'class-uapm-advertising.php',
+            'class-uapm-shared-sync.php',
             'class-uapm-customers.php',
             'class-uapm-clients.php',
             'class-uapm-payments.php',
@@ -182,6 +184,8 @@ final class UAPM_Plugin {
         $classes = array(
             'UAPM_Settings',
             'UAPM_Projects',
+            'UAPM_Advertising',
+            'UAPM_Shared_Sync',
             'UAPM_Customers',
             'UAPM_License_Manager',
             'UAPM_License_Sites',

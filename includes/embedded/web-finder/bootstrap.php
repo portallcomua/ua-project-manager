@@ -6,11 +6,11 @@ if (!defined('ABSPATH')) {
 }
 
 // Keep the legacy public constants available to older add-ons.
-if (!defined('CMSF_VERSION')) define('CMSF_VERSION', '2.6.0');
+if (!defined('CMSF_VERSION')) define('CMSF_VERSION', '2.6.1');
 if (!defined('CMSF_DIR')) define('CMSF_DIR', __DIR__ . '/');
 if (!defined('CMSF_URL')) define('CMSF_URL', \UAPM_URL . 'includes/embedded/web-finder/');
 
-define(__NAMESPACE__ . '\\CMSF_VERSION', '2.6.0');
+define(__NAMESPACE__ . '\\CMSF_VERSION', '2.6.1');
 define(__NAMESPACE__ . '\\CMSF_DIR', __DIR__ . '/');
 define(__NAMESPACE__ . '\\CMSF_URL', \UAPM_URL . 'includes/embedded/web-finder/');
 
@@ -51,10 +51,10 @@ function cmsf_contacts_maybe_install() {
     }
 
     $installed_version = get_option('cmsf_contacts_db_version', '');
-    if ($installed_version !== '1.1' || !cmsf_contacts_tables_exist()) {
+    if ($installed_version !== '1.2' || !cmsf_contacts_tables_exist()) {
         cmsf_contacts_install();
         if (cmsf_contacts_tables_exist()) {
-            update_option('cmsf_contacts_db_version', '1.1', false);
+            update_option('cmsf_contacts_db_version', '1.2', false);
         }
     }
 }

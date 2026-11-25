@@ -68,6 +68,7 @@ function cmsf_contacts_install() {
         status varchar(20) NOT NULL DEFAULT 'queued',
         max_pages int(11) NOT NULL DEFAULT 100,
         max_depth int(11) NOT NULL DEFAULT 3,
+        project_ids longtext NULL,
         pages_done int(11) NOT NULL DEFAULT 0,
         emails_found int(11) NOT NULL DEFAULT 0,
         queue longtext NULL,
@@ -427,7 +428,7 @@ function cmsfc_extract_links($html, $page_url, $root_domain) {
  * 7. Створення списку та початок сканування
  * --------------------------------------------------------- */
 
-function cmsfc_create_list($domain, $name, $max_pages, $max_depth) {
+function cmsfc_create_list($domain, $name, $max_pages, $max_depth, $project_ids = array()) {
     global $wpdb;
 
     $domain = strtolower(trim($domain));
@@ -462,6 +463,7 @@ function cmsfc_create_list($domain, $name, $max_pages, $max_depth) {
             'status' => 'queued',
             'max_pages' => max(1, min(5000, (int)$max_pages)),
             'max_depth' => max(0, min(10, (int)$max_depth)),
+            'project_ids' => wp_json_encode(array_values(array_filter(array_map('absint', (array)$project_ids)))),
             'pages_done' => 0,
             'emails_found' => 0,
             'queue' => wp_json_encode($queue),
@@ -640,7 +642,8 @@ add_action('wp_ajax_uapm_cmsfc_start', function () {
         sanitize_text_field(wp_unslash($_POST['domain'] ?? '')),
         sanitize_text_field(wp_unslash($_POST['name'] ?? '')),
         (int)($_POST['max_pages'] ?? 100),
-        (int)($_POST['max_depth'] ?? 3)
+        (int)($_POST['max_depth'] ?? 3),
+        array_map('absint', (array) wp_unslash($_POST['project_ids'] ?? array()))
     );
 
     if (is_wp_error($id)) {
@@ -696,6 +699,18 @@ add_action('wp_ajax_uapm_cmsfc_control', function () {
  * 11. AJAX: список списків контактів
  * --------------------------------------------------------- */
 
+add_action('wp_ajax_uapm_cmsfc_set_projects', function () {
+    cmsfc_ajax_guard();
+    global $wpdb;
+    $id = absint($_POST['list_id'] ?? 0);
+    $ids = array_values(array_unique(array_filter(array_map('absint', (array)wp_unslash($_POST['project_ids'] ?? array())))));
+    $valid = array();
+    if (class_exists('UAPM_Projects')) foreach ($ids as $project_id) if (UAPM_Projects::get($project_id)) $valid[] = $project_id;
+    $updated = $wpdb->update(cmsfc_table('lists'), array('project_ids'=>wp_json_encode($valid),'updated_at'=>current_time('mysql')), array('id'=>$id));
+    if ($updated === false) wp_send_json_error('Не вдалося зберегти зв’язок із проєктами.');
+    wp_send_json_success(array('project_ids'=>$valid));
+});
+
 add_action('wp_ajax_uapm_cmsfc_lists', function () {
     cmsfc_ajax_guard();
 
@@ -716,7 +731,9 @@ add_action('wp_ajax_uapm_cmsfc_lists', function () {
             'status' => $row['status'],
             'pages_done' => (int)$row['pages_done'],
             'emails_found' => (int)$row['emails_found'],
-            'contacts_count' => (int)$row['emails_found']
+            'contacts_count' => (int)$row['emails_found'],
+            'project_ids' => array_map('absint', (array) json_decode($row['project_ids'] ?? '[]', true)),
+            'projects' => function_exists(__NAMESPACE__ . '\\cmsf_project_names') ? cmsf_project_names((array)json_decode($row['project_ids'] ?? '[]', true)) : array()
         ];
     }
 
@@ -1216,6 +1233,7 @@ add_action('admin_enqueue_scripts', function ($hook) {
         'nonce' => wp_create_nonce('uapm_cmsfc'),
         'exportUrl' => admin_url('admin-post.php'),
         'exportNonce' => wp_create_nonce('uapm_cmsfc_export'),
+        'projects' => class_exists('UAPM_Projects') ? array_map(function($p){ return array('id'=>(int)$p->id,'name'=>$p->name); }, UAPM_Projects::get_all(array('status'=>'active','limit'=>200,'orderby'=>'name','order'=>'ASC'))) : array(),
         'locale' => cmsf_is_english_locale() ? 'en' : 'uk',
         'translations' => cmsf_is_english_locale() ? cmsf_i18n_dictionary() : []
     ]);
@@ -1250,6 +1268,14 @@ function cmsfc_admin_page() {
                 <label>
                     Назва списку
                     <input type="text" id="cmsfc-name" placeholder="Автоматично: домен — контакти">
+                </label>
+                <label>
+                    Пов’язаний проєкт (можна декілька)
+                    <select id="cmsfc-projects" multiple size="4" style="min-width:240px">
+                    <?php if (class_exists('UAPM_Projects')) : foreach (\UAPM_Projects::get_all(array('status'=>'active','limit'=>200,'orderby'=>'name','order'=>'ASC')) as $project) : ?>
+                        <option value="<?php echo (int)$project->id; ?>"><?php echo esc_html($project->name); ?></option>
+                    <?php endforeach; endif; ?>
+                    </select>
                 </label>
 
                 <label>
@@ -1288,6 +1314,7 @@ function cmsfc_admin_page() {
                         <tr>
                             <th>Назва списку</th>
                             <th>Домен</th>
+                            <th>Пов’язані проєкти</th>
                             <th>Сторінок</th>
                             <th>Email</th>
                             <th>Статус</th>

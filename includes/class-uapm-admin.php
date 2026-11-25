@@ -401,6 +401,25 @@ final class UAPM_Admin {
         echo '<textarea id="uapm-project-description" name="project[description]">' . esc_textarea($value('description')) . '</textarea>';
         echo '</div>';
 
+        // Додаткові параметри відображення та рекламні налаштування проєкту.
+        $display = class_exists('UAPM_Advertising') ? UAPM_Advertising::get_project_extras($value('id', 0)) : array();
+        echo '<hr><h3>Відображення проєкту та реклама</h3>';
+        echo '<div class="uapm-field"><label for="uapm-all-projects-url">Посилання «Всі проєкти»</label><input type="url" id="uapm-all-projects-url" name="project[all_projects_url]" value="' . esc_attr($display['all_projects_url'] ?? '') . '" placeholder="https://uaserver.pp.ua/..."> <label><input type="checkbox" name="project[all_projects_visible]" value="1" ' . checked(!empty($display['all_projects_visible']), true, false) . '> Відображати посилання у плагіні / додатку</label></div>';
+        echo '<div class="uapm-field"><label for="uapm-project-banner-html">HTML banner для цього проєкту</label><textarea id="uapm-project-banner-html" name="project[project_banner_html]" rows="5" class="large-text code">' . esc_textarea($display['project_banner_html'] ?? '') . '</textarea><label><input type="checkbox" name="project[project_banner_visible]" value="1" ' . checked(!empty($display['project_banner_visible']), true, false) . '> Відображати банер у плагіні / додатку</label></div>';
+        echo '<div class="uapm-field"><label><input type="checkbox" name="project[ads_available]" value="1" ' . checked(!empty($display['ads_available']), true, false) . '> Доступний для розміщення реклами</label><p class="description">Якщо галочка вимкнена, проєкт не з’являється у виборі рекламного блоку.</p></div>';
+        if ($is_edit && class_exists('UAPM_Advertising')) {
+            echo '<div class="uapm-field"><label>Код підключення рекламного блоку</label><textarea readonly rows="5" class="large-text code" onclick="this.select()">' . esc_textarea(UAPM_Advertising::project_embed_code($value('id', 0))) . '</textarea></div>';
+        }
+        if ($is_edit && class_exists('UAPM_Shared_Sync')) {
+            $finder = UAPM_Shared_Sync::project_finder_summary($value('id', 0));
+            echo '<hr><h3>Пов’язані дані Web Finder</h3>';
+            echo '<p>Списки пошуку: <strong>' . count($finder['search_lists']) . '</strong> · Сайтів: <strong>' . (int)$finder['sites'] . '</strong></p>';
+            echo '<p>Списки контактів: <strong>' . count($finder['contact_lists']) . '</strong> · Email: <strong>' . (int)$finder['emails'] . '</strong> · Кампанії: <strong>' . (int)$finder['campaigns'] . '</strong></p>';
+            if ($finder['search_lists']) echo '<p><strong>Списки сайтів:</strong> ' . esc_html(implode(', ', $finder['search_lists'])) . '</p>';
+            if ($finder['contact_lists']) echo '<p><strong>Списки контактів:</strong> ' . esc_html(implode(', ', $finder['contact_lists'])) . '</p>';
+            if (!$finder['search_lists'] && !$finder['contact_lists']) echo '<p class="description">Ще немає пов’язаних списків. У Finder можна створити новий список або прив’язати наявний до цього проєкту.</p>';
+        }
+
         echo '<p class="submit">';
         echo '<button type="submit" class="button button-primary">' . esc_html($is_edit ? __('Зберегти зміни', 'ua-project-manager') : __('Створити проєкт', 'ua-project-manager')) . '</button> ';
 
@@ -436,6 +455,7 @@ final class UAPM_Admin {
         echo '<th>' . esc_html__('Тип', 'ua-project-manager') . '</th>';
         echo '<th>' . esc_html__('Версія', 'ua-project-manager') . '</th>';
         echo '<th>' . esc_html__('Статус', 'ua-project-manager') . '</th>';
+        echo '<th>Рекламодавець / покази / кліки / період</th>';
 
         if ($show_actions) {
             echo '<th>' . esc_html__('Дії', 'ua-project-manager') . '</th>';
@@ -472,6 +492,14 @@ final class UAPM_Admin {
             echo '<td>' . esc_html(ucwords(str_replace(array('-', '_'), ' ', $project->project_type))) . '</td>';
             echo '<td>' . esc_html($project->version) . '</td>';
             echo '<td>' . self::status_badge($project->status) . '</td>';
+            echo '<td>';
+            if (class_exists('UAPM_Advertising')) {
+                $ad = UAPM_Advertising::project_ad_summary($project->id);
+                if ($ad) {
+                    echo '<strong>' . esc_html($ad['advertiser']) . '</strong><br>Покази: ' . (int)$ad['impressions'] . ' · Кліки: ' . (int)$ad['clicks'] . '<br><small>' . esc_html($ad['start'] . ' — ' . $ad['end']) . '</small>';
+                } else { echo '—'; }
+            } else { echo '—'; }
+            echo '</td>';
 
             if ($show_actions) {
                 echo '<td><div class="uapm-actions">';

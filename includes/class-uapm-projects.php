@@ -824,6 +824,11 @@ final class UAPM_Projects {
             self::redirect_with_notice('error', $result->get_error_message());
         }
 
+        $saved_project_id = $project_id ? $project_id : absint($result);
+        if ($saved_project_id && class_exists('UAPM_Advertising')) {
+            UAPM_Advertising::save_project_extras($saved_project_id, $data);
+        }
+
         self::redirect_with_notice('success', __('Проєкт успішно збережено.', 'ua-project-manager'), 'uapm-projects');
     }
 

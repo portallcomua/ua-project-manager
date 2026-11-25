@@ -1,0 +1,103 @@
+name: Automatic plugin release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          coverage: none
+
+      - name: Read version from plugin header
+        id: meta
+        shell: bash
+        run: |
+          VERSION=$(php -r '$s=file_get_contents("ua-project-manager.php"); preg_match("/Version:\s*([0-9.]+)/", $s, $m); echo $m[1] ?? "";')
+          test -n "$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check whether this version was already released
+        id: release_check
+        shell: bash
+        run: |
+          VERSION="${{ steps.meta.outputs.version }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release v$VERSION already exists; no duplicate release will be created."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check PHP syntax
+        if: steps.release_check.outputs.exists == 'false'
+        shell: bash
+        run: |
+          set -e
+          find . -path './.git' -prune -o -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Build installable ZIP
+        if: steps.release_check.outputs.exists == 'false'
+        shell: bash
+        run: |
+          set -e
+          VERSION="${{ steps.meta.outputs.version }}"
+          mkdir -p build/ua-project-manager
+          cp ua-project-manager.php build/ua-project-manager/
+          cp -R includes build/ua-project-manager/
+          if [ -d assets ]; then cp -R assets build/ua-project-manager/; fi
+          if [ -d languages ]; then cp -R languages build/ua-project-manager/; fi
+          if [ -f readme.txt ]; then cp readme.txt build/ua-project-manager/; fi
+          if [ -f README.md ]; then cp README.md build/ua-project-manager/; fi
+          cd build
+          zip -qr "../ua-project-manager-$VERSION.zip" ua-project-manager
+          unzip -t "../ua-project-manager-$VERSION.zip"
+          cp "../ua-project-manager-$VERSION.zip" ../ua-project-manager.zip
+
+      - name: Publish GitHub release for WordPress updater
+        if: steps.release_check.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.meta.outputs.version }}
+          target_commitish: main
+          name: UA Project Manager ${{ steps.meta.outputs.version }}
+          body: |
+            UA Project Manager ${{ steps.meta.outputs.version }}
+
+            - Added the Advertising module: advertisers, contacts, banners, project selection, placement periods, payments and statistics.
+            - Added impression and click tracking, monthly advertiser reports, seven-day expiry reminders and expiry-day renewal reminders.
+            - Added Freemius advertising payment handling through the existing signed Pay Box webhook; successful verified payments create the next placement period.
+            - Separated Pay Box service purposes: PRO licenses and advertising placement.
+            - Added project-level display settings for the All Projects link, HTML banner and advertising availability.
+            - Connected Finder website lists and email-collection lists to one or more main projects without replacing their existing records.
+            - Added a central synchronization dashboard and preserved existing Pay Box, Finder and project data.
+          files: |
+            ua-project-manager-${{ steps.meta.outputs.version }}.zip
+            ua-project-manager.zip
+          make_latest: true
+          overwrite_files: true
+
+      - name: Upload build artifact
+        if: steps.release_check.outputs.exists == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ua-project-manager-${{ steps.meta.outputs.version }}
+          path: ua-project-manager-${{ steps.meta.outputs.version }}.zip
+          if-no-files-found: error
+          retention-days: 14
