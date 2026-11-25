@@ -12,7 +12,7 @@ on:
       - ".github/workflows/android-apk.yml"
 
 permissions:
-  contents: read
+  contents: write
   issues: write
   pull-requests: write
 
@@ -66,3 +66,19 @@ jobs:
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
+      - name: Prepare named APK asset
+        if: success()
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk ua-project-manager-android-tasks-0.1.0.apk
+      - name: Publish Android test APK release
+        if: success() && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-v0.1.0
+          target_commitish: main
+          name: UA Project Manager Android Tasks 0.1.0
+          body: |
+            Перша тестова Android-версія UA Project Manager.
+            Поки доступний лише модуль задач: локальне збереження, офлайн-створення/редагування/виконання та синхронізація з WordPress через HTTPS і Application Password.
+            Це debug APK для тестування, не реліз Google Play.
+          files: ua-project-manager-android-tasks-0.1.0.apk
+          make_latest: false
