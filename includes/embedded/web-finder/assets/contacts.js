@@ -256,6 +256,16 @@
 
             if (listTable) {
                 listTable.innerHTML = '';
+                listTable.onclick = async function (event) {
+                    const button = event.target.closest('.cmsfc-save-projects');
+                    if (!button) return;
+                    const row = button.closest('tr');
+                    const projectIds = Array.from(row.querySelector('.cmsfc-projects').selectedOptions).map(function (o) { return o.value; });
+                    try {
+                        await request('uapm_cmsfc_set_projects', { list_id: row.dataset.listId, project_ids: projectIds });
+                        message('cmsfc-status', 'Зв’язок списку з проєктами збережено.');
+                    } catch (error) { showError('cmsfc-status', error); }
+                };
             }
 
             if (!Array.isArray(rows)) {
@@ -293,15 +303,35 @@
                 if (listTable) {
 
                     const tr = document.createElement('tr');
+                    tr.dataset.listId = String(item.id);
 
-                    [
-                        item.name,
-                        item.domain,
-                        (item.projects || []).join(', ') || '—',
-                        item.pages_done,
-                        item.emails_found,
-                        item.status
-                    ].forEach(function (value) {
+                    [item.name, item.domain].forEach(function (value) {
+                        const td = document.createElement('td');
+                        td.textContent = String(value ?? '');
+                        tr.appendChild(td);
+                    });
+
+                    const projectCell = document.createElement('td');
+                    const projectSelect = document.createElement('select');
+                    projectSelect.multiple = true;
+                    projectSelect.size = 3;
+                    projectSelect.className = 'cmsfc-projects';
+                    (CMSFC.projects || []).forEach(function (project) {
+                        const option = document.createElement('option');
+                        option.value = String(project.id);
+                        option.textContent = project.name;
+                        option.selected = (item.project_ids || []).map(Number).includes(Number(project.id));
+                        projectSelect.appendChild(option);
+                    });
+                    projectCell.appendChild(projectSelect);
+                    const saveProjects = document.createElement('button');
+                    saveProjects.type = 'button';
+                    saveProjects.className = 'button button-small cmsfc-save-projects';
+                    saveProjects.textContent = 'Зберегти';
+                    projectCell.appendChild(saveProjects);
+                    tr.appendChild(projectCell);
+
+                    [item.pages_done, item.emails_found, item.status].forEach(function (value) {
 
                         const td = document.createElement('td');
 
