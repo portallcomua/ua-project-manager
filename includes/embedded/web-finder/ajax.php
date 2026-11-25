@@ -137,6 +137,7 @@ cmsf_ajax('lists', function () {
     foreach (cmsf_lists_all() as $l) {
         $out[] = ['id' => (int)$l['id'], 'name' => $l['name'], 'created' => mysql2date('d.m.Y H:i', $l['created_at']), 'updated' => mysql2date('d.m.Y H:i', $l['updated_at']),
             'cms' => (array)($l['params']['cms'] ?? []), 'regions' => (array)($l['params']['regions'] ?? []),
+            'project_ids' => array_map('absint', (array)($l['params']['project_ids'] ?? [])),
             'projects' => cmsf_project_names((array)($l['params']['project_ids'] ?? [])), 'stats' => $l['stats']];
     }
     wp_send_json_success($out);
@@ -148,6 +149,20 @@ cmsf_ajax('list_rename', function () {
     if ($name === '') wp_send_json_error('Порожня назва');
     $wpdb->update(cmsf_t('lists'), ['name' => $name, 'updated_at' => cmsf_now()], ['id' => (int)cmsf_post('list_id')]);
     wp_send_json_success();
+});
+
+cmsf_ajax('list_set_projects', function () {
+    global $wpdb;
+    $id = absint(cmsf_post('list_id'));
+    $list = cmsf_list_get($id);
+    if (!$list) wp_send_json_error('Список не знайдено');
+    $ids = array_values(array_unique(array_filter(array_map('absint', (array)cmsf_post('project_ids', array())))));
+    $valid = array();
+    if (class_exists('UAPM_Projects')) foreach ($ids as $project_id) if (UAPM_Projects::get($project_id)) $valid[] = $project_id;
+    $params = (array)$list['params'];
+    $params['project_ids'] = $valid;
+    $wpdb->update(cmsf_t('lists'), array('params'=>wp_json_encode($params),'updated_at'=>cmsf_now()), array('id'=>$id));
+    wp_send_json_success(array('project_ids'=>$valid,'projects'=>cmsf_project_names($valid)));
 });
 
 cmsf_ajax('list_delete', function () {
