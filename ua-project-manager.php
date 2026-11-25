@@ -105,6 +105,7 @@ final class UAPM_Plugin {
             'class-uapm-integrations.php',
             'embedded/pay-box/bootstrap.php',
             'embedded/web-finder/bootstrap.php',
+            'embedded/click-counter/ua-click-counter.php',
             'class-uapm-notifications.php',
             'class-uapm-email-templates.php',
             'class-uapm-queue.php',
@@ -268,10 +269,6 @@ final class UAPM_Plugin {
         }
 
         $dependencies = array(
-            'UA Click Counter' => array(
-                'slug' => 'ua-click-counter/ua-click-counter.php',
-                'description' => 'Облік натискань на кнопки та посилання.',
-            ),
             'UA Plugins Monitor' => array(
                 'slug' => 'ua-plugins-monitor/ua-plugins-monitor.php',
                 'description' => 'Моніторинг встановлень та оновлень.',
