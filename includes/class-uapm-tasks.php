@@ -171,6 +171,7 @@ class UAPM_Tasks {
                 'status' => $status,
                 'completed_at' => $completed_at,
                 'updated_at' => current_time('mysql'),
+                'revision' => isset($task->revision) ? ((int) $task->revision + 1) : 1,
             ),
             array('id' => absint($task_id)),
             array('%s', '%s', '%s'),
@@ -203,6 +204,7 @@ class UAPM_Tasks {
         $where = array('1=1');
         $params = array();
         $table = $wpdb->prefix . self::TABLE;
+        $where[] = 'deleted_at IS NULL';
 
         if (!current_user_can('uapm_manage_projects')) {
             $where[] = '(created_by = %d OR assigned_user_id = %d)';
@@ -536,10 +538,15 @@ class UAPM_Tasks {
 
         check_admin_referer('uapm_delete_task_' . $task_id);
 
-        $result = $wpdb->delete(
+        $task = self::get($task_id);
+        $result = $wpdb->update(
             $wpdb->prefix . self::TABLE,
-            array('id' => $task_id),
-            array('%d')
+            array(
+                'deleted_at' => current_time('mysql'),
+                'updated_at' => current_time('mysql'),
+                'revision' => isset($task->revision) ? ((int) $task->revision + 1) : 1,
+            ),
+            array('id' => $task_id)
         );
 
         if ($result === false) {
