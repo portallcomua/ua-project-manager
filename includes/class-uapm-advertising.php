@@ -250,7 +250,7 @@ final class UAPM_Advertising {
         if ($type === 'freemius' && is_email($advertiser->email)) {
             $checkout = class_exists('\\UAPM\\PayBox\\UPB_Freemius') ? \UAPM\PayBox\UPB_Freemius::checkout_url($services[$service_id]) : '';
             if ($checkout) {
-                $checkout = add_query_arg('user_email', rawurlencode($advertiser->email), $checkout);
+                $checkout = add_query_arg('user_email', $advertiser->email, $checkout);
                 wp_mail($advertiser->email, 'Оплата розміщення реклами', 'Для оплати розміщення реклами перейдіть за посиланням: ' . $checkout);
             }
         }
@@ -280,7 +280,7 @@ final class UAPM_Advertising {
             $advertiser_email = $wpdb->get_var($wpdb->prepare("SELECT email FROM " . self::table('advertisers') . " WHERE id=%d", (int)$block->advertiser_id));
             if (is_email($advertiser_email) && !empty($services[(int)$block->service_id])) {
                 $checkout = \UAPM\PayBox\UPB_Freemius::checkout_url($services[(int)$block->service_id]);
-                if ($checkout) wp_mail($advertiser_email, 'Оплата розміщення реклами', 'Для оплати розміщення реклами перейдіть за посиланням: ' . add_query_arg('user_email', rawurlencode($advertiser_email), $checkout));
+                if ($checkout) wp_mail($advertiser_email, 'Оплата розміщення реклами', 'Для оплати розміщення реклами перейдіть за посиланням: ' . add_query_arg('user_email', $advertiser_email, $checkout));
             }
         }
         wp_safe_redirect(add_query_arg(array('page'=>'uapm-advertising','advertiser_id'=>(int)$block->advertiser_id,'payment_saved'=>'1'), admin_url('admin.php')));
@@ -661,7 +661,7 @@ final class UAPM_Advertising {
         if (!$checkout) return home_url('/');
         $token=hash('sha256',wp_generate_password(40,false,false).microtime(true));
         $wpdb->insert(self::table('renewals'),array('block_id'=>(int)$block->id,'advertiser_id'=>(int)$block->advertiser_id,'service_id'=>$service_id,'token'=>$token,'checkout_url'=>$checkout,'status'=>'pending','created_at'=>current_time('mysql')));
-        return add_query_arg('user_email',rawurlencode((string)$wpdb->get_var($wpdb->prepare("SELECT email FROM " . self::table('advertisers') . " WHERE id=%d",$block->advertiser_id))),$checkout);
+        return add_query_arg('user_email',(string)$wpdb->get_var($wpdb->prepare("SELECT email FROM " . self::table('advertisers') . " WHERE id=%d",$block->advertiser_id)),$checkout);
     }
 
     private static function send_monthly_reports() {
