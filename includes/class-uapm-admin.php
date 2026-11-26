@@ -15,28 +15,125 @@ final class UAPM_Admin {
     public static function init() {
         add_action('admin_menu', array(__CLASS__, 'register_menu'));
         add_action('admin_menu', array(__CLASS__, 'hide_legacy_module_menus'), 999);
+        add_action('admin_head', array(__CLASS__, 'admin_menu_styles'), 999);
         add_action('admin_enqueue_scripts', array(__CLASS__, 'enqueue_styles'));
     }
 
-    /** Hide duplicate top-level menus from the old standalone modules while keeping their data untouched. */
+    /**
+     * Замість довгого плоского списку показуємо короткі тематичні розділи.
+     * Старі сторінки та їхні callback-и залишаються зареєстрованими.
+     */
     public static function hide_legacy_module_menus() {
-        if (class_exists('\\UAPM\\PayBox\\UPB_Admin')) {
-            remove_menu_page('upb-premiums');
-        }
-        if (function_exists('\\UAPM\\WebFinder\\cmsf_page_search')) {
-            remove_menu_page('cms-checker');
+        if (class_exists('\UAPM\PayBox\UPB_Admin')) remove_menu_page('upb-premiums');
+        if (function_exists('\UAPM\WebFinder\cmsf_page_search')) remove_menu_page('cms-checker');
+
+        $menus = array(
+            'uapm-hub-projects' => 'Проєкти',
+            'uapm-hub-advertising' => 'Реклама',
+            'uapm-hub-payments' => 'Оплати',
+            'uapm-hub-finder' => 'Пошук сайтів',
+            'uapm-hub-mailings' => 'Контакти та розсилки',
+            'uapm-hub-tools' => 'Інструменти',
+            'uapm-hub-settings' => 'Налаштування',
+        );
+        foreach ($menus as $slug => $label) {
+            add_submenu_page('uapm', $label, $label, 'manage_options', $slug, array(__CLASS__, 'render_hub'));
         }
 
-        // Keep the standalone Click Counter active until the owner chooses to switch.
-        // The embedded module intentionally avoids duplicate AJAX/shortcode handlers.
-        if (class_exists('\\UACC')) {
+        // Окремий Click Counter лишається вимкненим/увімкненим так, як його налаштував власник.
+        if (class_exists('\UACC')) {
             add_action('admin_notices', function () {
-                if (!current_user_can('manage_options')) {
-                    return;
+                if (current_user_can('manage_options')) {
+                    echo '<div class="notice notice-info"><p><strong>UA Project Manager:</strong> Вбудований Click Counter доступний у розділі «Реклама».</p></div>';
                 }
-                echo '<div class="notice notice-info"><p><strong>UA Project Manager:</strong> Щоб перенести меню UA Click Counter всередину цього плагіна, деактивуйте окремий плагін UA Click Counter після перевірки. Його кнопки, лічильники та email залишаються у базі й будуть доступні вбудованому модулю.</p></div>';
             });
         }
+    }
+
+    /** Приховуємо старі пункти меню, не видаляючи сторінки, дані чи обробники. */
+    public static function admin_menu_styles() {
+        if (!is_admin()) return;
+        echo '<style>
+            #toplevel_page_uapm .wp-submenu li:not(:has(> a[href*="page=uapm-hub-"])) { display:none !important; }
+            #toplevel_page_uapm .wp-submenu { padding:6px 0 !important; }
+            #toplevel_page_uapm .wp-submenu a { padding-top:7px !important; padding-bottom:7px !important; }
+        </style>';
+    }
+
+    /** Посилання на наявні сторінки модулів, згруповані за призначенням. */
+    private static function hub_sections() {
+        return array(
+            'uapm-hub-projects' => array('title'=>'Проєкти та робота','description'=>'Проєкти, клієнти, завдання й матеріали.','links'=>array(
+                array('Проєкти','uapm-projects','Створення та керування проєктами.'),
+                array('Клієнти','uapm-clients','Картки клієнтів.'),
+                array('Завдання','uapm-tasks','Поточні роботи та контроль виконання.'),
+                array('Етапи','uapm-milestones','Етапи проєктів.'),
+                array('Календар','uapm-calendar','Календар проєктних подій.'),
+                array('Нотатки','uapm-notes','Робочі нотатки.'),
+                array('Коментарі','uapm-comments','Обговорення проєктів.'),
+                array('Файли','uapm-attachments','Файли проєктів.'),
+                array('Активність','uapm-project-activity','Історія дій у проєктах.')
+            )),
+            'uapm-hub-advertising' => array('title'=>'Реклама','description'=>'Рекламодавці, блоки, статистика та кнопки.','links'=>array(
+                array('Рекламодавці та блоки','uapm-advertising','Створення рекламних розміщень.'),
+                array('Звіти реклами','uapm-ad-reports','Покази та кліки.'),
+                array('Кнопки завантаження','uacc','Кнопки й лічильники.'),
+                array('Розсилка кнопок','uacc_newsletter','Повідомлення користувачам кнопок.')
+            )),
+            'uapm-hub-payments' => array('title'=>'Оплати та Pay Box','description'=>'Послуги, платежі й платіжні налаштування.','links'=>array(
+                array('Платежі','uapm-payments','Облік оплат і часткових надходжень.'),
+                array('Послуги Pay Box','uapm-paybox-services','Платні послуги проєктів.'),
+                array('PRO-ліцензії','uapm-paybox-premiums','PRO-плани та ліцензії.'),
+                array('Налаштування Pay Box','uapm-paybox-settings','Параметри платіжного модуля.')
+            )),
+            'uapm-hub-finder' => array('title'=>'Пошук сайтів','description'=>'Пошук доменів, імпорт і збережені списки.','links'=>array(
+                array('Пошук сайтів','uapm-finder-search','Пошук за CMS, регіоном і мовою.'),
+                array('Імпорт доменів','uapm-finder-import','Завантаження власного списку доменів.'),
+                array('Списки сайтів','uapm-finder-lists','Перегляд результатів пошуку.')
+            )),
+            'uapm-hub-mailings' => array('title'=>'Контакти та розсилки','description'=>'Збір email, шаблони й кампанії.','links'=>array(
+                array('Збір email та кампанії','uapm-finder-contacts','Сканування сайтів, адреси та кампанії.'),
+                array('Шаблони листів','uapm-finder-templates','Шаблони для Finder.'),
+                array('Налаштування Finder','uapm-finder-settings','Параметри пошуку й збору контактів.'),
+                array('Розсилки клієнтам','uapm-mailings','Кампанії для клієнтів проєктів.'),
+                array('Pro / Активація','uapm-finder-pro','Стан пробного періоду та активація.')
+            )),
+            'uapm-hub-tools' => array('title'=>'Інструменти','description'=>'GitHub, код, інтеграції та технічні модулі.','links'=>array(
+                array('Глобальний пошук','uapm-search','Пошук у даних менеджера.'),
+                array('GitHub та релізи','uapm-github','Репозиторії та версії.'),
+                array('Генератор коду','uapm-code-generator','Підготовка коду.'),
+                array('Перевірка коду','uapm-code-inspector','Перевірка файлів і плагінів.'),
+                array('Інтеграції','uapm-integrations','Підключені модулі та сервіси.'),
+                array('Завантаження','uapm-downloads','Файли та пакети.'),
+                array('Встановлення','uapm-installations','Облік встановлень.'),
+                array('Аналітика','uapm-analytics','Зведені показники.'),
+                array('Синхронізація','uapm-sync','Стан вбудованих модулів.')
+            )),
+            'uapm-hub-settings' => array('title'=>'Налаштування системи','description'=>'Загальні параметри та перевірка системи.','links'=>array(
+                array('Налаштування','uapm-settings','Параметри UA Project Manager.'),
+                array('Імпорт даних','uapm-import','Імпорт та експорт.'),
+                array('Залежності','uapm-dependencies','Перевірка компонентів.')
+            ))
+        );
+    }
+
+    /** Відображає вибраний розділ у вигляді простих карток. */
+    public static function render_hub() {
+        if (!current_user_can('manage_options')) wp_die('Недостатньо прав для перегляду цього розділу.');
+        $slug = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
+        $sections = self::hub_sections();
+        if (!isset($sections[$slug])) wp_die('Розділ не знайдено.');
+        $section = $sections[$slug];
+        echo '<div class="wrap"><h1>' . esc_html($section['title']) . '</h1>';
+        echo '<p class="description" style="font-size:14px;margin:8px 0 20px">' . esc_html($section['description']) . '</p>';
+        echo '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;max-width:1100px">';
+        foreach ($section['links'] as $item) {
+            $url = admin_url('admin.php?page=' . rawurlencode($item[1]));
+            echo '<a href="' . esc_url($url) . '" style="display:block;text-decoration:none;background:#fff;border:1px solid #dcdcde;border-radius:8px;padding:17px;color:#1d2327">';
+            echo '<strong style="display:block;font-size:15px;margin-bottom:6px">' . esc_html($item[0]) . ' ›</strong>';
+            echo '<span style="color:#646970;font-size:13px">' . esc_html($item[2]) . '</span></a>';
+        }
+        echo '</div></div>';
     }
 
     public static function register_menu() {
