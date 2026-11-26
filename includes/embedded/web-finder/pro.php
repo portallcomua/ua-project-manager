@@ -74,7 +74,7 @@ function cmsf_freemius_capture_purchase() {
 add_action('admin_init', __NAMESPACE__ . '\\cmsf_freemius_capture_purchase', 1);
 
 add_action('admin_post_uapm_cmsf_save_pro', function () {
-    if (!current_user_can('manage_options')) wp_die('Недостатньо прав.');
+    if (!cmsf_can_manage()) wp_die('Недостатньо прав.');
     check_admin_referer('uapm_cmsf_save_pro');
     $url = esc_url_raw(trim(wp_unslash($_POST['checkout_url'] ?? '')));
     if ($url && (!wp_parse_url($url, PHP_URL_HOST) || !preg_match('~(^|\.)freemius\.com$~i', wp_parse_url($url, PHP_URL_HOST)))) {
@@ -99,11 +99,11 @@ add_action('admin_notices', function () {
 });
 
 add_action('admin_menu', function () {
-    add_submenu_page('uapm', 'UA Web Finder Pro', 'Pro / Активація', 'manage_options', 'uapm-finder-pro', function () { cmsf_pro_render_page(); });
+    add_submenu_page('uapm', 'UA Web Finder Pro', 'Pro / Активація', 'uapm_manage_projects', 'uapm-finder-pro', function () { cmsf_pro_render_page(); });
 }, 20);
 
 function cmsf_pro_render_page() {
-    if (!current_user_can('manage_options')) return;
+    if (!cmsf_can_manage()) return;
     $o = cmsf_pro_options();
     $active = cmsf_pro_is_active();
     $days = cmsf_trial_days_left();
