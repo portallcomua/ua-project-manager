@@ -79,12 +79,12 @@ jobs:
           body: |
             UA Project Manager ${{ steps.meta.outputs.version }}
 
-            - Fixed Web Finder project-class namespace errors in search, saved-list project links and contacts pages.
-            - Restored the Pro activation page and project-mailings page as valid admin submenus.
-            - Grouped admin pages by section and restored UA Click Counter links.
-            - Corrected contact-campaign trial checks and preserved existing Finder lists, contacts, campaigns and project data.
-            - Kept GitHub-based WordPress updates with a stable installable ZIP asset.
-            - Preserved existing database tables and saved records.
+            - Rebuilt the admin menu so every registered module page appears under its correct section.
+            - Added separate Advertisers, Advertising Blocks and Advertising Reports pages, plus customer, license and system-report entries.
+            - Added a one-click forced GitHub update check to the UA Project Manager plugin row.
+            - Improved the GitHub updater cache refresh and direct release check.
+            - Kept the embedded Pay Box and Freemius webhook/license bridge; legacy direct URLs remain available.
+            - Preserved existing plugin data, database tables, settings, projects, payments, Finder lists and contacts.
           files: |
             ua-project-manager-${{ steps.meta.outputs.version }}.zip
             ua-project-manager.zip
