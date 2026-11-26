@@ -42,7 +42,7 @@ final class UAPM_Admin {
         }
 
         // Окремий Click Counter лишається вимкненим/увімкненим так, як його налаштував власник.
-        if (class_exists('\UACC')) {
+        if (class_exists('\\UAPM\\ClickCounter\\UACC_Embedded')) {
             add_action('admin_notices', function () {
                 if (current_user_can('manage_options')) {
                     echo '<div class="notice notice-info"><p><strong>UA Project Manager:</strong> Вбудований Click Counter доступний у розділі «Реклама».</p></div>';
