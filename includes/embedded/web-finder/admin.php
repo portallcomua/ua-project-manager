@@ -23,7 +23,7 @@ add_action('admin_enqueue_scripts', function () {
         'exportUrl' => admin_url('admin-post.php'),
         'exportNonce' => wp_create_nonce('uapm_cmsf_export'),
         'page' => $page,
-        'projects' => class_exists('UAPM_Projects') ? array_map(function($p){ return array('id'=>(int)$p->id,'name'=>$p->name); }, \\UAPM_Projects::get_all(array('status'=>'active','limit'=>200,'orderby'=>'name','order'=>'ASC'))) : array(),
+        'projects' => class_exists('UAPM_Projects') ? array_map(function($p){ return array('id'=>(int)$p->id,'name'=>$p->name); }, \UAPM_Projects::get_all(array('status'=>'active','limit'=>200,'orderby'=>'name','order'=>'ASC'))) : array(),
         'listsUrl' => admin_url('admin.php?page=uapm-finder-lists'),
         'concurrency' => (int)$s['concurrency'],
         'delay' => (int)$s['delay'],
