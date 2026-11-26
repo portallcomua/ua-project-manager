@@ -79,11 +79,9 @@ jobs:
           body: |
             UA Project Manager ${{ steps.meta.outputs.version }}
 
-            - Rebuilt the admin menu so every registered module page appears under its correct section.
-            - Added separate Advertisers, Advertising Blocks and Advertising Reports pages, plus customer, license and system-report entries.
-            - Added a one-click forced GitHub update check to the UA Project Manager plugin row.
-            - Improved the GitHub updater cache refresh and direct release check.
-            - Kept the embedded Pay Box and Freemius webhook/license bridge; legacy direct URLs remain available.
+            - Fixed Web Finder and contact-module menu callbacks so WordPress registers valid admin page routes.
+            - Normalized every UA Project Manager submenu link to the canonical admin.php?page=slug URL and preserved query arguments.
+            - Refreshed Web Finder asset versions so browsers load the corrected navigation script.
             - Preserved existing plugin data, database tables, settings, projects, payments, Finder lists and contacts.
           files: |
             ua-project-manager-${{ steps.meta.outputs.version }}.zip
