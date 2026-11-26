@@ -16,6 +16,7 @@ final class UAPM_Admin {
         add_action('admin_menu', array(__CLASS__, 'register_menu'));
         add_action('admin_menu', array(__CLASS__, 'hide_legacy_module_menus'), 999);
         add_action('admin_menu', array(__CLASS__, 'organize_module_menus'), 1000);
+        add_action('admin_head', array(__CLASS__, 'admin_menu_styles'), 999);
         add_action('admin_enqueue_scripts', array(__CLASS__, 'enqueue_styles'));
     }
 
