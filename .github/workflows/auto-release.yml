@@ -46,7 +46,6 @@ jobs:
           fi
 
       - name: Check PHP syntax
-        if: steps.release_check.outputs.exists == 'false'
         shell: bash
         run: |
           set -e
