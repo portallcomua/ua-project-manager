@@ -1190,10 +1190,10 @@ add_action('admin_menu', function () {
         'Збір і розсилка: email та контакти',
         'manage_options',
         'uapm-finder-contacts',
-        __NAMESPACE__ . '\\cmsfc_admin_page'
+        function () { cmsfc_admin_page(); }
     );
-    add_submenu_page('uapm', 'Шаблони листів Finder', 'Збір і розсилка: шаблони', 'manage_options', 'uapm-finder-templates', __NAMESPACE__ . '\\cmsf_page_templates');
-    add_submenu_page('uapm', 'Налаштування Web Finder', 'Збір і розсилка: налаштування', 'manage_options', 'uapm-finder-settings', __NAMESPACE__ . '\\cmsf_page_settings');
+    add_submenu_page('uapm', 'Шаблони листів Finder', 'Збір і розсилка: шаблони', 'manage_options', 'uapm-finder-templates', function () { cmsf_page_templates(); });
+    add_submenu_page('uapm', 'Налаштування Web Finder', 'Збір і розсилка: налаштування', 'manage_options', 'uapm-finder-settings', function () { cmsf_page_settings(); });
 });
 
 /* ---------------------------------------------------------
