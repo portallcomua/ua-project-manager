@@ -99,7 +99,7 @@ add_action('admin_notices', function () {
 });
 
 add_action('admin_menu', function () {
-    add_submenu_page('uapm', 'UA Web Finder Pro', 'Pro / Активація', 'manage_options', 'uapm-finder-pro', __NAMESPACE__ . '\\cmsf_pro_render_page');
+    add_submenu_page('uapm', 'UA Web Finder Pro', 'Pro / Активація', 'manage_options', 'uapm-finder-pro', function () { cmsf_pro_render_page(); });
 }, 20);
 
 function cmsf_pro_render_page() {
