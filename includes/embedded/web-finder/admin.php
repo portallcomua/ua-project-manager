@@ -4,9 +4,12 @@ namespace UAPM\WebFinder;
 if (!defined('ABSPATH')) exit;
 
 add_action('admin_menu', function () {
-    add_submenu_page('uapm', 'Збір і розсилка — пошук сайтів', 'Збір і розсилка: пошук сайтів', 'manage_options', 'uapm-finder-search', __NAMESPACE__ . '\\cmsf_page_search');
-    add_submenu_page('uapm', 'Імпорт доменів', 'Збір і розсилка: імпорт доменів', 'manage_options', 'uapm-finder-import', __NAMESPACE__ . '\\cmsf_page_import');
-    add_submenu_page('uapm', 'Збережені списки сайтів', 'Збір і розсилка: списки', 'manage_options', 'uapm-finder-lists', __NAMESPACE__ . '\\cmsf_page_lists');
+    // Use closures so WordPress always registers a callable plugin-page hook.
+    // Without a registered callback WordPress may output /wp-admin/<slug> instead
+    // of the required /wp-admin/admin.php?page=<slug> URL.
+    add_submenu_page('uapm', 'Збір і розсилка — пошук сайтів', 'Збір і розсилка: пошук сайтів', 'manage_options', 'uapm-finder-search', function () { cmsf_page_search(); });
+    add_submenu_page('uapm', 'Імпорт доменів', 'Збір і розсилка: імпорт доменів', 'manage_options', 'uapm-finder-import', function () { cmsf_page_import(); });
+    add_submenu_page('uapm', 'Збережені списки сайтів', 'Збір і розсилка: списки', 'manage_options', 'uapm-finder-lists', function () { cmsf_page_lists(); });
 });
 
 add_action('admin_enqueue_scripts', function () {
