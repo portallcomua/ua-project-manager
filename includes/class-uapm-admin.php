@@ -127,7 +127,7 @@ final class UAPM_Admin {
                 if (!anchor) return;
                 var slug = pageSlug(anchor);
 
-                // Normalize every plugin submenu URL to WordPress' canonical admin.php?page=slug form.
+                // Normalize every plugin submenu URL to the canonical WordPress admin.php?page=slug form.
                 // Preserve additional query arguments (for example edit IDs) when repairing legacy URLs.
                 try {
                     var parsed = new URL(anchor.href, window.location.href);
