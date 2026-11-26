@@ -626,6 +626,7 @@ function cmsfc_ajax_guard() {
         wp_send_json_error('Недостатньо прав.');
     }
     $action = sanitize_key(wp_unslash($_REQUEST['action'] ?? ''));
+    $action = preg_replace('/^uapm_/', '', $action);
     if (function_exists(__NAMESPACE__ . '\\cmsf_trial_blocks_action') && cmsf_trial_blocks_action($action)) {
         wp_send_json_error('Пробний період завершився. Активуйте UA Web Finder Pro у розділі «Pro / Активація».');
     }
@@ -705,7 +706,7 @@ add_action('wp_ajax_uapm_cmsfc_set_projects', function () {
     $id = absint($_POST['list_id'] ?? 0);
     $ids = array_values(array_unique(array_filter(array_map('absint', (array)wp_unslash($_POST['project_ids'] ?? array())))));
     $valid = array();
-    if (class_exists('UAPM_Projects')) foreach ($ids as $project_id) if (UAPM_Projects::get($project_id)) $valid[] = $project_id;
+    if (class_exists('UAPM_Projects')) foreach ($ids as $project_id) if (\\UAPM_Projects::get($project_id)) $valid[] = $project_id;
     $updated = $wpdb->update(cmsfc_table('lists'), array('project_ids'=>wp_json_encode($valid),'updated_at'=>current_time('mysql')), array('id'=>$id));
     if ($updated === false) wp_send_json_error('Не вдалося зберегти зв’язок із проєктами.');
     wp_send_json_success(array('project_ids'=>$valid));
@@ -1224,7 +1225,7 @@ add_action('admin_enqueue_scripts', function ($hook) {
         'nonce' => wp_create_nonce('uapm_cmsfc'),
         'exportUrl' => admin_url('admin-post.php'),
         'exportNonce' => wp_create_nonce('uapm_cmsfc_export'),
-        'projects' => class_exists('UAPM_Projects') ? array_map(function($p){ return array('id'=>(int)$p->id,'name'=>$p->name); }, UAPM_Projects::get_all(array('status'=>'active','limit'=>200,'orderby'=>'name','order'=>'ASC'))) : array(),
+        'projects' => class_exists('UAPM_Projects') ? array_map(function($p){ return array('id'=>(int)$p->id,'name'=>$p->name); }, \\UAPM_Projects::get_all(array('status'=>'active','limit'=>200,'orderby'=>'name','order'=>'ASC'))) : array(),
         'locale' => cmsf_is_english_locale() ? 'en' : 'uk',
         'translations' => cmsf_is_english_locale() ? cmsf_i18n_dictionary() : []
     ]);
