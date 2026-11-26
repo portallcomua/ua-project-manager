@@ -81,7 +81,8 @@ jobs:
             UA Project Manager ${{ steps.meta.outputs.version }}
 
             - Fixed automatic updates using the native WordPress Update URI API for GitHub.
-            - Added a stable ZIP asset selection so WordPress always downloads the installable plugin archive.
+            - Returned both native and legacy version fields for compatibility with WordPress update handling.
+            - Added stable ZIP asset selection so WordPress downloads the installable plugin archive.
             - Improved GitHub release caching, version validation, error handling and cache invalidation after updates.
             - Kept the legacy update-check fallback for compatibility.
             - Preserved existing plugin data, modules and integrations.
