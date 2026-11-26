@@ -15,6 +15,7 @@ final class UAPM_Admin {
     public static function init() {
         add_action('admin_menu', array(__CLASS__, 'register_menu'));
         add_action('admin_menu', array(__CLASS__, 'hide_legacy_module_menus'), 999);
+        add_action('admin_menu', array(__CLASS__, 'organize_module_menus'), 1000);
         add_action('admin_head', array(__CLASS__, 'admin_menu_styles'), 999);
         add_action('admin_enqueue_scripts', array(__CLASS__, 'enqueue_styles'));
     }
@@ -54,10 +55,112 @@ final class UAPM_Admin {
     public static function admin_menu_styles() {
         if (!is_admin()) return;
         echo '<style>
-            #toplevel_page_uapm .wp-submenu li:not(:has(> a[href*="page=uapm-hub-"])) { display:none !important; }
             #toplevel_page_uapm .wp-submenu { padding:6px 0 !important; }
-            #toplevel_page_uapm .wp-submenu a { padding-top:7px !important; padding-bottom:7px !important; }
+            #toplevel_page_uapm .wp-submenu li { display:list-item !important; }
+            #toplevel_page_uapm .wp-submenu a { padding-top:6px !important; padding-bottom:6px !important; }
+            #toplevel_page_uapm .wp-submenu a[href*="page=uapm-hub-"] {
+                margin-top:5px; padding-left:10px !important; font-weight:700;
+                background:#f0f6fc; border-left:3px solid #2271b1; color:#1d2327;
+            }
+            #toplevel_page_uapm .wp-submenu a[href*="page=uapm-hub-"]:hover { background:#e5f0fa; }
         </style>';
+    }
+
+    /**
+     * WordPress має лише один рівень підменю. Відображаємо категорії як
+     * заголовки, а всі реальні сторінки — під ними в правильному порядку.
+     * Сторінки та їхні callbacks не видаляються.
+     */
+    public static function organize_module_menus() {
+        global $submenu;
+
+        if (empty($submenu['uapm']) || !is_array($submenu['uapm'])) {
+            return;
+        }
+
+        $items = $submenu['uapm'];
+        $by_slug = array();
+        $home = null;
+
+        foreach ($items as $item) {
+            if (empty($item[2])) {
+                continue;
+            }
+            $slug = (string) $item[2];
+            if ($slug === 'uapm') {
+                $home = $item;
+            } else {
+                $by_slug[$slug] = $item;
+            }
+        }
+
+        $groups = array(
+            'uapm-hub-projects' => array('uapm-projects','uapm-clients','uapm-tasks','uapm-milestones','uapm-calendar','uapm-notes','uapm-comments','uapm-attachments','uapm-project-activity'),
+            'uapm-hub-advertising' => array('uapm-advertising','uapm-ad-reports','uacc','uacc_new','uacc_edit','uacc_newsletter'),
+            'uapm-hub-payments' => array('uapm-payments','uapm-paybox-services','uapm-paybox-premiums','uapm-paybox-settings'),
+            'uapm-hub-finder' => array('uapm-finder-search','uapm-finder-import','uapm-finder-lists'),
+            'uapm-hub-mailings' => array('uapm-finder-contacts','uapm-finder-templates','uapm-finder-settings','uapm-mailings','uapm-finder-pro'),
+            'uapm-hub-tools' => array('uapm-search','uapm-github','uapm-code-generator','uapm-code-inspector','uapm-integrations','uapm-downloads','uapm-installations','uapm-analytics','uapm-sync'),
+            'uapm-hub-settings' => array('uapm-settings','uapm-import','uapm-dependencies'),
+        );
+
+        $labels = array(
+            'uapm-payments' => '— Платежі',
+            'uapm-paybox-services' => '— Pay Box: Послуги',
+            'uapm-paybox-premiums' => '— Pay Box: PRO-ліцензії',
+            'uapm-paybox-settings' => '— Pay Box: Налаштування',
+            'uacc' => '— UA Click Counter: Кнопки',
+            'uacc_new' => '— UA Click Counter: Створити кнопку',
+            'uacc_edit' => '— UA Click Counter: Редагувати кнопку',
+            'uacc_newsletter' => '— UA Click Counter: Розсилка',
+            'uapm-finder-search' => '— Пошук за CMS',
+            'uapm-finder-import' => '— Імпорт доменів',
+            'uapm-finder-lists' => '— Списки сайтів',
+            'uapm-finder-contacts' => '— Збір email та контакти',
+            'uapm-finder-templates' => '— Шаблони листів',
+            'uapm-finder-settings' => '— Налаштування Finder',
+            'uapm-finder-pro' => '— Pro / Активація',
+        );
+
+        $ordered = array();
+        $used = array();
+
+        if ($home) {
+            $ordered[] = $home;
+            $used['uapm'] = true;
+        }
+
+        foreach ($groups as $header_slug => $slugs) {
+            if (isset($by_slug[$header_slug])) {
+                $header = $by_slug[$header_slug];
+                $header[0] = '▾ ' . wp_strip_all_tags($header[0]);
+                $ordered[] = $header;
+                $used[$header_slug] = true;
+            }
+
+            foreach ($slugs as $slug) {
+                if (!isset($by_slug[$slug]) || isset($used[$slug])) {
+                    continue;
+                }
+                $item = $by_slug[$slug];
+                $item[0] = isset($labels[$slug]) ? $labels[$slug] : '— ' . wp_strip_all_tags($item[0]);
+                $ordered[] = $item;
+                $used[$slug] = true;
+            }
+        }
+
+        // Не губимо жодної сторінки, яку додав інший модуль або майбутнє оновлення.
+        foreach ($items as $item) {
+            $slug = isset($item[2]) ? (string) $item[2] : '';
+            if ($slug === '' || isset($used[$slug])) {
+                continue;
+            }
+            $item[0] = '— ' . wp_strip_all_tags($item[0]);
+            $ordered[] = $item;
+            $used[$slug] = true;
+        }
+
+        $submenu['uapm'] = $ordered;
     }
 
     /** Посилання на наявні сторінки модулів, згруповані за призначенням. */
