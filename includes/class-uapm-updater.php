@@ -14,7 +14,7 @@ class UAPM_Updater {
     private static $cache = array();
     private const REPOSITORY = 'portallcomua/ua-project-manager';
     private const CACHE_TTL = 900;
-    private const CACHE_KEY = 'uapm_github_release_117';
+    private const CACHE_KEY = 'uapm_github_release_118';
 
     public static function init() {
         // Native WordPress Update URI API for github.com.
