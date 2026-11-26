@@ -25,25 +25,94 @@ class UACC_Embedded {
         add_action('plugins_loaded', [$this, 'install'], 31);
     }
 
-    /* ---------- Установка ---------- */
+    /* ---------- Установка та безпечне оновлення таблиць ---------- */
     function install() {
         global $wpdb;
+
         $charset = $wpdb->get_charset_collate();
-        $table = $wpdb->prefix . 'uacc_emails';
-        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-        dbDelta("CREATE TABLE $table (
-            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-            button_id BIGINT UNSIGNED NOT NULL,
-            email VARCHAR(190) NOT NULL,
-            created_at DATETIME NOT NULL,
-            UNIQUE KEY btn_email (button_id, email),
-            KEY button_id (button_id)
-        ) $charset;");
+        $emails = $wpdb->prefix . 'uacc_emails';
         $counters = $wpdb->prefix . 'uacc_counters';
-        dbDelta("CREATE TABLE $counters (
-            button_id BIGINT UNSIGNED PRIMARY KEY,
-            clicks BIGINT UNSIGNED NOT NULL DEFAULT 0
-        ) $charset;");
+
+        // Створюємо таблиці лише тоді, коли їх ще немає. Не запускаємо
+        // dbDelta() на вже існуючих таблицях: він може повторно призначати
+        // PRIMARY KEY і спричиняти "Multiple primary key defined".
+        $emails_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $emails)) === $emails;
+        if (!$emails_exists) {
+            $wpdb->query("CREATE TABLE $emails (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                button_id BIGINT UNSIGNED NOT NULL,
+                email VARCHAR(190) NOT NULL,
+                created_at DATETIME NOT NULL,
+                PRIMARY KEY  (id),
+                UNIQUE KEY btn_email (button_id, email),
+                KEY button_id (button_id)
+            ) $charset");
+            return;
+        }
+
+        $counters_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $counters)) === $counters;
+        if (!$counters_exists) {
+            $wpdb->query("CREATE TABLE $counters (
+                button_id BIGINT UNSIGNED NOT NULL,
+                clicks BIGINT UNSIGNED NOT NULL DEFAULT 0,
+                PRIMARY KEY  (button_id)
+            ) $charset");
+        }
+
+        // Додаємо лише відсутні колонки. Існуючі дані та ключі не змінюємо.
+        $email_columns = $wpdb->get_col("SHOW COLUMNS FROM $emails", 0);
+        if (!in_array('id', $email_columns, true)) {
+            $wpdb->query("ALTER TABLE $emails ADD COLUMN id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST");
+        }
+        if (!in_array('button_id', $email_columns, true)) {
+            $wpdb->query("ALTER TABLE $emails ADD COLUMN button_id BIGINT UNSIGNED NOT NULL DEFAULT 0");
+        }
+        if (!in_array('email', $email_columns, true)) {
+            $wpdb->query("ALTER TABLE $emails ADD COLUMN email VARCHAR(190) NOT NULL DEFAULT ''");
+        }
+        if (!in_array('created_at', $email_columns, true)) {
+            $wpdb->query("ALTER TABLE $emails ADD COLUMN created_at DATETIME NULL");
+        }
+
+        $counter_columns = $wpdb->get_col("SHOW COLUMNS FROM $counters", 0);
+        if (!in_array('button_id', $counter_columns, true)) {
+            $wpdb->query("ALTER TABLE $counters ADD COLUMN button_id BIGINT UNSIGNED NOT NULL DEFAULT 0");
+        }
+        if (!in_array('clicks', $counter_columns, true)) {
+            $wpdb->query("ALTER TABLE $counters ADD COLUMN clicks BIGINT UNSIGNED NOT NULL DEFAULT 0");
+        }
+
+        // Індекси додаємо лише за відсутності. Наявні PRIMARY KEY не чіпаємо.
+        $email_indexes = $wpdb->get_results("SHOW INDEX FROM $emails");
+        $email_index_names = array();
+        $has_email_primary = false;
+        foreach ($email_indexes as $index) {
+            $email_index_names[] = $index->Key_name;
+            if ($index->Key_name === 'PRIMARY') {
+                $has_email_primary = true;
+            }
+        }
+        if (!$has_email_primary && in_array('id', $email_columns, true)) {
+            $wpdb->query("ALTER TABLE $emails ADD PRIMARY KEY (id)");
+        }
+        if (!in_array('btn_email', $email_index_names, true)) {
+            $wpdb->query("ALTER TABLE $emails ADD UNIQUE KEY btn_email (button_id, email)");
+        }
+        if (!in_array('button_id', $email_index_names, true)) {
+            $wpdb->query("ALTER TABLE $emails ADD KEY button_id (button_id)");
+        }
+
+        $counter_indexes = $wpdb->get_results("SHOW INDEX FROM $counters");
+        $has_counter_primary = false;
+        foreach ($counter_indexes as $index) {
+            if ($index->Key_name === 'PRIMARY') {
+                $has_counter_primary = true;
+                break;
+            }
+        }
+        if (!$has_counter_primary) {
+            $wpdb->query("ALTER TABLE $counters ADD PRIMARY KEY (button_id)");
+        }
     }
 
     /* ---------- CPT ---------- */
