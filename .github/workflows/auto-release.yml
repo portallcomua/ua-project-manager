@@ -79,12 +79,12 @@ jobs:
           body: |
             UA Project Manager ${{ steps.meta.outputs.version }}
 
-            - Fixed automatic updates using the native WordPress Update URI API for GitHub.
-            - Returned both native and legacy version fields for compatibility with WordPress update handling.
-            - Added stable ZIP asset selection so WordPress downloads the installable plugin archive.
-            - Improved GitHub release caching, version validation, error handling and cache invalidation after updates.
-            - Kept the legacy update-check fallback for compatibility.
-            - Preserved existing plugin data, modules and integrations.
+            - Fixed Web Finder project-class namespace errors in search, saved-list project links and contacts pages.
+            - Restored the Pro activation page and project-mailings page as valid admin submenus.
+            - Grouped admin pages by section and restored UA Click Counter links.
+            - Corrected contact-campaign trial checks and preserved existing Finder lists, contacts, campaigns and project data.
+            - Kept GitHub-based WordPress updates with a stable installable ZIP asset.
+            - Preserved existing database tables and saved records.
           files: |
             ua-project-manager-${{ steps.meta.outputs.version }}.zip
             ua-project-manager.zip
