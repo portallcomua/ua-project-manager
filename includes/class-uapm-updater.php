@@ -195,6 +195,7 @@ class UAPM_Updater {
             'id' => 'https://github.com/' . self::REPOSITORY,
             'slug' => dirname($plugin_file),
             'plugin' => $plugin_file,
+            'version' => $version,
             'new_version' => $version,
             'url' => !empty($release['html_url'])
                 ? esc_url_raw($release['html_url'])
