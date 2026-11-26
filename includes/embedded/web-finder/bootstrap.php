@@ -14,6 +14,16 @@ define(__NAMESPACE__ . '\\CMSF_VERSION', '2.6.2');
 define(__NAMESPACE__ . '\\CMSF_DIR', __DIR__ . '/');
 define(__NAMESPACE__ . '\\CMSF_URL', \UAPM_URL . 'includes/embedded/web-finder/');
 
+/**
+ * Єдина перевірка доступу для вбудованого Web Finder.
+ * Вона відповідає capability головного меню UA Project Manager.
+ */
+if (!function_exists(__NAMESPACE__ . '\\\\cmsf_can_manage')) {
+    function cmsf_can_manage() {
+        return current_user_can('uapm_manage_projects') || current_user_can('manage_options');
+    }
+}
+
 $files = array(
     'db.php',
     'detector.php',
