@@ -158,7 +158,7 @@ cmsf_ajax('list_set_projects', function () {
     if (!$list) wp_send_json_error('Список не знайдено');
     $ids = array_values(array_unique(array_filter(array_map('absint', (array)cmsf_post('project_ids', array())))));
     $valid = array();
-    if (class_exists('UAPM_Projects')) foreach ($ids as $project_id) if (UAPM_Projects::get($project_id)) $valid[] = $project_id;
+    if (class_exists('UAPM_Projects')) foreach ($ids as $project_id) if (\UAPM_Projects::get($project_id)) $valid[] = $project_id;
     $params = (array)$list['params'];
     $params['project_ids'] = $valid;
     $wpdb->update(cmsf_t('lists'), array('params'=>wp_json_encode($params),'updated_at'=>cmsf_now()), array('id'=>$id));
