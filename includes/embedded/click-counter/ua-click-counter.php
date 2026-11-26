@@ -47,7 +47,6 @@ class UACC_Embedded {
                 UNIQUE KEY btn_email (button_id, email),
                 KEY button_id (button_id)
             ) $charset");
-            return;
         }
 
         $counters_exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $counters)) === $counters;
