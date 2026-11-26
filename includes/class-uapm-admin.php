@@ -143,15 +143,16 @@ final class UAPM_Admin {
                     anchor.setAttribute("role", "button");
                     anchor.setAttribute("aria-expanded", "false");
 
-                    current = {li:li, anchor:anchor, panel:panel};
-                    sections.push(current);
+                    var section = {li:li, anchor:anchor, panel:panel};
+                    current = section;
+                    sections.push(section);
 
                     anchor.addEventListener("click", function (event) {
                         event.preventDefault();
-                        var willOpen = !li.classList.contains("uapm-open");
-                        closeOthers(current);
-                        li.classList.toggle("uapm-open", willOpen);
-                        anchor.setAttribute("aria-expanded", willOpen ? "true" : "false");
+                        var willOpen = !section.li.classList.contains("uapm-open");
+                        closeOthers(section);
+                        section.li.classList.toggle("uapm-open", willOpen);
+                        section.anchor.setAttribute("aria-expanded", willOpen ? "true" : "false");
                     });
                     anchor.addEventListener("keydown", function (event) {
                         if (event.key === "Enter" || event.key === " ") {
@@ -353,6 +354,7 @@ final class UAPM_Admin {
                 array('Списки сайтів', 'uapm-finder-lists', 'Перегляд і керування результатами.'),
                 array('Збір email', 'uapm-finder-contacts', 'Сканування сайтів і збір адрес.'),
                 array('Шаблони листів', 'uapm-finder-templates', 'Шаблони для Finder.'),
+                array('Налаштування Finder', 'uapm-finder-settings', 'Параметри пошуку та збору контактів.'),
                 array('Розсилки', 'uapm-mailings', 'Кампанії для клієнтів проєктів.'),
                 array('Pro / Активація', 'uapm-finder-pro', 'Стан пробного періоду та активація.')
             )),
