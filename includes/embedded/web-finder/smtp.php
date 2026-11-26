@@ -70,7 +70,7 @@ add_action('phpmailer_init', function ($phpmailer) {
  * Save SMTP settings.
  */
 add_action('wp_ajax_uapm_cmsf_smtp_save', function () {
-    if (!current_user_can('manage_options')) {
+    if (!cmsf_can_manage()) {
         wp_send_json_error('Недостатньо прав.');
     }
 
@@ -117,7 +117,7 @@ add_action('wp_ajax_uapm_cmsf_smtp_save', function () {
  * Send test email.
  */
 add_action('wp_ajax_uapm_cmsf_smtp_test', function () {
-    if (!current_user_can('manage_options')) {
+    if (!cmsf_can_manage()) {
         wp_send_json_error('Недостатньо прав.');
     }
 
@@ -182,7 +182,7 @@ add_action('wp_ajax_uapm_cmsf_smtp_test', function () {
  * Add SMTP settings directly to CMS Web Finder settings page.
  */
 add_action('admin_footer', function () {
-    if (!current_user_can('manage_options')) {
+    if (!cmsf_can_manage()) {
         return;
     }
 
