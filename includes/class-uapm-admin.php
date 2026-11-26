@@ -127,6 +127,20 @@ final class UAPM_Admin {
                 if (!anchor) return;
                 var slug = pageSlug(anchor);
 
+                // Some embedded modules output a bare slug (for example /wp-admin/uapm-finder-lists).
+                // Normalize every plugin submenu URL to WordPress' canonical admin.php?page=slug form.
+                if (!slug) {
+                    try {
+                        var parsed = new URL(anchor.href, window.location.href);
+                        var leaf = parsed.pathname.split("/").pop() || "";
+                        if (leaf && leaf !== "admin.php" && leaf !== "index.php" && /^[a-zA-Z0-9_-]+$/.test(leaf)) {
+                            slug = leaf;
+                            var adminPath = window.location.pathname.replace(/[^/]+$/, "admin.php");
+                            anchor.href = adminPath + "?page=" + encodeURIComponent(slug);
+                        }
+                    } catch (e) {}
+                }
+
                 if (slug === "uapm") {
                     current = null;
                     return;
