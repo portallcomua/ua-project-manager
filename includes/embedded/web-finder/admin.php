@@ -6,9 +6,9 @@ if (!defined('ABSPATH')) exit;
 add_action('admin_menu', function () {
     // Use explicit namespaced callbacks so WordPress reliably registers
     // the plugin pages and emits canonical admin.php?page=... links.
-    add_submenu_page('uapm', 'Пошук сайтів', 'Пошук сайтів', 'manage_options', 'uapm-finder-search', __NAMESPACE__ . '\\cmsf_page_search');
-    add_submenu_page('uapm', 'Імпорт сайтів', 'Імпорт сайтів', 'manage_options', 'uapm-finder-import', __NAMESPACE__ . '\\cmsf_page_import');
-    add_submenu_page('uapm', 'Списки сайтів', 'Списки сайтів', 'manage_options', 'uapm-finder-lists', __NAMESPACE__ . '\\cmsf_page_lists');
+    add_submenu_page('uapm', 'Пошук сайтів', 'Пошук сайтів', 'uapm_manage_projects', 'uapm-finder-search', __NAMESPACE__ . '\\cmsf_page_search');
+    add_submenu_page('uapm', 'Імпорт сайтів', 'Імпорт сайтів', 'uapm_manage_projects', 'uapm-finder-import', __NAMESPACE__ . '\\cmsf_page_import');
+    add_submenu_page('uapm', 'Списки сайтів', 'Списки сайтів', 'uapm_manage_projects', 'uapm-finder-lists', __NAMESPACE__ . '\\cmsf_page_lists');
 });
 
 add_action('admin_enqueue_scripts', function () {
@@ -54,7 +54,7 @@ function cmsf_project_picker() {
 }
 
 function cmsf_page_search() {
-    if (!current_user_can('manage_options')) return;
+    if (!cmsf_can_manage()) return;
     $platforms = array_combine(cmsf_platforms(), cmsf_platforms());
     ?>
     <div class="wrap cmsf" data-page="search">
@@ -123,7 +123,7 @@ function cmsf_page_search() {
 }
 
 function cmsf_page_import() {
-    if (!current_user_can('manage_options')) return;
+    if (!cmsf_can_manage()) return;
     $platforms = array_combine(cmsf_platforms(), cmsf_platforms());
     ?>
     <div class="wrap cmsf" data-page="import">
@@ -169,7 +169,7 @@ function cmsf_page_import() {
 }
 
 function cmsf_page_lists() {
-    if (!current_user_can('manage_options')) return;
+    if (!cmsf_can_manage()) return;
     ?>
     <div class="wrap cmsf" data-page="lists">
         <h1>Збережені списки</h1>
@@ -184,7 +184,7 @@ function cmsf_page_lists() {
 }
 
 function cmsf_page_templates() {
-    if (!current_user_can('manage_options')) return;
+    if (!cmsf_can_manage()) return;
     ?>
     <div class="wrap cmsf" data-page="templates">
         <h1>Шаблони листів</h1>
@@ -220,7 +220,7 @@ function cmsf_page_templates() {
 }
 
 function cmsf_page_settings() {
-    if (!current_user_can('manage_options')) return;
+    if (!cmsf_can_manage()) return;
     $s = cmsf_settings();
     ?>
     <div class="wrap cmsf" data-page="settings">
