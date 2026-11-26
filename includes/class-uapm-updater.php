@@ -14,7 +14,7 @@ class UAPM_Updater {
     private static $cache = array();
     private const REPOSITORY = 'portallcomua/ua-project-manager';
     private const CACHE_TTL = 900;
-    private const CACHE_KEY = 'uapm_github_release_119';
+    private const CACHE_KEY = 'uapm_github_release_1110';
 
     public static function init() {
         // Native WordPress Update URI API for github.com.
@@ -32,7 +32,33 @@ class UAPM_Updater {
         );
 
         add_filter('plugins_api', array(__CLASS__, 'plugin_information'), 20, 3);
+        add_filter('plugin_action_links_' . (defined('UAPM_BASENAME') ? UAPM_BASENAME : 'ua-project-manager/ua-project-manager.php'), array(__CLASS__, 'action_links'));
+        add_action('admin_post_uapm_force_github_update', array(__CLASS__, 'force_check'));
+        add_action('admin_notices', array(__CLASS__, 'force_check_notice'));
         add_action('upgrader_process_complete', array(__CLASS__, 'clear_cache'), 10, 2);
+    }
+
+    public static function action_links($links) {
+        $url = wp_nonce_url(admin_url('admin-post.php?action=uapm_force_github_update'), 'uapm_force_github_update');
+        $links[] = '<a href="' . esc_url($url) . '">Перевірити оновлення GitHub</a>';
+        return $links;
+    }
+
+    public static function force_check() {
+        if (!current_user_can('update_plugins')) wp_die('Недостатньо прав для перевірки оновлень.');
+        check_admin_referer('uapm_force_github_update');
+        self::$cache = array();
+        delete_transient(self::CACHE_KEY . '_' . md5(self::REPOSITORY));
+        delete_site_transient('update_plugins');
+        if (function_exists('wp_clean_plugins_cache')) wp_clean_plugins_cache(true);
+        wp_update_plugins();
+        wp_safe_redirect(admin_url('plugins.php?uapm_github_checked=1'));
+        exit;
+    }
+
+    public static function force_check_notice() {
+        if (!current_user_can('update_plugins') || empty($_GET['uapm_github_checked'])) return;
+        echo '<div class="notice notice-info is-dismissible"><p>Перевірку GitHub для UA Project Manager виконано. Якщо нова версія доступна, вона з’явиться у списку оновлень.</p></div>';
     }
 
     private static function get_repository_from_plugin_data($plugin_data) {
@@ -99,7 +125,7 @@ class UAPM_Updater {
         $url = 'https://api.github.com/repos/' . rawurlencode(explode('/', $repository)[0])
             . '/' . rawurlencode(explode('/', $repository)[1]) . '/releases/latest';
 
-        $response = wp_safe_remote_get($url, array(
+        $response = wp_remote_get($url, array(
             'timeout' => 20,
             'redirection' => 3,
             'headers' => $headers,
