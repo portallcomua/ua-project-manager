@@ -16,7 +16,6 @@ final class UAPM_Admin {
         add_action('admin_menu', array(__CLASS__, 'register_menu'));
         add_action('admin_menu', array(__CLASS__, 'hide_legacy_module_menus'), 999);
         add_action('admin_menu', array(__CLASS__, 'organize_module_menus'), 1000);
-        add_action('admin_head', array(__CLASS__, 'admin_menu_styles'), 999);
         add_action('admin_enqueue_scripts', array(__CLASS__, 'enqueue_styles'));
     }
 
@@ -59,11 +58,12 @@ final class UAPM_Admin {
         }
 
         foreach ($menus as $slug => $label) {
-            add_submenu_page('uapm', $label, $label, 'manage_options', $slug, array(__CLASS__, 'render_hub'));
+            add_submenu_page('uapm', $label, $label, 'uapm_manage_projects', $slug, array(__CLASS__, 'render_hub'));
         }
     }
 
     /** Приховуємо старі пункти меню, не видаляючи сторінки, дані чи обробники. */
+    /** Статичне оформлення меню без JS-переміщення пунктів після завантаження сторінки. */
     public static function admin_menu_styles() {
         if (!is_admin()) {
             return;
@@ -72,132 +72,27 @@ final class UAPM_Admin {
         echo '<style>
             #toplevel_page_uapm .wp-submenu { padding:6px 0 !important; }
             #toplevel_page_uapm .wp-submenu > li { display:list-item !important; }
-            #toplevel_page_uapm .wp-submenu .uapm-accordion-items { display:none; margin:0 0 5px 0; padding:3px 0 5px 9px; border-left:2px solid #50575e; }
-            #toplevel_page_uapm .wp-submenu .uapm-accordion-section.uapm-open > .uapm-accordion-items { display:block; }
-            #toplevel_page_uapm .wp-submenu .uapm-accordion-section > a { position:relative; padding:8px 25px 8px 12px !important; margin:3px 5px; border-radius:3px; background:#2c3338; color:#f0f0f1; font-weight:600; cursor:pointer; }
-            #toplevel_page_uapm .wp-submenu .uapm-accordion-section > a:after { content:"+"; position:absolute; right:10px; font-size:16px; line-height:1; }
-            #toplevel_page_uapm .wp-submenu .uapm-accordion-section.uapm-open > a:after { content:"−"; }
-            #toplevel_page_uapm .wp-submenu .uapm-accordion-section > a:hover,
-            #toplevel_page_uapm .wp-submenu .uapm-accordion-section.uapm-open > a { background:#2271b1; color:#fff; }
-            #toplevel_page_uapm .wp-submenu .uapm-accordion-items > li > a { padding:6px 10px 6px 12px !important; white-space:normal; }
-            #toplevel_page_uapm .wp-submenu .uapm-accordion-items > li.current > a,
-            #toplevel_page_uapm .wp-submenu .uapm-accordion-items > li > a.current { color:#fff; font-weight:600; }
+            #toplevel_page_uapm .wp-submenu > li.uapm-menu-heading { margin:8px 0 2px !important; }
+            #toplevel_page_uapm .wp-submenu > li.uapm-menu-heading > a {
+                padding:8px 12px !important;
+                margin:0 5px !important;
+                background:#2c3338 !important;
+                color:#f0f0f1 !important;
+                font-weight:700 !important;
+                cursor:default !important;
+                pointer-events:none !important;
+                opacity:1 !important;
+            }
+            #toplevel_page_uapm .wp-submenu > li:not(.uapm-menu-heading) > a {
+                padding:6px 10px 6px 18px !important;
+                white-space:normal;
+            }
+            #toplevel_page_uapm .wp-submenu > li.current > a,
+            #toplevel_page_uapm .wp-submenu > li > a.current {
+                color:#fff !important;
+                font-weight:600 !important;
+            }
         </style>';
-
-        echo '<script>
-        document.addEventListener("DOMContentLoaded", function () {
-            var root = document.querySelector("#toplevel_page_uapm > ul.wp-submenu");
-            if (!root || root.getAttribute("data-uapm-accordion") === "1") return;
-            root.setAttribute("data-uapm-accordion", "1");
-
-            var headers = [
-                "uapm-hub-projects",
-                "uapm-hub-advertising",
-                "uapm-hub-payments",
-                "uapm-hub-finder",
-                "uapm-hub-tasks",
-                "uapm-hub-statistics",
-                "uapm-hub-referrals",
-                "uapm-hub-settings"
-            ];
-            var sections = [];
-            var current = null;
-            var items = Array.prototype.slice.call(root.children);
-
-            function pageSlug(anchor) {
-                try {
-                    return new URL(anchor.href, window.location.href).searchParams.get("page") || "";
-                } catch (e) {
-                    var match = anchor.href.match(/[?&]page=([^&]+)/);
-                    return match ? decodeURIComponent(match[1]) : "";
-                }
-            }
-
-            function closeOthers(except) {
-                sections.forEach(function (section) {
-                    if (section !== except) {
-                        section.li.classList.remove("uapm-open");
-                        section.anchor.setAttribute("aria-expanded", "false");
-                    }
-                });
-            }
-
-            items.forEach(function (li) {
-                var anchor = li.querySelector(":scope > a");
-                if (!anchor) return;
-                var slug = pageSlug(anchor);
-
-                // Normalize every plugin submenu URL to the canonical WordPress admin.php?page=slug form.
-                // Preserve additional query arguments (for example edit IDs) when repairing legacy URLs.
-                try {
-                    var parsed = new URL(anchor.href, window.location.href);
-                    if (!slug) {
-                        var leaf = parsed.pathname.split("/").filter(Boolean).pop() || "";
-                        if (leaf && leaf !== "admin.php" && leaf !== "index.php" && /^[a-zA-Z0-9_-]+$/.test(leaf)) {
-                            slug = leaf;
-                        }
-                    }
-                    if (slug && /^[a-zA-Z0-9_-]+$/.test(slug)) {
-                        var canonical = new URL("admin.php", window.location.href);
-                        canonical.searchParams.set("page", slug);
-                        parsed.searchParams.forEach(function (value, key) {
-                            if (key !== "page") canonical.searchParams.set(key, value);
-                        });
-                        anchor.href = canonical.toString();
-                    }
-                } catch (e) {}
-
-                if (slug === "uapm") {
-                    current = null;
-                    return;
-                }
-
-                if (headers.indexOf(slug) !== -1) {
-                    var panel = document.createElement("ul");
-                    panel.className = "uapm-accordion-items";
-                    panel.setAttribute("role", "group");
-                    li.appendChild(panel);
-                    li.classList.add("uapm-accordion-section");
-
-                    anchor.href = "#" + slug;
-                    anchor.setAttribute("role", "button");
-                    anchor.setAttribute("aria-expanded", "false");
-
-                    var section = {li:li, anchor:anchor, panel:panel};
-                    current = section;
-                    sections.push(section);
-
-                    anchor.addEventListener("click", function (event) {
-                        event.preventDefault();
-                        var willOpen = !section.li.classList.contains("uapm-open");
-                        closeOthers(section);
-                        section.li.classList.toggle("uapm-open", willOpen);
-                        section.anchor.setAttribute("aria-expanded", willOpen ? "true" : "false");
-                    });
-                    anchor.addEventListener("keydown", function (event) {
-                        if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            anchor.click();
-                        }
-                    });
-                    return;
-                }
-
-                if (current) {
-                    current.panel.appendChild(li);
-                }
-            });
-
-            sections.forEach(function (section) {
-                var active = section.panel.querySelector("li.current, li.wp-has-current-submenu, a.current, a[aria-current=page]");
-                if (active) {
-                    closeOthers(section);
-                    section.li.classList.add("uapm-open");
-                    section.anchor.setAttribute("aria-expanded", "true");
-                }
-            });
-        });
-        </script>';
     }
 
     /**
@@ -311,6 +206,7 @@ final class UAPM_Admin {
 
             $header = $by_slug[$header_slug];
             $header[0] = $group_labels[$header_slug];
+            $header[4] = trim((isset($header[4]) ? $header[4] . ' ' : '') . 'uapm-menu-heading');
             $ordered[] = $header;
 
             foreach ($slugs as $slug) {
@@ -406,7 +302,7 @@ final class UAPM_Admin {
 
     /** Відображає вибраний розділ у вигляді простих карток. */
     public static function render_hub() {
-        if (!current_user_can('manage_options')) {
+        if (!current_user_can('uapm_manage_projects') && !current_user_can('manage_options')) {
             wp_die('Недостатньо прав для перегляду цього розділу.');
         }
 
