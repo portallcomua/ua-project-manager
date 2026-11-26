@@ -8,8 +8,20 @@ class UAPM_Mailings {
 
     public static function init() {
         self::install_schema();
+        add_action('admin_menu', array(__CLASS__, 'register_menu'), 60);
         add_action('admin_post_uapm_send_mailing', array(__CLASS__, 'send_mailing'));
         add_action('admin_post_uapm_save_mailing', array(__CLASS__, 'save_mailing'));
+    }
+
+    public static function register_menu() {
+        add_submenu_page(
+            'uapm',
+            'Розсилки проєктів',
+            'Розсилки проєктів',
+            'uapm_manage_projects',
+            'uapm-mailings',
+            array(__CLASS__, 'render_page')
+        );
     }
 
     private static function table_name() {
