@@ -73,62 +73,66 @@ final class UAPM_Admin {
      */
     public static function organize_module_menus() {
         global $submenu;
+        if (empty($submenu['uapm']) || !is_array($submenu['uapm'])) return;
 
-        if (empty($submenu['uapm']) || !is_array($submenu['uapm'])) {
-            return;
-        }
-
-        $items = $submenu['uapm'];
         $by_slug = array();
         $home = null;
-
-        foreach ($items as $item) {
-            if (empty($item[2])) {
-                continue;
-            }
+        foreach ($submenu['uapm'] as $item) {
+            if (empty($item[2])) continue;
             $slug = (string) $item[2];
-            if ($slug === 'uapm') {
-                $home = $item;
-            } else {
-                $by_slug[$slug] = $item;
-            }
+            if ($slug === 'uapm') $home = $item;
+            else $by_slug[$slug] = $item;
         }
 
         $groups = array(
-            'uapm-hub-projects' => array('uapm-projects','uapm-clients','uapm-tasks','uapm-milestones','uapm-calendar','uapm-notes','uapm-comments','uapm-attachments','uapm-project-activity'),
-            'uapm-hub-advertising' => array('uapm-advertising','uapm-ad-reports','uacc','uacc_new','uacc_edit','uacc_newsletter'),
-            'uapm-hub-payments' => array('uapm-payments','uapm-paybox-services','uapm-paybox-premiums','uapm-paybox-settings'),
+            'uapm-hub-projects' => array('uapm-projects','uapm-clients','uapm-customers','uapm-tasks','uapm-milestones','uapm-calendar','uapm-notes','uapm-comments','uapm-attachments','uapm-project-activity','uapm-activity-feed'),
+            'uapm-hub-advertising' => array('uapm-advertisers','uapm-ad-blocks','uapm-ad-reports','uacc','uacc_new','uacc_edit','uacc_newsletter'),
+            'uapm-hub-payments' => array('uapm-payments','uapm-licenses','uapm-paybox-services','uapm-paybox-premiums','uapm-paybox-settings'),
             'uapm-hub-finder' => array('uapm-finder-search','uapm-finder-import','uapm-finder-lists'),
             'uapm-hub-mailings' => array('uapm-finder-contacts','uapm-finder-templates','uapm-finder-settings','uapm-mailings','uapm-finder-pro'),
-            'uapm-hub-tools' => array('uapm-search','uapm-github','uapm-code-generator','uapm-code-inspector','uapm-integrations','uapm-downloads','uapm-installations','uapm-analytics','uapm-sync'),
+            'uapm-hub-tools' => array('uapm-search','uapm-github','uapm-code-generator','uapm-code-inspector','uapm-integrations','uapm-downloads','uapm-installations','uapm-analytics','uapm-reports','uapm-sync'),
             'uapm-hub-settings' => array('uapm-settings','uapm-import','uapm-dependencies'),
         );
-
         $labels = array(
-            'uapm-payments' => '— Платежі',
-            'uapm-paybox-services' => '— Pay Box: Послуги',
-            'uapm-paybox-premiums' => '— Pay Box: PRO-ліцензії',
-            'uapm-paybox-settings' => '— Pay Box: Налаштування',
-            'uacc' => '— UA Click Counter: Кнопки',
-            'uacc_new' => '— UA Click Counter: Створити кнопку',
-            'uacc_edit' => '— UA Click Counter: Редагувати кнопку',
-            'uacc_newsletter' => '— UA Click Counter: Розсилка',
-            'uapm-finder-search' => '— Пошук за CMS',
-            'uapm-finder-import' => '— Імпорт доменів',
-            'uapm-finder-lists' => '— Списки сайтів',
-            'uapm-finder-contacts' => '— Збір email та контакти',
-            'uapm-finder-templates' => '— Шаблони листів',
-            'uapm-finder-settings' => '— Налаштування Finder',
-            'uapm-finder-pro' => '— Pro / Активація',
+            'uapm-projects'=>'— Усі проєкти','uapm-clients'=>'— Клієнти','uapm-customers'=>'— Замовники',
+            'uapm-tasks'=>'— Завдання','uapm-milestones'=>'— Етапи проєктів','uapm-calendar'=>'— Календар',
+            'uapm-notes'=>'— Нотатки','uapm-comments'=>'— Коментарі','uapm-attachments'=>'— Файли',
+            'uapm-project-activity'=>'— Активність проєктів','uapm-activity-feed'=>'— Стрічка активності',
+            'uapm-advertisers'=>'— Рекламодавці','uapm-ad-blocks'=>'— Рекламні блоки','uapm-ad-reports'=>'— Звіти',
+            'uacc'=>'— Click Counter: Кнопки та статистика','uacc_new'=>'— Click Counter: Створити кнопку',
+            'uacc_edit'=>'— Click Counter: Редагувати кнопку','uacc_newsletter'=>'— Click Counter: Розсилка',
+            'uapm-payments'=>'— Платежі','uapm-licenses'=>'— Ліцензії','uapm-paybox-services'=>'— Послуги Pay Box',
+            'uapm-paybox-premiums'=>'— PRO-ліцензії Freemius','uapm-paybox-settings'=>'— Налаштування Pay Box',
+            'uapm-finder-search'=>'— Пошук за CMS','uapm-finder-import'=>'— Імпорт доменів',
+            'uapm-finder-lists'=>'— Списки сайтів','uapm-finder-contacts'=>'— Збір email та кампанії',
+            'uapm-finder-templates'=>'— Шаблони листів','uapm-finder-settings'=>'— Налаштування Finder',
+            'uapm-mailings'=>'— Розсилки клієнтам','uapm-finder-pro'=>'— Pro / Активація',
+            'uapm-search'=>'— Глобальний пошук','uapm-github'=>'— GitHub та релізи',
+            'uapm-code-generator'=>'— Генератор коду','uapm-code-inspector'=>'— Перевірка коду',
+            'uapm-integrations'=>'— Інтеграції','uapm-downloads'=>'— Завантаження',
+            'uapm-installations'=>'— Встановлення','uapm-analytics'=>'— Аналітика',
+            'uapm-reports'=>'— Звіти системи','uapm-sync'=>'— Синхронізація модулів',
+            'uapm-settings'=>'— Загальні налаштування','uapm-import'=>'— Імпорт даних',
+            'uapm-dependencies'=>'— Залежності системи',
         );
 
         $ordered = array();
         $used = array();
+        if ($home) { $ordered[] = $home; $used['uapm'] = true; }
 
-        if ($home) {
-            $ordered[] = $home;
-            $used['uapm'] = true;
+        $extra = array('projects'=>array(),'advertising'=>array(),'payments'=>array(),'finder'=>array(),'mailings'=>array(),'tools'=>array(),'settings'=>array());
+        foreach ($by_slug as $slug => $item) {
+            if (strpos($slug,'uapm-hub-') === 0 || isset($used[$slug]) || $slug === 'uapm-advertising') continue;
+            $target = 'tools';
+            if (strpos($slug,'uacc') === 0 || strpos($slug,'advert') !== false || strpos($slug,'ad-') !== false) $target = 'advertising';
+            elseif (strpos($slug,'pay') !== false || strpos($slug,'payment') !== false || strpos($slug,'license') !== false) $target = 'payments';
+            elseif (strpos($slug,'finder') !== false) $target = (strpos($slug,'contact') !== false || strpos($slug,'template') !== false || strpos($slug,'setting') !== false || strpos($slug,'pro') !== false) ? 'mailings' : 'finder';
+            elseif (strpos($slug,'mail') !== false) $target = 'mailings';
+            elseif (preg_match('/project|client|customer|task|milestone|calendar|note|comment|attach|activity/',$slug)) $target = 'projects';
+            elseif (strpos($slug,'setting') !== false || strpos($slug,'import') !== false || strpos($slug,'depend') !== false) $target = 'settings';
+            $extra[$target][$slug] = $item;
         }
+        $extra_headers = array('projects'=>'uapm-hub-projects','advertising'=>'uapm-hub-advertising','payments'=>'uapm-hub-payments','finder'=>'uapm-hub-finder','mailings'=>'uapm-hub-mailings','tools'=>'uapm-hub-tools','settings'=>'uapm-hub-settings');
 
         foreach ($groups as $header_slug => $slugs) {
             if (isset($by_slug[$header_slug])) {
@@ -137,29 +141,32 @@ final class UAPM_Admin {
                 $ordered[] = $header;
                 $used[$header_slug] = true;
             }
-
             foreach ($slugs as $slug) {
-                if (!isset($by_slug[$slug]) || isset($used[$slug])) {
-                    continue;
-                }
+                if (!isset($by_slug[$slug]) || isset($used[$slug]) || $slug === 'uapm-advertising') continue;
                 $item = $by_slug[$slug];
                 $item[0] = isset($labels[$slug]) ? $labels[$slug] : '— ' . wp_strip_all_tags($item[0]);
                 $ordered[] = $item;
                 $used[$slug] = true;
             }
+            foreach ($extra as $group_key => $items) {
+                if ($extra_headers[$group_key] !== $header_slug) continue;
+                foreach ($items as $slug => $item) {
+                    if (isset($used[$slug])) continue;
+                    $item[0] = isset($labels[$slug]) ? $labels[$slug] : '— ' . wp_strip_all_tags($item[0]);
+                    $ordered[] = $item;
+                    $used[$slug] = true;
+                }
+            }
         }
 
-        // Не губимо жодної сторінки, яку додав інший модуль або майбутнє оновлення.
-        foreach ($items as $item) {
-            $slug = isset($item[2]) ? (string) $item[2] : '';
-            if ($slug === '' || isset($used[$slug])) {
-                continue;
-            }
+        // Keep legacy direct URLs working without showing the old combined advertising entry.
+        foreach ($by_slug as $slug => $item) {
+            if ($slug === 'uapm-advertising') { $used[$slug] = true; continue; }
+            if (isset($used[$slug])) continue;
             $item[0] = '— ' . wp_strip_all_tags($item[0]);
             $ordered[] = $item;
             $used[$slug] = true;
         }
-
         $submenu['uapm'] = $ordered;
     }
 
@@ -285,6 +292,9 @@ final class UAPM_Admin {
             'uapm-import',
             array('UAPM_Import', 'render_page')
         );
+        add_submenu_page('uapm', 'Замовники', 'Замовники', 'uapm_manage_projects', 'uapm-customers', array('UAPM_Customers', 'render_page'));
+        add_submenu_page('uapm', 'Ліцензії', 'Ліцензії', 'uapm_manage_payments', 'uapm-licenses', array('UAPM_License_Manager', 'render_page'));
+        add_submenu_page('uapm', 'Звіти та аналітика', 'Звіти системи', 'uapm_manage_settings', 'uapm-reports', array('UAPM_Reports', 'render_page'));
     }
 
     public static function enqueue_styles($hook) {
