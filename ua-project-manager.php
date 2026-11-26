@@ -4,7 +4,7 @@
  * Plugin URI: https://uaserver.pp.ua/
  * Update URI: https://github.com/portallcomua/ua-project-manager
  * Description: Central management system for UA projects, plugins, releases, licenses, payments and integrations.
- * Version: 1.1.9
+ * Version: 1.1.10
  * Author: UA Tools
  * Author URI: https://uaserver.pp.ua/
  * Text Domain: ua-project-manager
@@ -18,7 +18,7 @@ if (!defined('ABSPATH')) {
 }
 
 if (!defined('UAPM_VERSION')) {
-    define('UAPM_VERSION', '1.1.9');
+    define('UAPM_VERSION', '1.1.10');
 }
 
 if (!defined('UAPM_DB_VERSION')) {
