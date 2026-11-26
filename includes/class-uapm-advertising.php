@@ -126,12 +126,14 @@ final class UAPM_Advertising {
     }
 
     public static function menu() {
-        add_submenu_page('uapm', 'Реклама — рекламодавці та блоки', 'Реклама', 'manage_options', 'uapm-advertising', array(__CLASS__, 'render_page'));
-        add_submenu_page('uapm', 'Звіти реклами', 'Звіти реклами', 'manage_options', 'uapm-ad-reports', array(__CLASS__, 'render_reports'));
+        add_submenu_page('uapm', 'Рекламодавці', 'Рекламодавці', 'manage_options', 'uapm-advertisers', array(__CLASS__, 'render_page'));
+        add_submenu_page('uapm', 'Рекламні блоки', 'Рекламні блоки', 'manage_options', 'uapm-ad-blocks', array(__CLASS__, 'render_blocks_index'));
+        add_submenu_page('uapm', 'Звіти реклами', 'Звіти', 'manage_options', 'uapm-ad-reports', array(__CLASS__, 'render_reports'));
+        add_submenu_page('uapm', 'Реклама (сумісність)', 'Реклама (сумісність)', 'manage_options', 'uapm-advertising', array(__CLASS__, 'render_page'));
     }
 
     public static function assets($hook) {
-        if (strpos((string) $hook, 'uapm-advertising') === false && strpos((string) $hook, 'uapm-ad-reports') === false && strpos((string) $hook, 'uapm-projects') === false) {
+        if (strpos((string) $hook, 'uapm-advertising') === false && strpos((string) $hook, 'uapm-advertisers') === false && strpos((string) $hook, 'uapm-ad-blocks') === false && strpos((string) $hook, 'uapm-ad-reports') === false && strpos((string) $hook, 'uapm-projects') === false) {
             return;
         }
         wp_enqueue_media();
@@ -388,6 +390,41 @@ final class UAPM_Advertising {
             self::render_blocks($advertiser->id);
         }
         echo '</div>';
+    }
+
+    public static function render_blocks_index() {
+        self::guard();
+        global $wpdb;
+        $rows = $wpdb->get_results(
+            "SELECT b.*, a.name AS advertiser_name FROM " . self::table('blocks') . " b
+             LEFT JOIN " . self::table('advertisers') . " a ON a.id = b.advertiser_id
+             ORDER BY b.id DESC"
+        );
+        echo '<div class="wrap"><h1>Рекламні блоки</h1><p>Усі рекламні розміщення за рекламодавцями та проєктами.</p>';
+        echo '<table class="widefat striped"><thead><tr><th>Рекламодавець</th><th>Проєкти</th><th>Період</th><th>Ціна / місяць</th><th>Покази</th><th>Кліки</th><th>Оплати</th><th>Статус</th><th></th></tr></thead><tbody>';
+        foreach ((array) $rows as $block) {
+            $project_names = array();
+            foreach ((array) json_decode($block->project_ids, true) as $project_id) {
+                $project = UAPM_Projects::get(absint($project_id));
+                if ($project) $project_names[] = $project->name;
+            }
+            $stats = self::counts((int) $block->id);
+            $paid = (float) $wpdb->get_var($wpdb->prepare(
+                "SELECT COALESCE(SUM(amount),0) FROM " . self::table('payments') . " WHERE block_id=%d AND status='paid'",
+                (int) $block->id
+            ));
+            $status = $block->status === 'pending_payment' ? 'Очікує оплати' : ($block->end_date < current_time('Y-m-d') ? 'Завершено' : 'Активне');
+            $manage_url = add_query_arg(array('page'=>'uapm-advertising','advertiser_id'=>(int)$block->advertiser_id), admin_url('admin.php'));
+            echo '<tr><td>' . esc_html($block->advertiser_name ? $block->advertiser_name : '—') . '</td>';
+            echo '<td>' . esc_html(implode(', ', $project_names)) . '</td>';
+            echo '<td>' . esc_html($block->start_date . ' — ' . $block->end_date) . '</td>';
+            echo '<td>' . esc_html(number_format_i18n((float)$block->monthly_price,2) . ' ' . $block->currency) . '</td>';
+            echo '<td>' . (int)$stats['impressions'] . '</td><td>' . (int)$stats['clicks'] . '</td>';
+            echo '<td>' . esc_html(number_format_i18n($paid,2) . ' ' . $block->currency) . '</td>';
+            echo '<td>' . esc_html($status) . '</td><td><a class="button button-small" href="' . esc_url($manage_url) . '">Керувати</a></td></tr>';
+        }
+        if (!$rows) echo '<tr><td colspan="9">Рекламних блоків ще немає.</td></tr>';
+        echo '</tbody></table></div>';
     }
 
     private static function render_block_form($advertiser) {
