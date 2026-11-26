@@ -25,45 +25,158 @@ final class UAPM_Admin {
      * Старі сторінки та їхні callback-и залишаються зареєстрованими.
      */
     public static function hide_legacy_module_menus() {
-        if (class_exists('\UAPM\PayBox\UPB_Admin')) remove_menu_page('upb-premiums');
-        if (function_exists('\UAPM\WebFinder\cmsf_page_search')) remove_menu_page('cms-checker');
+        global $submenu;
+
+        if (class_exists('\\UAPM\\PayBox\\UPB_Admin')) {
+            remove_menu_page('upb-premiums');
+        }
+        if (function_exists('\\UAPM\\WebFinder\\cmsf_page_search')) {
+            remove_menu_page('cms-checker');
+        }
 
         $menus = array(
             'uapm-hub-projects' => 'Проєкти',
             'uapm-hub-advertising' => 'Реклама',
             'uapm-hub-payments' => 'Оплати',
-            'uapm-hub-finder' => 'Пошук сайтів',
-            'uapm-hub-mailings' => 'Контакти та розсилки',
-            'uapm-hub-tools' => 'Інструменти',
+            'uapm-hub-finder' => 'Збір і розсилка',
+            'uapm-hub-tasks' => 'Задачі',
+            'uapm-hub-statistics' => 'Статистика',
             'uapm-hub-settings' => 'Налаштування',
         );
-        foreach ($menus as $slug => $label) {
-            add_submenu_page('uapm', $label, $label, 'manage_options', $slug, array(__CLASS__, 'render_hub'));
+
+        $referral_slugs = array('uapm-referrals', 'uapm-referral', 'uapm-referral-system');
+        $has_referrals = false;
+        if (!empty($submenu['uapm']) && is_array($submenu['uapm'])) {
+            foreach ($submenu['uapm'] as $item) {
+                if (!empty($item[2]) && in_array((string) $item[2], $referral_slugs, true)) {
+                    $has_referrals = true;
+                    break;
+                }
+            }
+        }
+        if ($has_referrals) {
+            $menus['uapm-hub-referrals'] = 'Реферальна система';
         }
 
-        // Окремий Click Counter лишається вимкненим/увімкненим так, як його налаштував власник.
-        if (class_exists('\\UAPM\\ClickCounter\\UACC_Embedded')) {
-            add_action('admin_notices', function () {
-                if (current_user_can('manage_options')) {
-                    echo '<div class="notice notice-info"><p><strong>UA Project Manager:</strong> Вбудований Click Counter доступний у розділі «Реклама».</p></div>';
-                }
-            });
+        foreach ($menus as $slug => $label) {
+            add_submenu_page('uapm', $label, $label, 'manage_options', $slug, array(__CLASS__, 'render_hub'));
         }
     }
 
     /** Приховуємо старі пункти меню, не видаляючи сторінки, дані чи обробники. */
     public static function admin_menu_styles() {
-        if (!is_admin()) return;
+        if (!is_admin()) {
+            return;
+        }
+
         echo '<style>
             #toplevel_page_uapm .wp-submenu { padding:6px 0 !important; }
-            #toplevel_page_uapm .wp-submenu li { display:list-item !important; }
-            #toplevel_page_uapm .wp-submenu a { padding-top:6px !important; padding-bottom:6px !important; }
-            #toplevel_page_uapm .wp-submenu a[href*="page=uapm-hub-"] {
-                margin-top:5px; padding-left:10px !important; font-weight:700;
-                background:#f0f6fc; border-left:3px solid #2271b1; color:#1d2327;
-            }
-            #toplevel_page_uapm .wp-submenu a[href*="page=uapm-hub-"]:hover { background:#e5f0fa; }
+            #toplevel_page_uapm .wp-submenu > li { display:list-item !important; }
+            #toplevel_page_uapm .wp-submenu .uapm-accordion-items { display:none; margin:0 0 5px 0; padding:3px 0 5px 9px; border-left:2px solid #50575e; }
+            #toplevel_page_uapm .wp-submenu .uapm-accordion-section.uapm-open > .uapm-accordion-items { display:block; }
+            #toplevel_page_uapm .wp-submenu .uapm-accordion-section > a { position:relative; padding:8px 25px 8px 12px !important; margin:3px 5px; border-radius:3px; background:#2c3338; color:#f0f0f1; font-weight:600; cursor:pointer; }
+            #toplevel_page_uapm .wp-submenu .uapm-accordion-section > a:after { content:"+"; position:absolute; right:10px; font-size:16px; line-height:1; }
+            #toplevel_page_uapm .wp-submenu .uapm-accordion-section.uapm-open > a:after { content:"−"; }
+            #toplevel_page_uapm .wp-submenu .uapm-accordion-section > a:hover,
+            #toplevel_page_uapm .wp-submenu .uapm-accordion-section.uapm-open > a { background:#2271b1; color:#fff; }
+            #toplevel_page_uapm .wp-submenu .uapm-accordion-items > li > a { padding:6px 10px 6px 12px !important; white-space:normal; }
+            #toplevel_page_uapm .wp-submenu .uapm-accordion-items > li.current > a,
+            #toplevel_page_uapm .wp-submenu .uapm-accordion-items > li > a.current { color:#fff; font-weight:600; }
         </style>';
+
+        echo '<script>
+        document.addEventListener("DOMContentLoaded", function () {
+            var root = document.querySelector("#toplevel_page_uapm > ul.wp-submenu");
+            if (!root || root.getAttribute("data-uapm-accordion") === "1") return;
+            root.setAttribute("data-uapm-accordion", "1");
+
+            var headers = [
+                "uapm-hub-projects",
+                "uapm-hub-advertising",
+                "uapm-hub-payments",
+                "uapm-hub-finder",
+                "uapm-hub-tasks",
+                "uapm-hub-statistics",
+                "uapm-hub-referrals",
+                "uapm-hub-settings"
+            ];
+            var sections = [];
+            var current = null;
+            var items = Array.prototype.slice.call(root.children);
+
+            function pageSlug(anchor) {
+                try {
+                    return new URL(anchor.href, window.location.href).searchParams.get("page") || "";
+                } catch (e) {
+                    var match = anchor.href.match(/[?&]page=([^&]+)/);
+                    return match ? decodeURIComponent(match[1]) : "";
+                }
+            }
+
+            function closeOthers(except) {
+                sections.forEach(function (section) {
+                    if (section !== except) {
+                        section.li.classList.remove("uapm-open");
+                        section.anchor.setAttribute("aria-expanded", "false");
+                    }
+                });
+            }
+
+            items.forEach(function (li) {
+                var anchor = li.querySelector(":scope > a");
+                if (!anchor) return;
+                var slug = pageSlug(anchor);
+
+                if (slug === "uapm") {
+                    current = null;
+                    return;
+                }
+
+                if (headers.indexOf(slug) !== -1) {
+                    var panel = document.createElement("ul");
+                    panel.className = "uapm-accordion-items";
+                    panel.setAttribute("role", "group");
+                    li.appendChild(panel);
+                    li.classList.add("uapm-accordion-section");
+
+                    anchor.href = "#" + slug;
+                    anchor.setAttribute("role", "button");
+                    anchor.setAttribute("aria-expanded", "false");
+
+                    current = {li:li, anchor:anchor, panel:panel};
+                    sections.push(current);
+
+                    anchor.addEventListener("click", function (event) {
+                        event.preventDefault();
+                        var willOpen = !li.classList.contains("uapm-open");
+                        closeOthers(current);
+                        li.classList.toggle("uapm-open", willOpen);
+                        anchor.setAttribute("aria-expanded", willOpen ? "true" : "false");
+                    });
+                    anchor.addEventListener("keydown", function (event) {
+                        if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            anchor.click();
+                        }
+                    });
+                    return;
+                }
+
+                if (current) {
+                    current.panel.appendChild(li);
+                }
+            });
+
+            sections.forEach(function (section) {
+                var active = section.panel.querySelector("li.current, li.wp-has-current-submenu, a.current, a[aria-current=page]");
+                if (active) {
+                    closeOthers(section);
+                    section.li.classList.add("uapm-open");
+                    section.anchor.setAttribute("aria-expanded", "true");
+                }
+            });
+        });
+        </script>';
     }
 
     /**
@@ -73,177 +186,248 @@ final class UAPM_Admin {
      */
     public static function organize_module_menus() {
         global $submenu;
-        if (empty($submenu['uapm']) || !is_array($submenu['uapm'])) return;
+
+        if (empty($submenu['uapm']) || !is_array($submenu['uapm'])) {
+            return;
+        }
 
         $by_slug = array();
         $home = null;
         foreach ($submenu['uapm'] as $item) {
-            if (empty($item[2])) continue;
+            if (empty($item[2])) {
+                continue;
+            }
             $slug = (string) $item[2];
-            if ($slug === 'uapm') $home = $item;
-            else $by_slug[$slug] = $item;
+            if ($slug === 'uapm') {
+                $home = $item;
+            } else {
+                $by_slug[$slug] = $item;
+            }
         }
 
         $groups = array(
-            'uapm-hub-projects' => array('uapm-projects','uapm-clients','uapm-customers','uapm-tasks','uapm-milestones','uapm-calendar','uapm-notes','uapm-comments','uapm-attachments','uapm-project-activity','uapm-activity-feed'),
-            'uapm-hub-advertising' => array('uapm-advertisers','uapm-ad-blocks','uapm-ad-reports','uacc','uacc_new','uacc_edit','uacc_newsletter'),
-            'uapm-hub-payments' => array('uapm-payments','uapm-licenses','uapm-paybox-services','uapm-paybox-premiums','uapm-paybox-settings'),
-            'uapm-hub-finder' => array('uapm-finder-search','uapm-finder-import','uapm-finder-lists'),
-            'uapm-hub-mailings' => array('uapm-finder-contacts','uapm-finder-templates','uapm-finder-settings','uapm-mailings','uapm-finder-pro'),
-            'uapm-hub-tools' => array('uapm-search','uapm-github','uapm-code-generator','uapm-code-inspector','uapm-integrations','uapm-downloads','uapm-installations','uapm-analytics','uapm-reports','uapm-sync'),
-            'uapm-hub-settings' => array('uapm-settings','uapm-import','uapm-dependencies'),
+            'uapm-hub-projects' => array('uapm-projects', 'uapm-clients', 'uapm-customers', 'uapm-calendar', 'uapm-notes', 'uapm-comments', 'uapm-attachments', 'uapm-project-activity', 'uapm-activity-feed'),
+            'uapm-hub-advertising' => array('uapm-advertisers', 'uapm-ad-blocks', 'uapm-ad-reports', 'uacc', 'uacc_new', 'uacc_edit', 'uacc_newsletter'),
+            'uapm-hub-payments' => array('uapm-payments', 'uapm-licenses', 'uapm-paybox-services', 'uapm-paybox-premiums', 'uapm-paybox-settings'),
+            'uapm-hub-finder' => array('uapm-finder-search', 'uapm-finder-import', 'uapm-finder-lists', 'uapm-finder-contacts', 'uapm-finder-templates', 'uapm-finder-settings', 'uapm-mailings', 'uapm-finder-pro'),
+            'uapm-hub-tasks' => array('uapm-tasks', 'uapm-milestones', 'uapm-task-sync'),
+            'uapm-hub-statistics' => array('uapm-analytics', 'uapm-reports'),
+            'uapm-hub-referrals' => array('uapm-referrals', 'uapm-referral', 'uapm-referral-system'),
+            'uapm-hub-settings' => array('uapm-settings', 'uapm-import', 'uapm-dependencies', 'uapm-search', 'uapm-github', 'uapm-code-generator', 'uapm-code-inspector', 'uapm-integrations', 'uapm-downloads', 'uapm-installations', 'uapm-sync'),
         );
+
         $labels = array(
-            'uapm-projects'=>'— Усі проєкти','uapm-clients'=>'— Клієнти','uapm-customers'=>'— Замовники',
-            'uapm-tasks'=>'— Завдання','uapm-milestones'=>'— Етапи проєктів','uapm-calendar'=>'— Календар',
-            'uapm-notes'=>'— Нотатки','uapm-comments'=>'— Коментарі','uapm-attachments'=>'— Файли',
-            'uapm-project-activity'=>'— Активність проєктів','uapm-activity-feed'=>'— Стрічка активності',
-            'uapm-advertisers'=>'— Рекламодавці','uapm-ad-blocks'=>'— Рекламні блоки','uapm-ad-reports'=>'— Звіти',
-            'uacc'=>'— Click Counter: Кнопки та статистика','uacc_new'=>'— Click Counter: Створити кнопку',
-            'uacc_edit'=>'— Click Counter: Редагувати кнопку','uacc_newsletter'=>'— Click Counter: Розсилка',
-            'uapm-payments'=>'— Платежі','uapm-licenses'=>'— Ліцензії','uapm-paybox-services'=>'— Послуги Pay Box',
-            'uapm-paybox-premiums'=>'— PRO-ліцензії Freemius','uapm-paybox-settings'=>'— Налаштування Pay Box',
-            'uapm-finder-search'=>'— Пошук за CMS','uapm-finder-import'=>'— Імпорт доменів',
-            'uapm-finder-lists'=>'— Списки сайтів','uapm-finder-contacts'=>'— Збір email та кампанії',
-            'uapm-finder-templates'=>'— Шаблони листів','uapm-finder-settings'=>'— Налаштування Finder',
-            'uapm-mailings'=>'— Розсилки клієнтам','uapm-finder-pro'=>'— Pro / Активація',
-            'uapm-search'=>'— Глобальний пошук','uapm-github'=>'— GitHub та релізи',
-            'uapm-code-generator'=>'— Генератор коду','uapm-code-inspector'=>'— Перевірка коду',
-            'uapm-integrations'=>'— Інтеграції','uapm-downloads'=>'— Завантаження',
-            'uapm-installations'=>'— Встановлення','uapm-analytics'=>'— Аналітика',
-            'uapm-reports'=>'— Звіти системи','uapm-sync'=>'— Синхронізація модулів',
-            'uapm-settings'=>'— Загальні налаштування','uapm-import'=>'— Імпорт даних',
-            'uapm-dependencies'=>'— Залежності системи',
+            'uapm-projects' => 'Усі проєкти',
+            'uapm-clients' => 'Клієнти',
+            'uapm-customers' => 'Замовники',
+            'uapm-calendar' => 'Календар проєктів',
+            'uapm-notes' => 'Нотатки',
+            'uapm-comments' => 'Коментарі',
+            'uapm-attachments' => 'Файли проєктів',
+            'uapm-project-activity' => 'Активність проєктів',
+            'uapm-activity-feed' => 'Стрічка активності',
+            'uapm-advertisers' => 'Рекламодавці',
+            'uapm-ad-blocks' => 'Рекламні блоки',
+            'uapm-ad-reports' => 'Звіти реклами',
+            'uacc' => 'Click Counter: Кнопки та статистика',
+            'uacc_new' => 'Click Counter: Створити кнопку',
+            'uacc_edit' => 'Click Counter: Редагувати кнопку',
+            'uacc_newsletter' => 'Click Counter: Розсилка',
+            'uapm-payments' => 'Платежі',
+            'uapm-licenses' => 'Ліцензії',
+            'uapm-paybox-services' => 'Послуги Pay Box',
+            'uapm-paybox-premiums' => 'PRO-ліцензії Freemius',
+            'uapm-paybox-settings' => 'Налаштування Pay Box',
+            'uapm-finder-search' => 'Пошук сайтів за CMS',
+            'uapm-finder-import' => 'Імпорт доменів',
+            'uapm-finder-lists' => 'Списки сайтів',
+            'uapm-finder-contacts' => 'Збір email та контакти',
+            'uapm-finder-templates' => 'Шаблони листів',
+            'uapm-finder-settings' => 'Налаштування Web Finder',
+            'uapm-mailings' => 'Розсилки клієнтам',
+            'uapm-finder-pro' => 'Web Finder Pro / Активація',
+            'uapm-tasks' => 'Завдання',
+            'uapm-milestones' => 'Етапи проєктів',
+            'uapm-task-sync' => 'Синхронізація задач',
+            'uapm-analytics' => 'Аналітика',
+            'uapm-reports' => 'Звіти системи',
+            'uapm-referrals' => 'Реферальна система',
+            'uapm-referral' => 'Реферальна система',
+            'uapm-referral-system' => 'Реферальна система',
+            'uapm-settings' => 'Загальні налаштування',
+            'uapm-import' => 'Імпорт даних',
+            'uapm-dependencies' => 'Залежності системи',
+            'uapm-search' => 'Глобальний пошук',
+            'uapm-github' => 'GitHub та релізи',
+            'uapm-code-generator' => 'Генератор коду',
+            'uapm-code-inspector' => 'Перевірка коду',
+            'uapm-integrations' => 'Інтеграції',
+            'uapm-downloads' => 'Завантаження',
+            'uapm-installations' => 'Встановлення',
+            'uapm-sync' => 'Синхронізація модулів',
+        );
+
+        $group_labels = array(
+            'uapm-hub-projects' => 'Проєкти',
+            'uapm-hub-advertising' => 'Реклама',
+            'uapm-hub-payments' => 'Оплати',
+            'uapm-hub-finder' => 'Збір і розсилка',
+            'uapm-hub-tasks' => 'Задачі',
+            'uapm-hub-statistics' => 'Статистика',
+            'uapm-hub-referrals' => 'Реферальна система',
+            'uapm-hub-settings' => 'Налаштування',
         );
 
         $ordered = array();
-        $used = array();
-        if ($home) { $ordered[] = $home; $used['uapm'] = true; }
-
-        $extra = array('projects'=>array(),'advertising'=>array(),'payments'=>array(),'finder'=>array(),'mailings'=>array(),'tools'=>array(),'settings'=>array());
-        foreach ($by_slug as $slug => $item) {
-            if (strpos($slug,'uapm-hub-') === 0 || isset($used[$slug]) || $slug === 'uapm-advertising') continue;
-            $target = 'tools';
-            if (strpos($slug,'uacc') === 0 || strpos($slug,'advert') !== false || strpos($slug,'ad-') !== false) $target = 'advertising';
-            elseif (strpos($slug,'pay') !== false || strpos($slug,'payment') !== false || strpos($slug,'license') !== false) $target = 'payments';
-            elseif (strpos($slug,'finder') !== false) $target = (strpos($slug,'contact') !== false || strpos($slug,'template') !== false || strpos($slug,'setting') !== false || strpos($slug,'pro') !== false) ? 'mailings' : 'finder';
-            elseif (strpos($slug,'mail') !== false) $target = 'mailings';
-            elseif (preg_match('/project|client|customer|task|milestone|calendar|note|comment|attach|activity/',$slug)) $target = 'projects';
-            elseif (strpos($slug,'setting') !== false || strpos($slug,'import') !== false || strpos($slug,'depend') !== false) $target = 'settings';
-            $extra[$target][$slug] = $item;
+        if ($home) {
+            $ordered[] = $home;
         }
-        $extra_headers = array('projects'=>'uapm-hub-projects','advertising'=>'uapm-hub-advertising','payments'=>'uapm-hub-payments','finder'=>'uapm-hub-finder','mailings'=>'uapm-hub-mailings','tools'=>'uapm-hub-tools','settings'=>'uapm-hub-settings');
 
         foreach ($groups as $header_slug => $slugs) {
-            if (isset($by_slug[$header_slug])) {
-                $header = $by_slug[$header_slug];
-                $header[0] = '▾ ' . wp_strip_all_tags($header[0]);
-                $ordered[] = $header;
-                $used[$header_slug] = true;
+            if (!isset($by_slug[$header_slug])) {
+                continue;
             }
+
+            $header = $by_slug[$header_slug];
+            $header[0] = $group_labels[$header_slug];
+            $ordered[] = $header;
+
             foreach ($slugs as $slug) {
-                if (!isset($by_slug[$slug]) || isset($used[$slug]) || $slug === 'uapm-advertising') continue;
-                $item = $by_slug[$slug];
-                $item[0] = isset($labels[$slug]) ? $labels[$slug] : '— ' . wp_strip_all_tags($item[0]);
-                $ordered[] = $item;
-                $used[$slug] = true;
-            }
-            foreach ($extra as $group_key => $items) {
-                if ($extra_headers[$group_key] !== $header_slug) continue;
-                foreach ($items as $slug => $item) {
-                    if (isset($used[$slug])) continue;
-                    $item[0] = isset($labels[$slug]) ? $labels[$slug] : '— ' . wp_strip_all_tags($item[0]);
-                    $ordered[] = $item;
-                    $used[$slug] = true;
+                if (!isset($by_slug[$slug]) || $slug === 'uapm-advertising') {
+                    continue;
                 }
+                $item = $by_slug[$slug];
+                $item[0] = isset($labels[$slug]) ? $labels[$slug] : wp_strip_all_tags($item[0]);
+                $ordered[] = $item;
+                unset($by_slug[$slug]);
             }
+            unset($by_slug[$header_slug]);
         }
 
-        // Keep legacy direct URLs working without showing the old combined advertising entry.
-        foreach ($by_slug as $slug => $item) {
-            if ($slug === 'uapm-advertising') { $used[$slug] = true; continue; }
-            if (isset($used[$slug])) continue;
-            $item[0] = '— ' . wp_strip_all_tags($item[0]);
-            $ordered[] = $item;
-            $used[$slug] = true;
+        // Сторінки без окремої категорії не губимо: додаємо їх до «Налаштування».
+        if (isset($by_slug['uapm-hub-mailings'])) {
+            unset($by_slug['uapm-hub-mailings']);
         }
+        if (isset($by_slug['uapm-advertising'])) {
+            unset($by_slug['uapm-advertising']);
+        }
+        foreach ($by_slug as $slug => $item) {
+            $item[0] = isset($labels[$slug]) ? $labels[$slug] : wp_strip_all_tags($item[0]);
+            $ordered[] = $item;
+        }
+
         $submenu['uapm'] = $ordered;
     }
 
     /** Посилання на наявні сторінки модулів, згруповані за призначенням. */
     private static function hub_sections() {
         return array(
-            'uapm-hub-projects' => array('title'=>'Проєкти та робота','description'=>'Проєкти, клієнти, завдання й матеріали.','links'=>array(
-                array('Проєкти','uapm-projects','Створення та керування проєктами.'),
-                array('Клієнти','uapm-clients','Картки клієнтів.'),
-                array('Завдання','uapm-tasks','Поточні роботи та контроль виконання.'),
-                array('Етапи','uapm-milestones','Етапи проєктів.'),
-                array('Календар','uapm-calendar','Календар проєктних подій.'),
-                array('Нотатки','uapm-notes','Робочі нотатки.'),
-                array('Коментарі','uapm-comments','Обговорення проєктів.'),
-                array('Файли','uapm-attachments','Файли проєктів.'),
-                array('Активність','uapm-project-activity','Історія дій у проєктах.')
+            'uapm-hub-projects' => array('title' => 'Проєкти', 'description' => 'Проєкти, клієнти та матеріали.', 'links' => array(
+                array('Усі проєкти', 'uapm-projects', 'Створення та керування проєктами.'),
+                array('Клієнти', 'uapm-clients', 'Картки клієнтів.'),
+                array('Замовники', 'uapm-customers', 'Замовники та їхні дані.'),
+                array('Календар', 'uapm-calendar', 'Календар проєктних подій.'),
+                array('Нотатки', 'uapm-notes', 'Робочі нотатки.'),
+                array('Коментарі', 'uapm-comments', 'Обговорення проєктів.'),
+                array('Файли', 'uapm-attachments', 'Файли проєктів.'),
+                array('Активність', 'uapm-project-activity', 'Історія дій у проєктах.')
             )),
-            'uapm-hub-advertising' => array('title'=>'Реклама','description'=>'Рекламодавці, блоки, статистика та кнопки.','links'=>array(
-                array('Рекламодавці та блоки','uapm-advertising','Створення рекламних розміщень.'),
-                array('Звіти реклами','uapm-ad-reports','Покази та кліки.'),
-                array('Кнопки завантаження','uacc','Кнопки й лічильники.'),
-                array('Розсилка кнопок','uacc_newsletter','Повідомлення користувачам кнопок.')
+            'uapm-hub-advertising' => array('title' => 'Реклама', 'description' => 'Рекламодавці, рекламні блоки та статистика.', 'links' => array(
+                array('Рекламодавці', 'uapm-advertisers', 'Картки рекламодавців та контакти.'),
+                array('Рекламні блоки', 'uapm-ad-blocks', 'Створення та керування розміщеннями.'),
+                array('Звіти реклами', 'uapm-ad-reports', 'Покази, кліки та періоди.'),
+                array('Click Counter', 'uacc', 'Кнопки завантаження та статистика.'),
+                array('Створити кнопку', 'uacc_new', 'Нова кнопка Click Counter.'),
+                array('Розсилка кнопок', 'uacc_newsletter', 'Повідомлення користувачам кнопок.')
             )),
-            'uapm-hub-payments' => array('title'=>'Оплати та Pay Box','description'=>'Послуги, платежі й платіжні налаштування.','links'=>array(
-                array('Платежі','uapm-payments','Облік оплат і часткових надходжень.'),
-                array('Послуги Pay Box','uapm-paybox-services','Платні послуги проєктів.'),
-                array('PRO-ліцензії','uapm-paybox-premiums','PRO-плани та ліцензії.'),
-                array('Налаштування Pay Box','uapm-paybox-settings','Параметри платіжного модуля.')
+            'uapm-hub-payments' => array('title' => 'Оплати', 'description' => 'Платежі, послуги та ліцензії.', 'links' => array(
+                array('Платежі', 'uapm-payments', 'Облік отриманих і часткових оплат.'),
+                array('Ліцензії', 'uapm-licenses', 'Керування ліцензіями.'),
+                array('Послуги Pay Box', 'uapm-paybox-services', 'Платні послуги проєктів.'),
+                array('PRO-ліцензії Freemius', 'uapm-paybox-premiums', 'PRO-плани та ліцензії.'),
+                array('Налаштування Pay Box', 'uapm-paybox-settings', 'Параметри платіжного модуля.')
             )),
-            'uapm-hub-finder' => array('title'=>'Пошук сайтів','description'=>'Пошук доменів, імпорт і збережені списки.','links'=>array(
-                array('Пошук сайтів','uapm-finder-search','Пошук за CMS, регіоном і мовою.'),
-                array('Імпорт доменів','uapm-finder-import','Завантаження власного списку доменів.'),
-                array('Списки сайтів','uapm-finder-lists','Перегляд результатів пошуку.')
+            'uapm-hub-finder' => array('title' => 'Збір і розсилка', 'description' => 'Пошук сайтів, збір контактів та email-кампанії.', 'links' => array(
+                array('Пошук сайтів', 'uapm-finder-search', 'Пошук за CMS, регіоном і мовою.'),
+                array('Імпорт доменів', 'uapm-finder-import', 'Завантаження власного списку доменів.'),
+                array('Списки сайтів', 'uapm-finder-lists', 'Перегляд і керування результатами.'),
+                array('Збір email', 'uapm-finder-contacts', 'Сканування сайтів і збір адрес.'),
+                array('Шаблони листів', 'uapm-finder-templates', 'Шаблони для Finder.'),
+                array('Розсилки', 'uapm-mailings', 'Кампанії для клієнтів проєктів.'),
+                array('Pro / Активація', 'uapm-finder-pro', 'Стан пробного періоду та активація.')
             )),
-            'uapm-hub-mailings' => array('title'=>'Контакти та розсилки','description'=>'Збір email, шаблони й кампанії.','links'=>array(
-                array('Збір email та кампанії','uapm-finder-contacts','Сканування сайтів, адреси та кампанії.'),
-                array('Шаблони листів','uapm-finder-templates','Шаблони для Finder.'),
-                array('Налаштування Finder','uapm-finder-settings','Параметри пошуку й збору контактів.'),
-                array('Розсилки клієнтам','uapm-mailings','Кампанії для клієнтів проєктів.'),
-                array('Pro / Активація','uapm-finder-pro','Стан пробного періоду та активація.')
+            'uapm-hub-tasks' => array('title' => 'Задачі', 'description' => 'Планування та контроль виконання.', 'links' => array(
+                array('Задачі', 'uapm-tasks', 'Створення та оновлення завдань.'),
+                array('Етапи проєктів', 'uapm-milestones', 'Ключові етапи виконання.')
             )),
-            'uapm-hub-tools' => array('title'=>'Інструменти','description'=>'GitHub, код, інтеграції та технічні модулі.','links'=>array(
-                array('Глобальний пошук','uapm-search','Пошук у даних менеджера.'),
-                array('GitHub та релізи','uapm-github','Репозиторії та версії.'),
-                array('Генератор коду','uapm-code-generator','Підготовка коду.'),
-                array('Перевірка коду','uapm-code-inspector','Перевірка файлів і плагінів.'),
-                array('Інтеграції','uapm-integrations','Підключені модулі та сервіси.'),
-                array('Завантаження','uapm-downloads','Файли та пакети.'),
-                array('Встановлення','uapm-installations','Облік встановлень.'),
-                array('Аналітика','uapm-analytics','Зведені показники.'),
-                array('Синхронізація','uapm-sync','Стан вбудованих модулів.')
+            'uapm-hub-statistics' => array('title' => 'Статистика', 'description' => 'Аналітика та системні звіти.', 'links' => array(
+                array('Аналітика', 'uapm-analytics', 'Зведені показники.'),
+                array('Звіти системи', 'uapm-reports', 'Звіти та експорт даних.')
             )),
-            'uapm-hub-settings' => array('title'=>'Налаштування системи','description'=>'Загальні параметри та перевірка системи.','links'=>array(
-                array('Налаштування','uapm-settings','Параметри UA Project Manager.'),
-                array('Імпорт даних','uapm-import','Імпорт та експорт.'),
-                array('Залежності','uapm-dependencies','Перевірка компонентів.')
+            'uapm-hub-referrals' => array('title' => 'Реферальна система', 'description' => 'Реферальні інструменти.', 'links' => array(
+                array('Реферальна система', 'uapm-referrals', 'Керування реферальними посиланнями та переходами.')
+            )),
+            'uapm-hub-settings' => array('title' => 'Налаштування', 'description' => 'Системні параметри та інструменти.', 'links' => array(
+                array('Загальні налаштування', 'uapm-settings', 'Параметри UA Project Manager.'),
+                array('Імпорт даних', 'uapm-import', 'Імпорт та експорт.'),
+                array('Залежності', 'uapm-dependencies', 'Перевірка компонентів.'),
+                array('GitHub та релізи', 'uapm-github', 'Репозиторії та версії.'),
+                array('Генератор коду', 'uapm-code-generator', 'Підготовка коду.'),
+                array('Перевірка коду', 'uapm-code-inspector', 'Перевірка файлів і плагінів.'),
+                array('Інтеграції', 'uapm-integrations', 'Підключені модулі та сервіси.'),
+                array('Завантаження', 'uapm-downloads', 'Файли та пакети.'),
+                array('Встановлення', 'uapm-installations', 'Облік встановлень.'),
+                array('Синхронізація', 'uapm-sync', 'Стан вбудованих модулів.')
             ))
         );
     }
 
     /** Відображає вибраний розділ у вигляді простих карток. */
     public static function render_hub() {
-        if (!current_user_can('manage_options')) wp_die('Недостатньо прав для перегляду цього розділу.');
+        if (!current_user_can('manage_options')) {
+            wp_die('Недостатньо прав для перегляду цього розділу.');
+        }
+
         $slug = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
         $sections = self::hub_sections();
-        if (!isset($sections[$slug])) wp_die('Розділ не знайдено.');
+        if (!isset($sections[$slug])) {
+            wp_die('Розділ не знайдено.');
+        }
+
+        global $submenu;
+        $available = array();
+        if (!empty($submenu['uapm']) && is_array($submenu['uapm'])) {
+            foreach ($submenu['uapm'] as $menu_item) {
+                if (!empty($menu_item[2])) {
+                    $available[(string) $menu_item[2]] = true;
+                }
+            }
+        }
+
         $section = $sections[$slug];
+        $links = array();
+        foreach ($section['links'] as $item) {
+            if (isset($available[$item[1]])) {
+                $links[] = $item;
+            }
+        }
+
         echo '<div class="wrap"><h1>' . esc_html($section['title']) . '</h1>';
         echo '<p class="description" style="font-size:14px;margin:8px 0 20px">' . esc_html($section['description']) . '</p>';
-        echo '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;max-width:1100px">';
-        foreach ($section['links'] as $item) {
-            $url = admin_url('admin.php?page=' . rawurlencode($item[1]));
-            echo '<a href="' . esc_url($url) . '" style="display:block;text-decoration:none;background:#fff;border:1px solid #dcdcde;border-radius:8px;padding:17px;color:#1d2327">';
-            echo '<strong style="display:block;font-size:15px;margin-bottom:6px">' . esc_html($item[0]) . ' ›</strong>';
-            echo '<span style="color:#646970;font-size:13px">' . esc_html($item[2]) . '</span></a>';
+
+        if (!$links) {
+            echo '<div class="notice notice-warning"><p>У цьому розділі поки немає зареєстрованих сторінок. Посилання на неіснуючі модулі не показуються.</p></div>';
+        } else {
+            echo '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;max-width:1100px">';
+            foreach ($links as $item) {
+                $url = add_query_arg('page', $item[1], admin_url('admin.php'));
+                echo '<a href="' . esc_url($url) . '" style="display:block;text-decoration:none;background:#fff;border:1px solid #dcdcde;border-radius:8px;padding:17px;color:#1d2327">';
+                echo '<strong style="display:block;font-size:15px;margin-bottom:6px">' . esc_html($item[0]) . ' ›</strong>';
+                echo '<span style="color:#646970;font-size:13px">' . esc_html($item[2]) . '</span></a>';
+            }
+            echo '</div>';
         }
-        echo '</div></div>';
+        echo '</div>';
     }
 
     public static function register_menu() {
