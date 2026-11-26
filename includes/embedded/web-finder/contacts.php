@@ -622,7 +622,7 @@ function cmsfc_scan_step($list_id) {
 function cmsfc_ajax_guard() {
     check_ajax_referer('uapm_cmsfc', 'nonce');
 
-    if (!current_user_can('manage_options')) {
+    if (!cmsf_can_manage()) {
         wp_send_json_error('Недостатньо прав.');
     }
     $action = sanitize_key(wp_unslash($_REQUEST['action'] ?? ''));
@@ -866,7 +866,7 @@ add_action('wp_ajax_uapm_cmsfc_contacts_copy', function () {
 });
 
 add_action('admin_post_uapm_cmsfc_export', function () {
-    if (!current_user_can('manage_options')) {
+    if (!cmsf_can_manage()) {
         wp_die('Недостатньо прав.');
     }
 
@@ -1188,12 +1188,12 @@ add_action('admin_menu', function () {
         'uapm',
         'Збір email та розсилки',
         'Збір і розсилка: email та контакти',
-        'manage_options',
+        'uapm_manage_projects',
         'uapm-finder-contacts',
         function () { cmsfc_admin_page(); }
     );
-    add_submenu_page('uapm', 'Шаблони листів Finder', 'Збір і розсилка: шаблони', 'manage_options', 'uapm-finder-templates', function () { cmsf_page_templates(); });
-    add_submenu_page('uapm', 'Налаштування Web Finder', 'Збір і розсилка: налаштування', 'manage_options', 'uapm-finder-settings', function () { cmsf_page_settings(); });
+    add_submenu_page('uapm', 'Шаблони листів Finder', 'Збір і розсилка: шаблони', 'uapm_manage_projects', 'uapm-finder-templates', function () { cmsf_page_templates(); });
+    add_submenu_page('uapm', 'Налаштування Web Finder', 'Збір і розсилка: налаштування', 'uapm_manage_projects', 'uapm-finder-settings', function () { cmsf_page_settings(); });
 });
 
 /* ---------------------------------------------------------
@@ -1236,7 +1236,7 @@ add_action('admin_enqueue_scripts', function ($hook) {
  * --------------------------------------------------------- */
 
 function cmsfc_admin_page() {
-    if (!current_user_can('manage_options')) {
+    if (!cmsf_can_manage()) {
         return;
     }
 
