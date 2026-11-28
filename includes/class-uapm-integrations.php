@@ -125,6 +125,14 @@ final class UAPM_Integrations {
                 'github_url' => 'https://github.com/portallcomua/cms-web-finger',
                 'main_file' => 'cms-web-finder.php',
             ),
+            array(
+                'integration_key' => 'ua-forms',
+                'name' => 'UA Forms',
+                'description' => 'Конструктор форм WordPress, шаблони, заявки та Pro-доступ.',
+                'plugin_author' => 'UAServer',
+                'github_url' => 'https://github.com/portallcomua/UA-Forms',
+                'main_file' => 'ua-forms.php',
+            ),
         );
 
         foreach ($items as $item) {
