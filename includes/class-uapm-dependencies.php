@@ -8,7 +8,6 @@ class UAPM_Dependencies {
     public static function init() {
         add_action('admin_notices', array(__CLASS__, 'show_notices'));
         add_action('admin_menu', array(__CLASS__, 'register_menu'), 110);
-        add_action('admin_menu', array(__CLASS__, 'register_module_menus'), 111);
         add_action('admin_post_uapm_check_dependencies', array(__CLASS__, 'handle_check'));
     }
 
@@ -205,33 +204,6 @@ class UAPM_Dependencies {
         );
     }
 
-    public static function register_module_menus() {
-        if (!current_user_can('manage_options')) {
-            return;
-        }
-
-        if (class_exists('UAPM_Integrations')) {
-            add_submenu_page(
-                'uapm',
-                'Інтеграції',
-                'Інтеграції',
-                'manage_options',
-                'uapm-integrations',
-                array('UAPM_Integrations', 'render_page')
-            );
-        }
-
-        if (class_exists('UAPM_GitHub')) {
-            add_submenu_page(
-                'uapm',
-                'GitHub та релізи',
-                'GitHub та релізи',
-                'manage_options',
-                'uapm-github',
-                array('UAPM_GitHub', 'render_page')
-            );
-        }
-    }
 
     public static function handle_check() {
         if (!current_user_can('manage_options')) {
