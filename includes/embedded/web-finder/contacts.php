@@ -1180,21 +1180,11 @@ add_action('wp_ajax_uapm_cmsfc_campaign_step', function () {
 });
 
 /* ---------------------------------------------------------
- * 18. Сторінка модуля в адмінці WordPress
+ * 18. Реєстрація меню
+ *
+ * Усі сторінки Web Finder реєструються централізовано
+ * в admin.php, щоб не створювати дублікати підменю.
  * --------------------------------------------------------- */
-
-add_action('admin_menu', function () {
-    add_submenu_page(
-        'uapm',
-        'Збір email та розсилки',
-        'Збір і розсилка: email та контакти',
-        'uapm_manage_projects',
-        'uapm-finder-contacts',
-        function () { cmsfc_admin_page(); }
-    );
-    add_submenu_page('uapm', 'Шаблони листів Finder', 'Збір і розсилка: шаблони', 'uapm_manage_projects', 'uapm-finder-templates', function () { cmsf_page_templates(); });
-    add_submenu_page('uapm', 'Налаштування Web Finder', 'Збір і розсилка: налаштування', 'uapm_manage_projects', 'uapm-finder-settings', function () { cmsf_page_settings(); });
-});
 
 /* ---------------------------------------------------------
  * 19. Підключення окремих JS та CSS модуля
