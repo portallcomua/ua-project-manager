@@ -268,7 +268,7 @@ final class UAPM_Admin {
                 array('Пошук сайтів', 'uapm-finder-search', 'Пошук за CMS, регіоном і мовою.'),
                 array('Імпорт доменів', 'uapm-finder-import', 'Завантаження власного списку доменів.'),
                 array('Списки сайтів', 'uapm-finder-lists', 'Перегляд і керування результатами.'),
-                array('Збір email', 'uapm-finder-contacts', 'Сканування сайтів і збір адрес.'),
+                array('Списки email', 'uapm-finder-contacts', 'Збір адрес, збережені списки контактів і email-кампанії.'),
                 array('Шаблони листів', 'uapm-finder-templates', 'Шаблони для Finder.'),
                 array('Налаштування Finder', 'uapm-finder-settings', 'Параметри пошуку та збору контактів.'),
                 array('Розсилки', 'uapm-mailings', 'Кампанії для клієнтів проєктів.')
@@ -339,7 +339,7 @@ final class UAPM_Admin {
         } else {
             echo '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;max-width:1100px">';
             foreach ($links as $item) {
-                $url = add_query_arg('page', $item[1], admin_url('admin.php'));
+                $url = admin_url('admin.php?page=' . rawurlencode(sanitize_key($item[1])));
                 echo '<a href="' . esc_url($url) . '" style="display:block;text-decoration:none;background:#fff;border:1px solid #dcdcde;border-radius:8px;padding:17px;color:#1d2327">';
                 echo '<strong style="display:block;font-size:15px;margin-bottom:6px">' . esc_html($item[0]) . ' ›</strong>';
                 echo '<span style="color:#646970;font-size:13px">' . esc_html($item[2]) . '</span></a>';
@@ -492,7 +492,7 @@ final class UAPM_Admin {
         $nav_items = array('uapm' => 'Головна', 'uapm-projects' => 'Проєкти', 'uapm-payments' => 'Платежі', 'uapm-import' => 'Імпорт даних');
         foreach ($nav_items as $page_slug => $nav_label) {
             if (($page_slug === 'uapm-payments' && !self::can_manage_payments()) || ($page_slug === 'uapm-import' && !current_user_can('uapm_manage_settings') && !current_user_can('manage_options'))) { continue; }
-            echo '<a href="' . esc_url(admin_url('admin.php?page=' . $page_slug)) . '">' . esc_html($nav_label) . '</a>';
+            echo '<a href="' . esc_url(admin_url('admin.php?page=' . rawurlencode(sanitize_key($page_slug)))) . '">' . esc_html($nav_label) . '</a>';
         }
         echo '</nav>';
         echo '<h1>' . esc_html($title) . '</h1>';
