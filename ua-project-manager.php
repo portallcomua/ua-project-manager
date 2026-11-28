@@ -4,7 +4,7 @@
  * Plugin URI: https://uaserver.pp.ua/
  * Update URI: https://github.com/portallcomua/ua-project-manager
  * Description: Central management system for UA projects, plugins, releases, licenses, payments and integrations.
- * Version: 1.1.15
+ * Version: 1.1.16
  * Author: UA Tools
  * Author URI: https://uaserver.pp.ua/
  * Text Domain: ua-project-manager
@@ -18,7 +18,7 @@ if (!defined('ABSPATH')) {
 }
 
 if (!defined('UAPM_VERSION')) {
-    define('UAPM_VERSION', '1.1.15');
+    define('UAPM_VERSION', '1.1.16');
 }
 
 if (!defined('UAPM_DB_VERSION')) {
@@ -242,80 +242,11 @@ final class UAPM_Plugin {
         return $this->errors;
     }
 
-    private function register_dependency_notices() {
-        add_action(
-            'admin_notices',
-            array($this, 'render_dependency_notices')
-        );
-    }
 
-    public function render_dependency_notices() {
-        if (!current_user_can('manage_options')) {
-            return;
-        }
-
-        if (!empty($this->errors)) {
-            echo '<div class="notice notice-error">';
-            echo '<p><strong>UA Project Manager:</strong> Не знайдено файли модулів:</p>';
-            echo '<ul>';
-
-            foreach ($this->errors as $file) {
-                echo '<li>' . esc_html($file) . '</li>';
-            }
-
-            echo '</ul></div>';
-        }
-
-        if (!function_exists('is_plugin_active')) {
-            require_once ABSPATH . 'wp-admin/includes/plugin.php';
-        }
-
-        $dependencies = array(
-            'UA Plugins Monitor' => array(
-                'slug' => 'ua-plugins-monitor/ua-plugins-monitor.php',
-                'description' => 'Моніторинг встановлень та оновлень.',
-            ),
-        );
-
-        $missing = array();
-
-        foreach ($dependencies as $name => $dependency) {
-            if (!is_plugin_active($dependency['slug'])) {
-                $missing[$name] = $dependency;
-            }
-        }
-
-        if (empty($missing)) {
-            return;
-        }
-
-        echo '<div class="notice notice-warning">';
-        echo '<p><strong>UA Project Manager:</strong> доступні додаткові інтеграції.</p>';
-        echo '<ul>';
-
-        foreach ($missing as $name => $dependency) {
-            echo '<li><strong>' . esc_html($name) . '</strong>';
-            echo ' — ' . esc_html($dependency['description']);
-            echo ' (необов’язкова інтеграція)</li>';
-        }
-
-        echo '</ul>';
-        echo '<p>Основні функції UA Project Manager повинні працювати незалежно від цих плагінів.</p>';
-        echo '<p><a href="' . esc_url(admin_url('plugins.php')) . '">Переглянути встановлені плагіни</a></p>';
-        echo '</div>';
-    }
 }
 
 function uapm() {
     return UAPM_Plugin::instance();
-}
-
-function uapm_is_plugin_active($plugin_file) {
-    if (!function_exists('is_plugin_active')) {
-        require_once ABSPATH . 'wp-admin/includes/plugin.php';
-    }
-
-    return is_plugin_active($plugin_file);
 }
 
 function uapm_activate_plugin() {
