@@ -4,16 +4,32 @@ namespace UAPM\WebFinder;
 if (!defined('ABSPATH')) exit;
 
 add_action('admin_menu', function () {
-    // Use explicit namespaced callbacks so WordPress reliably registers
-    // the plugin pages and emits canonical admin.php?page=... links.
-    add_submenu_page('uapm', 'Пошук сайтів', 'Пошук сайтів', 'uapm_manage_projects', 'uapm-finder-search', __NAMESPACE__ . '\\cmsf_page_search');
-    add_submenu_page('uapm', 'Імпорт сайтів', 'Імпорт сайтів', 'uapm_manage_projects', 'uapm-finder-import', __NAMESPACE__ . '\\cmsf_page_import');
-    add_submenu_page('uapm', 'Списки сайтів', 'Списки сайтів', 'uapm_manage_projects', 'uapm-finder-lists', __NAMESPACE__ . '\\cmsf_page_lists');
-});
+    // Усі сторінки Web Finder реєструються в одному місці після
+    // реєстрації батьківського меню UA Project Manager.
+    $pages = array(
+        array('Пошук сайтів', 'Пошук сайтів', 'uapm-finder-search', __NAMESPACE__ . '\\cmsf_page_search'),
+        array('Імпорт доменів', 'Імпорт доменів', 'uapm-finder-import', __NAMESPACE__ . '\\cmsf_page_import'),
+        array('Списки сайтів', 'Списки сайтів', 'uapm-finder-lists', __NAMESPACE__ . '\\cmsf_page_lists'),
+        array('Збір email та контакти', 'Списки email', 'uapm-finder-contacts', __NAMESPACE__ . '\\cmsfc_admin_page'),
+        array('Шаблони листів Finder', 'Шаблони листів', 'uapm-finder-templates', __NAMESPACE__ . '\\cmsf_page_templates'),
+        array('Налаштування Web Finder', 'Налаштування Finder', 'uapm-finder-settings', __NAMESPACE__ . '\\cmsf_page_settings'),
+    );
+
+    foreach ($pages as $page) {
+        add_submenu_page(
+            'uapm',
+            $page[0],
+            $page[1],
+            'uapm_manage_projects',
+            $page[2],
+            $page[3]
+        );
+    }
+}, 20);
 
 add_action('admin_enqueue_scripts', function () {
     $page = $_GET['page'] ?? '';
-    if (!in_array($page, ['uapm-finder-search', 'uapm-finder-import', 'uapm-finder-lists', 'uapm-finder-templates', 'uapm-finder-settings', 'uapm-finder-pro'], true)) return;
+    if (!in_array($page, ['uapm-finder-search', 'uapm-finder-import', 'uapm-finder-lists', 'uapm-finder-templates', 'uapm-finder-settings'], true)) return;
     wp_enqueue_style('cmsf-admin', CMSF_URL . 'assets/admin.css', [], CMSF_VERSION);
     if ($page === 'uapm-finder-templates') wp_enqueue_editor();
     $admin_deps = $page === 'uapm-finder-templates' ? ['wp-editor'] : [];
