@@ -117,7 +117,9 @@ final class UAPM_Shared_Sync {
             'Зібрані контакти' => self::table_count('cmsfc_contacts'),
             'Кампанії розсилки' => self::table_count('cmsfc_campaigns'),
         );
-        echo '<div class="wrap"><h1>Синхронізація даних модулів</h1>';
+        echo '<div class="wrap">';
+        if (class_exists('UAPM_Admin')) { UAPM_Admin::render_breadcrumb('Налаштування', 'Синхронізація модулів'); }
+        echo '<h1>Синхронізація даних модулів</h1>';
         if (!empty($_GET['synced'])) echo '<div class="notice notice-success"><p>Синхронізацію виконано. Проєктів: '.(int)($_GET['projects']??0).'; зв’язків Pay Box: '.(int)($_GET['mapped']??0).'.</p></div>';
         echo '<p>Головний блок «Проєкти» є основним довідником. Pay Box зберігає окремі платіжні послуги PRO та реклами. Web Finder зберігає свої списки, сайти, контакти, шаблони й кампанії; списки можна пов’язувати з одним або кількома проєктами за їхніми ID. Перейменування проєкту не розриває ці зв’язки.</p>';
         echo '<table class="widefat striped" style="max-width:850px"><tbody>';

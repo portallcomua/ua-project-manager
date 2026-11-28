@@ -14,7 +14,7 @@ class UAPM_Updater {
     private static $cache = array();
     private const REPOSITORY = 'portallcomua/ua-project-manager';
     private const CACHE_TTL = 900;
-    private const CACHE_KEY = 'uapm_github_release_1110';
+    private const CACHE_KEY = 'uapm_github_release_120';
 
     public static function init() {
         // Native WordPress Update URI API for github.com.
@@ -35,6 +35,7 @@ class UAPM_Updater {
         add_filter('plugin_action_links_' . (defined('UAPM_BASENAME') ? UAPM_BASENAME : 'ua-project-manager/ua-project-manager.php'), array(__CLASS__, 'action_links'));
         add_action('admin_post_uapm_force_github_update', array(__CLASS__, 'force_check'));
         add_action('admin_notices', array(__CLASS__, 'force_check_notice'));
+        add_filter('upgrader_source_selection', array(__CLASS__, 'fix_dir'), 10, 4);
         add_action('upgrader_process_complete', array(__CLASS__, 'clear_cache'), 10, 2);
     }
 
@@ -131,19 +132,40 @@ class UAPM_Updater {
             'headers' => $headers,
         ));
 
-        if (is_wp_error($response)) {
-            self::$cache[$repository] = false;
-            return false;
+        $release = null;
+        if (!is_wp_error($response) && (int) wp_remote_retrieve_response_code($response) === 200) {
+            $release = json_decode(wp_remote_retrieve_body($response), true);
         }
 
-        $status = (int) wp_remote_retrieve_response_code($response);
-
-        if ($status !== 200) {
-            self::$cache[$repository] = false;
-            return false;
+        // Fallback to GitHub HTML release redirect when REST API rate limit is hit on shared hosting.
+        if (!is_array($release) || empty($release['tag_name'])) {
+            $page = wp_remote_get('https://github.com/' . $repository . '/releases/latest', array(
+                'timeout' => 20,
+                'redirection' => 5,
+                'headers' => array('Accept' => 'text/html', 'User-Agent' => 'UA-Project-Manager-Updater/1.2'),
+            ));
+            if (!is_wp_error($page) && (int) wp_remote_retrieve_response_code($page) === 200) {
+                $body = (string) wp_remote_retrieve_body($page);
+                $repo_q = preg_quote($repository, '~');
+                if (preg_match('~/' . $repo_q . '/releases/tag/([^"?#/<>]+)~i', $body, $m)) {
+                    $tag = rawurldecode(html_entity_decode($m[1], ENT_QUOTES, 'UTF-8'));
+                    $ver = ltrim($tag, 'vV');
+                    if (preg_match('/^\d+\.\d+\.\d+$/', $ver)) {
+                        $release = array(
+                            'tag_name' => $tag,
+                            'html_url' => 'https://github.com/' . $repository . '/releases/tag/' . rawurlencode($tag),
+                            'zipball_url' => 'https://github.com/' . $repository . '/archive/refs/tags/' . rawurlencode($tag) . '.zip',
+                            'assets' => array(
+                                array(
+                                    'name' => 'ua-project-manager.zip',
+                                    'browser_download_url' => 'https://github.com/' . $repository . '/releases/download/' . rawurlencode($tag) . '/ua-project-manager.zip',
+                                ),
+                            ),
+                        );
+                    }
+                }
+            }
         }
-
-        $release = json_decode(wp_remote_retrieve_body($response), true);
 
         if (
             !is_array($release) ||
@@ -368,6 +390,22 @@ class UAPM_Updater {
                 'changelog' => !empty($release['body']) ? wp_kses_post($release['body']) : '',
             ),
         );
+    }
+
+    public static function fix_dir($source, $remote_source, $upgrader, $hook_extra) {
+        $is_ours = !empty($hook_extra['plugin']) && defined('UAPM_BASENAME') && $hook_extra['plugin'] === UAPM_BASENAME;
+        if (!$is_ours && !file_exists(trailingslashit($source) . 'ua-project-manager.php')) {
+            return $source;
+        }
+        global $wp_filesystem;
+        $target = trailingslashit($remote_source) . 'ua-project-manager/';
+        if (untrailingslashit($source) === untrailingslashit($target)) {
+            return $source;
+        }
+        if ($wp_filesystem && $wp_filesystem->move($source, $target, true)) {
+            return $target;
+        }
+        return $source;
     }
 
     public static function clear_cache($upgrader, $options) {

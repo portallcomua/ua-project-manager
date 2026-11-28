@@ -1,4 +1,3 @@
-
 <?php
 /**
  * UA Project Manager — activity log.
@@ -13,8 +12,9 @@ if (!defined('ABSPATH')) {
 final class UAPM_Activity_Log {
 
     public static function init() {
-        self::install_schema();
-
+        if (defined('UAPM_DB_VERSION') && get_option('uapm_modules_schema_ver') !== UAPM_DB_VERSION) {
+            self::install_schema();
+        }
         add_action('uapm_pro_access_changed', array(__CLASS__, 'log_pro_change'), 10, 4);
         add_action('uapm_payment_received', array(__CLASS__, 'log_payment_received'), 10, 2);
         add_action('uapm_installation_registered', array(__CLASS__, 'log_installation'), 10, 2);

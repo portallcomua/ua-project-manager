@@ -4,7 +4,7 @@
  * Plugin URI: https://uaserver.pp.ua/
  * Update URI: https://github.com/portallcomua/ua-project-manager
  * Description: Central management system for UA projects, plugins, releases, licenses, payments and integrations.
- * Version: 1.1.17
+ * Version: 1.2.0
  * Author: UA Tools
  * Author URI: https://uaserver.pp.ua/
  * Text Domain: ua-project-manager
@@ -18,11 +18,11 @@ if (!defined('ABSPATH')) {
 }
 
 if (!defined('UAPM_VERSION')) {
-    define('UAPM_VERSION', '1.1.17');
+    define('UAPM_VERSION', '1.2.0');
 }
 
 if (!defined('UAPM_DB_VERSION')) {
-    define('UAPM_DB_VERSION', '1.4.0');
+    define('UAPM_DB_VERSION', '1.5.0');
 }
 
 if (!defined('UAPM_FILE')) {
@@ -76,6 +76,7 @@ final class UAPM_Plugin {
             if (version_compare($installed_version, UAPM_DB_VERSION, '<')) {
                 UAPM_Installer::activate();
                 update_option('uapm_db_version', UAPM_DB_VERSION);
+                update_option('uapm_modules_schema_ver', UAPM_DB_VERSION, false);
             }
         }
 
@@ -91,6 +92,7 @@ final class UAPM_Plugin {
             'class-uapm-settings.php',
             'class-uapm-projects.php',
             'class-uapm-advertising.php',
+            'class-uapm-referrals.php',
             'class-uapm-shared-sync.php',
             'class-uapm-customers.php',
             'class-uapm-clients.php',
@@ -188,6 +190,7 @@ final class UAPM_Plugin {
             'UAPM_Settings',
             'UAPM_Projects',
             'UAPM_Advertising',
+            'UAPM_Referrals',
             'UAPM_Shared_Sync',
             'UAPM_Customers',
             'UAPM_License_Manager',
@@ -242,11 +245,76 @@ final class UAPM_Plugin {
         return $this->errors;
     }
 
+    private function register_dependency_notices() {
+        add_action(
+            'admin_notices',
+            array($this, 'render_dependency_notices')
+        );
+    }
 
+    public function render_dependency_notices() {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+
+        if (!empty($this->errors)) {
+            echo '<div class="notice notice-error">';
+            echo '<p><strong>UA Project Manager:</strong> Не знайдено файли модулів:</p>';
+            echo '<ul>';
+
+            foreach ($this->errors as $file) {
+                echo '<li>' . esc_html($file) . '</li>';
+            }
+
+            echo '</ul></div>';
+        }
+
+        if (!function_exists('is_plugin_active')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+
+        // Усі основні модулі (Pay Box, Web Finder, Click Counter, Реклама, Реферали) вбудовані в плагін.
+        $dependencies = array();
+
+        $missing = array();
+
+        foreach ($dependencies as $name => $dependency) {
+            if (!is_plugin_active($dependency['slug'])) {
+                $missing[$name] = $dependency;
+            }
+        }
+
+        if (empty($missing)) {
+            return;
+        }
+
+        echo '<div class="notice notice-warning">';
+        echo '<p><strong>UA Project Manager:</strong> доступні додаткові інтеграції.</p>';
+        echo '<ul>';
+
+        foreach ($missing as $name => $dependency) {
+            echo '<li><strong>' . esc_html($name) . '</strong>';
+            echo ' — ' . esc_html($dependency['description']);
+            echo ' (необов’язкова інтеграція)</li>';
+        }
+
+        echo '</ul>';
+        echo '<p>Основні функції UA Project Manager повинні працювати незалежно від цих плагінів.</p>';
+        echo '<p><a href="' . esc_url(admin_url('plugins.php')) . '">Переглянути встановлені плагіни</a></p>';
+        echo '</div>';
+    }
 }
 
 function uapm() {
     return UAPM_Plugin::instance();
+}
+
+function uapm_is_plugin_active($plugin_file) {
+    if (!function_exists('is_plugin_active')) {
+        require_once ABSPATH . 'wp-admin/includes/plugin.php';
+    }
+
+    return is_plugin_active($plugin_file);
 }
 
 function uapm_activate_plugin() {
@@ -274,7 +342,16 @@ function uapm_activate_plugin() {
         }
     }
 
+    $referrals = UAPM_PATH . 'includes/class-uapm-referrals.php';
+    if (file_exists($referrals)) {
+        require_once $referrals;
+        if (class_exists('UAPM_Referrals')) {
+            UAPM_Referrals::install_schema();
+            UAPM_Referrals::register_rewrites();
+        }
+    }
     update_option('uapm_db_version', UAPM_DB_VERSION);
+    update_option('uapm_modules_schema_ver', UAPM_DB_VERSION, false);
     update_option('uapm_version', UAPM_VERSION);
 
     flush_rewrite_rules();

@@ -1,4 +1,3 @@
-
 <?php
 /**
  * UA Project Manager — payments, partial receipts and manager commissions.
@@ -13,8 +12,9 @@ if (!defined('ABSPATH')) {
 final class UAPM_Payments {
 
     public static function init() {
-        self::install_schema();
-
+        if (defined('UAPM_DB_VERSION') && get_option('uapm_modules_schema_ver') !== UAPM_DB_VERSION) {
+            self::install_schema();
+        }
         add_action('admin_post_uapm_record_payment', array(__CLASS__, 'handle_record_payment'));
         add_action('admin_post_uapm_confirm_payment', array(__CLASS__, 'handle_confirm_payment'));
         add_action('admin_post_uapm_revoke_payment', array(__CLASS__, 'handle_revoke_payment'));

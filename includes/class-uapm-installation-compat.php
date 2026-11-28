@@ -1,4 +1,3 @@
-
 <?php
 /**
  * UA Project Manager — legacy installations schema compatibility.

@@ -23,10 +23,15 @@ class UACC_Embedded {
         add_action('admin_post_uacc_send', [$this, 'send_newsletter']);
         add_action('admin_enqueue_scripts', [$this, 'admin_assets']);
         add_action('plugins_loaded', [$this, 'install'], 31);
+        add_action('admin_init', [$this, 'deactivate_standalone'], 5);
+        add_action('admin_notices', [$this, 'standalone_notice']);
     }
 
     /* ---------- Установка та безпечне оновлення таблиць ---------- */
     function install() {
+        if (get_option('uacc_embedded_schema_ver') === '2.0.1') {
+            return;
+        }
         global $wpdb;
 
         $charset = $wpdb->get_charset_collate();
@@ -111,6 +116,33 @@ class UACC_Embedded {
         }
         if (!$has_counter_primary) {
             $wpdb->query("ALTER TABLE $counters ADD PRIMARY KEY (button_id)");
+        }
+        update_option('uacc_embedded_schema_ver', '2.0.1', false);
+    }
+
+    function deactivate_standalone() {
+        if (!current_user_can('activate_plugins')) return;
+        if (!function_exists('get_plugins')) require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        $active = (array) get_option('active_plugins', array());
+        $current = defined('UAPM_BASENAME') ? \UAPM_BASENAME : 'ua-project-manager/ua-project-manager.php';
+        $hit = array();
+        foreach (get_plugins() as $file => $data) {
+            if ($file === $current || !in_array($file, $active, true)) continue;
+            $name = strtolower(wp_strip_all_tags($data['Name'] ?? ''));
+            $path = strtolower($file);
+            if (0 === strpos($path, 'ua-click-counter/') || false !== strpos($name, 'ua click counter')) {
+                deactivate_plugins($file, true);
+                $hit[] = $file;
+            }
+        }
+        if ($hit) set_transient('uapm_deactivated_uacc_notice', implode(', ', $hit), 60);
+    }
+
+    function standalone_notice() {
+        $hit = get_transient('uapm_deactivated_uacc_notice');
+        if ($hit && current_user_can('activate_plugins')) {
+            delete_transient('uapm_deactivated_uacc_notice');
+            echo '<div class="notice notice-success is-dismissible"><p><strong>UA Project Manager (Кнопки завантаження):</strong> Автономний плагін ' . esc_html($hit) . ' вимкнено без втрати даних (лічильники та email збережено).</p></div>';
         }
     }
 
@@ -234,6 +266,7 @@ JS;
             $id, $email, current_time('mysql')
         ));
         $url = get_post_meta($id, '_uacc_url', true);
+        do_action('uacc_recorded_email', $id, $email, $consent, $url);
         wp_send_json_success(['clicks' => self::get_counter($id), 'url' => $url]);
     }
 
@@ -258,7 +291,8 @@ JS;
         $notice = isset($_GET['uacc_msg']) ? sanitize_text_field(wp_unslash($_GET['uacc_msg'])) : '';
         ?>
         <div class="wrap">
-            <h1>Кнопки кліків
+            <?php if (class_exists('\\UAPM_Admin')) { \UAPM_Admin::render_breadcrumb('Реклама', 'Кнопки завантаження'); } ?>
+            <h1>Кнопки завантаження
                 <a href="<?php echo esc_url(admin_url('admin.php?page=uacc_new')); ?>" class="page-title-action">Створити кнопку</a>
             </h1>
             <?php if ($notice): ?><div class="notice notice-success is-dismissible"><p><?php echo esc_html($notice); ?></p></div><?php endif; ?>
@@ -307,8 +341,11 @@ JS;
         $url   = $post ? get_post_meta($post->ID, '_uacc_url', true) : '';
         $bg    = $post ? (get_post_meta($post->ID, '_uacc_bg', true) ?: '#1769aa') : '#1769aa';
         $fg    = $post ? (get_post_meta($post->ID, '_uacc_fg', true) ?: '#ffffff') : '#ffffff';
+        $project_id = $post ? absint(get_post_meta($post->ID, '_uacc_project_id', true)) : 0;
+        $projects = class_exists('UAPM_Projects') ? \UAPM_Projects::get_all(array('limit' => 200, 'orderby' => 'name', 'order' => 'ASC')) : array();
         ?>
         <div class="wrap">
+            <?php if (class_exists('\\UAPM_Admin')) { \UAPM_Admin::render_breadcrumb('Реклама', $post ? 'Редагувати кнопку' : 'Створити кнопку'); } ?>
             <h1><?php echo $post ? 'Редагувати кнопку' : 'Створити кнопку'; ?></h1>
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="max-width:640px">
                 <input type="hidden" name="action" value="uacc_save">
@@ -325,6 +362,8 @@ JS;
                         <td><input id="uacc_bg" name="bg" type="text" class="uacc-color" value="<?php echo esc_attr($bg); ?>" data-default-color="#1769aa"></td></tr>
                     <tr><th><label for="uacc_fg">Колір тексту</label></th>
                         <td><input id="uacc_fg" name="fg" type="text" class="uacc-color" value="<?php echo esc_attr($fg); ?>" data-default-color="#ffffff"></td></tr>
+                    <tr><th><label for="uacc_project_id">Пов’язаний проєкт</label></th>
+                        <td><select id="uacc_project_id" name="project_id"><option value="0">— не прив’язано —</option><?php foreach ((array) $projects as $proj) : ?><option value="<?php echo (int) $proj->id; ?>" <?php selected($project_id, (int) $proj->id); ?>><?php echo esc_html($proj->name); ?></option><?php endforeach; ?></select><p class="description">Потрібно для обліку завантажень та реферальних переходів по проєкту.</p></td></tr>
                 </table>
                 <?php submit_button($post ? 'Зберегти' : 'Створити'); ?>
             </form>
@@ -353,6 +392,7 @@ JS;
         update_post_meta($new_id, '_uacc_url', $url);
         update_post_meta($new_id, '_uacc_bg', $bg);
         update_post_meta($new_id, '_uacc_fg', $fg);
+        update_post_meta($new_id, '_uacc_project_id', absint($_POST['project_id'] ?? 0));
         wp_safe_redirect(admin_url('admin.php?page=uacc&uacc_msg=' . rawurlencode($id ? 'Кнопку оновлено.' : 'Кнопку створено.')));
         exit;
     }
@@ -383,6 +423,7 @@ JS;
         $sent = isset($_GET['sent']) ? absint($_GET['sent']) : null;
         ?>
         <div class="wrap">
+            <?php if (class_exists('\\UAPM_Admin')) { \UAPM_Admin::render_breadcrumb('Реклама', 'Розсилка кнопки'); } ?>
             <h1>Розсилка для: <?php echo esc_html($post->post_title); ?></h1>
             <p>Отримувачів: <strong><?php echo count($emails); ?></strong></p>
             <?php if ($sent !== null): ?>

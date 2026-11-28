@@ -16,8 +16,9 @@ class UAPM_Webhooks {
     }
 
     public static function init() {
-        self::install_schema();
-
+        if (defined('UAPM_DB_VERSION') && get_option('uapm_modules_schema_ver') !== UAPM_DB_VERSION) {
+            self::install_schema();
+        }
         add_action('admin_post_uapm_create_webhook', array(__CLASS__, 'handle_create'));
         add_action('admin_post_uapm_delete_webhook', array(__CLASS__, 'handle_delete'));
 

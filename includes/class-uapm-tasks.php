@@ -8,8 +8,9 @@ class UAPM_Tasks {
     const TABLE = 'uapm_tasks';
 
     public static function init() {
-        self::install_schema();
-
+        if (defined('UAPM_DB_VERSION') && get_option('uapm_modules_schema_ver') !== UAPM_DB_VERSION) {
+            self::install_schema();
+        }
         add_action('admin_menu', array(__CLASS__, 'register_menu'), 100);
         add_action('admin_post_uapm_save_task', array(__CLASS__, 'handle_save'));
         add_action('admin_post_uapm_update_task', array(__CLASS__, 'handle_update'));
@@ -33,8 +34,14 @@ class UAPM_Tasks {
             priority varchar(20) NOT NULL DEFAULT 'normal',
             assigned_user_id bigint(20) unsigned NOT NULL DEFAULT 0,
             created_by bigint(20) unsigned NOT NULL DEFAULT 0,
+            executor varchar(100) NOT NULL DEFAULT '',
+            notes longtext NULL,
+            task_uuid char(36) NOT NULL DEFAULT '',
+            revision bigint(20) unsigned NOT NULL DEFAULT 1,
+            device_id varchar(64) NOT NULL DEFAULT '',
             due_date datetime NULL,
             completed_at datetime NULL,
+            deleted_at datetime NULL,
             created_at datetime NOT NULL,
             updated_at datetime NOT NULL,
             PRIMARY KEY  (id),
@@ -42,7 +49,9 @@ class UAPM_Tasks {
             KEY status (status),
             KEY priority (priority),
             KEY assigned_user_id (assigned_user_id),
-            KEY due_date (due_date)
+            KEY due_date (due_date),
+            KEY task_uuid (task_uuid),
+            KEY deleted_at (deleted_at)
         ) {$charset};";
 
         dbDelta($sql);
@@ -339,6 +348,7 @@ class UAPM_Tasks {
         $tasks = self::get_all(array('limit' => 100));
 
         echo '<div class="wrap">';
+        if (class_exists('UAPM_Admin')) { UAPM_Admin::render_breadcrumb('Задачі', 'Завдання проєктів'); }
         echo '<h1>Завдання проєктів</h1>';
 
         if (isset($_GET['saved'])) {
@@ -352,7 +362,7 @@ class UAPM_Tasks {
         echo '<h2>Нове завдання</h2>';
         echo '<p><input type="text" name="title" class="large-text" placeholder="Назва завдання" required></p>';
         wp_editor('', 'uapm_task_description', array('textarea_name' => 'description', 'textarea_rows' => 5, 'media_buttons' => false));
-        echo '<p><label>Виконавець<br><select name="executor"><option value="">— Оберіть виконавця —</option><option>Google AI</option><option>ChatGPT</option><option>AI Studio</option><option>DeepSeek</option><option>GitHub Copilot</option><option value="custom">+ Додати власного</option></select></label> <input type="text" name="executor_custom" placeholder="Власний виконавець" /></p>';
+        echo '<p><label>Виконавець<br><select id="uapm-task-executor" name="executor"><option value="">— Оберіть виконавця —</option><option>Google AI</option><option>ChatGPT</option><option>AI Studio</option><option>DeepSeek</option><option>GitHub Copilot</option><option value="custom">+ Додати власного</option></select></label> <input type="text" id="uapm-task-executor-custom" name="executor_custom" placeholder="Власний виконавець" style="display:none" /></p>';
         echo '<p><label>Власні нотатки<br><textarea name="notes" class="large-text" rows="3" placeholder="Нотатки до задачі"></textarea></label></p>';
 
         echo '<p><label>Пріоритет ';
@@ -396,74 +406,95 @@ class UAPM_Tasks {
         submit_button('Створити завдання');
         echo '</form>';
 
-        echo '<hr><h2>Список завдань</h2>';
-        $completed_count = count(array_filter((array) $tasks, function ($task) {
-            return isset($task->status) && $task->status === 'completed';
-        }));
-        if ($completed_count) {
-            echo '<p><button type="button" class="button" id="uapm-toggle-completed">Показати виконані (' . absint($completed_count) . ')</button></p>';
+        $active_tasks = array();
+        $completed_tasks = array();
+        foreach ((array) $tasks as $t) {
+            if (isset($t->status) && $t->status === 'completed') {
+                $completed_tasks[] = $t;
+            } else {
+                $active_tasks[] = $t;
+            }
         }
+        $statuses = array(
+            'pending' => 'Очікує',
+            'in_progress' => 'У роботі',
+            'completed' => 'Виконано',
+            'cancelled' => 'Скасовано',
+        );
+
+        echo '<hr><h2>Активні завдання (' . count($active_tasks) . ')</h2>';
         echo '<table class="widefat striped">';
-        echo '<thead><tr><th>Завдання</th><th>Статус</th><th>Пріоритет</th><th>Відповідальний</th><th>Термін</th><th>Дія</th></tr></thead><tbody>';
+        echo '<thead><tr><th>Завдання</th><th>Виконавець</th><th>Статус</th><th>Пріоритет</th><th>Термін</th><th>Дія</th></tr></thead><tbody>';
 
-        if ($tasks) {
-            foreach ($tasks as $task) {
-                $user = $task->assigned_user_id
-                    ? get_userdata($task->assigned_user_id)
-                    : false;
-
-                $user_name = $user ? $user->display_name : '—';
-
-                $statuses = array(
-                    'pending' => 'Очікує',
-                    'in_progress' => 'У роботі',
-                    'completed' => 'Виконано',
-                    'cancelled' => 'Скасовано',
-                );
-
-                $row_class = $task->status === 'completed' ? ' class="uapm-task-completed"' : '';
-                echo '<tr' . $row_class . '>';
-                echo '<td><strong>' . esc_html($task->title) . '</strong><br>';
-                echo esc_html($task->description) . '</td>';
-                echo '<td>' . esc_html(isset($statuses[$task->status]) ? $statuses[$task->status] : $task->status) . '</td>';
+        if ($active_tasks) {
+            foreach ($active_tasks as $task) {
+                $user = $task->assigned_user_id ? get_userdata($task->assigned_user_id) : false;
+                $exec = !empty($task->executor) ? $task->executor : ($user ? $user->display_name : '—');
+                echo '<tr>';
+                echo '<td><strong>' . esc_html($task->title) . '</strong>';
+                if (!empty($task->description)) echo '<div style="margin-top:4px">' . wp_kses_post($task->description) . '</div>';
+                if (!empty($task->notes)) echo '<div style="margin-top:4px;color:#50575e"><small>Нотатки: ' . esc_html($task->notes) . '</small></div>';
+                echo '</td>';
+                echo '<td>' . esc_html($exec) . '</td>';
+                echo '<td>' . esc_html($statuses[$task->status] ?? $task->status) . '</td>';
                 echo '<td>' . esc_html($task->priority) . '</td>';
-                echo '<td>' . esc_html($user_name) . '</td>';
                 echo '<td>' . esc_html($task->due_date ? $task->due_date : '—') . '</td>';
                 echo '<td>';
 
-                echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+                echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline-block;margin-right:4px">';
+                echo '<input type="hidden" name="action" value="uapm_update_task">';
+                echo '<input type="hidden" name="task_id" value="' . esc_attr($task->id) . '">';
+                echo '<input type="hidden" name="status" value="completed">';
+                wp_nonce_field('uapm_update_task_' . $task->id);
+                echo '<button type="submit" class="button button-primary button-small">Виконано ✓</button>';
+                echo '</form>';
+
+                echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin-top:4px">';
                 echo '<input type="hidden" name="action" value="uapm_update_task">';
                 echo '<input type="hidden" name="task_id" value="' . esc_attr($task->id) . '">';
                 wp_nonce_field('uapm_update_task_' . $task->id);
-
                 echo '<select name="status">';
-
                 foreach ($statuses as $key => $label) {
-                    echo '<option value="' . esc_attr($key) . '" ' . selected($task->status, $key, false) . '>';
-                    echo esc_html($label);
-                    echo '</option>';
+                    echo '<option value="' . esc_attr($key) . '" ' . selected($task->status, $key, false) . '>' . esc_html($label) . '</option>';
                 }
-
                 echo '</select> ';
                 submit_button('Оновити', 'secondary small', 'submit', false);
                 echo '</form>';
 
-                echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" onsubmit="return confirm(\'Видалити завдання?\')">';
+                echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin-top:4px" onsubmit="return confirm(\'Видалити завдання?\')">';
                 echo '<input type="hidden" name="action" value="uapm_delete_task">';
                 echo '<input type="hidden" name="task_id" value="' . esc_attr($task->id) . '">';
                 wp_nonce_field('uapm_delete_task_' . $task->id);
                 submit_button('Видалити', 'delete small', 'submit', false);
                 echo '</form>';
-
                 echo '</td></tr>';
             }
         } else {
-            echo '<tr><td colspan="6">Завдань поки немає.</td></tr>';
+            echo '<tr><td colspan="6">Активних завдань немає.</td></tr>';
         }
-
         echo '</tbody></table>';
-        echo '<style>.uapm-task-completed{display:none}.uapm-task-completed.uapm-visible{display:table-row}</style>';
-        echo '<script>(function(){var b=document.getElementById("uapm-toggle-completed");if(!b)return;b.addEventListener("click",function(){var rows=document.querySelectorAll(".uapm-task-completed");var open=b.getAttribute("aria-expanded")==="true";rows.forEach(function(r){r.classList.toggle("uapm-visible",!open);});b.setAttribute("aria-expanded",open?"false":"true");b.textContent=open?"Показати виконані":"Сховати виконані";});})();</script>';
+
+        if ($completed_tasks) {
+            echo '<details style="margin-top:20px;background:#fff;border:1px solid #ccd0d4;border-radius:6px;padding:12px 16px">';
+            echo '<summary style="cursor:pointer;font-weight:600;font-size:14px">Виконані завдання (' . count($completed_tasks) . ')</summary>';
+            echo '<table class="widefat striped" style="margin-top:12px"><thead><tr><th>Завдання</th><th>Виконавець</th><th>Виконано</th><th>Дія</th></tr></thead><tbody>';
+            foreach ($completed_tasks as $task) {
+                $user = $task->assigned_user_id ? get_userdata($task->assigned_user_id) : false;
+                $exec = !empty($task->executor) ? $task->executor : ($user ? $user->display_name : '—');
+                echo '<tr><td><strong>' . esc_html($task->title) . '</strong>';
+                if (!empty($task->notes)) echo '<br><small>' . esc_html($task->notes) . '</small>';
+                echo '</td><td>' . esc_html($exec) . '</td><td>' . esc_html($task->completed_at ? $task->completed_at : $task->updated_at) . '</td><td>';
+                echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline-block;margin-right:4px"><input type="hidden" name="action" value="uapm_update_task"><input type="hidden" name="task_id" value="' . esc_attr($task->id) . '"><input type="hidden" name="status" value="pending">';
+                wp_nonce_field('uapm_update_task_' . $task->id);
+                echo '<button type="submit" class="button button-small">Повернути в роботу</button></form>';
+                echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline-block" onsubmit="return confirm(\'Видалити завдання?\')"><input type="hidden" name="action" value="uapm_delete_task"><input type="hidden" name="task_id" value="' . esc_attr($task->id) . '">';
+                wp_nonce_field('uapm_delete_task_' . $task->id);
+                submit_button('Видалити', 'delete small', 'submit', false);
+                echo '</form></td></tr>';
+            }
+            echo '</tbody></table></details>';
+        }
+        echo '<script>(function(){var s=document.getElementById("uapm-task-executor"),c=document.getElementById("uapm-task-executor-custom");if(!s||!c)return;function sync(){c.style.display=s.value==="custom"?"inline-block":"none";}s.addEventListener("change",sync);sync();})();</script>';
         echo '</div>';
     }
 

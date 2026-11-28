@@ -79,3 +79,37 @@ add_action('plugins_loaded', function () {
 
     cmsf_contacts_maybe_install();
 }, 21);
+
+function deactivate_standalone_webfinder() {
+    if (!current_user_can('activate_plugins')) {
+        return;
+    }
+    if (!function_exists('get_plugins')) {
+        require_once ABSPATH . 'wp-admin/includes/plugin.php';
+    }
+    $active = (array) get_option('active_plugins', array());
+    $current = defined('UAPM_BASENAME') ? \UAPM_BASENAME : 'ua-project-manager/ua-project-manager.php';
+    $hit = array();
+    foreach (get_plugins() as $file => $data) {
+        if ($file === $current || !in_array($file, $active, true)) {
+            continue;
+        }
+        $name = strtolower(wp_strip_all_tags($data['Name'] ?? ''));
+        $path = strtolower($file);
+        if (0 === strpos($path, 'ua-web-finder/') || 0 === strpos($path, 'cms-web-finder/') || false !== strpos($name, 'web finder')) {
+            deactivate_plugins($file, true);
+            $hit[] = $file;
+        }
+    }
+    if ($hit) {
+        set_transient('uapm_deactivated_webfinder_notice', implode(', ', $hit), 60);
+    }
+}
+add_action('admin_init', __NAMESPACE__ . '\\deactivate_standalone_webfinder', 5);
+add_action('admin_notices', function () {
+    $hit = get_transient('uapm_deactivated_webfinder_notice');
+    if ($hit && current_user_can('activate_plugins')) {
+        delete_transient('uapm_deactivated_webfinder_notice');
+        echo '<div class="notice notice-success is-dismissible"><p><strong>UA Project Manager (Збір і розсилка):</strong> Автономний плагін ' . esc_html($hit) . ' автоматично вимкнено без втрати даних (усі списки, сайти, контакти та шаблони збережено). Стару папку можна видалити лише через FTP або файловий менеджер (не кнопкою «Видалити» у WordPress).</p></div>';
+    }
+});

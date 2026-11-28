@@ -94,6 +94,14 @@ final class UAPM_Integrations {
 
         $items = array(
             array(
+                'integration_key' => 'ua-pay-box',
+                'name' => 'UA Pay Box',
+                'description' => 'Платіжний модуль та керування доступом.',
+                'plugin_author' => 'UA Tools',
+                'github_url' => 'https://github.com/portallcomua/UA-Pay-Box-',
+                'main_file' => '',
+            ),
+            array(
                 'integration_key' => 'ua-click-counter',
                 'name' => 'UA Click Counter',
                 'description' => 'Облік натискань на кнопки та посилання.',
@@ -108,6 +116,14 @@ final class UAPM_Integrations {
                 'plugin_author' => 'UA Tools',
                 'github_url' => 'https://github.com/portallcomua/ua-plugin-monitor',
                 'main_file' => 'ua-plugin-monitor2.php',
+            ),
+            array(
+                'integration_key' => 'cms-web-finder',
+                'name' => 'CMS Web Finder',
+                'description' => 'Пошук сайтів і робота зі списками контактів.',
+                'plugin_author' => 'UA Tools',
+                'github_url' => 'https://github.com/portallcomua/cms-web-finger',
+                'main_file' => 'cms-web-finder.php',
             ),
         );
 
@@ -143,10 +159,8 @@ final class UAPM_Integrations {
     public static function get_all() {
         global $wpdb;
 
-        // Pay Box and Web Finder are bundled inside UA Project Manager.
-        // Keep any legacy database rows intact, but do not present them as external dependencies.
         return $wpdb->get_results(
-            "SELECT * FROM " . self::table() . " WHERE integration_key NOT IN ('ua-pay-box', 'cms-web-finder') ORDER BY name ASC"
+            "SELECT * FROM " . self::table() . " ORDER BY name ASC"
         );
     }
 

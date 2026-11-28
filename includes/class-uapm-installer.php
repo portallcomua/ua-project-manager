@@ -1,4 +1,3 @@
-
 <?php
 /**
  * UA Project Manager — database installer.
@@ -29,13 +28,29 @@ final class UAPM_Installer {
         self::create_roles();
         self::create_default_settings();
 
-        foreach (array('UAPM_Queue', 'UAPM_Integrations', 'UAPM_Downloads', 'UAPM_Payments', 'UAPM_Installations', 'UAPM_Notifications', 'UAPM_Activity_Log', 'UAPM_Customers') as $class) {
+        $schema_classes = array(
+            'UAPM_Queue', 'UAPM_Integrations', 'UAPM_Downloads', 'UAPM_Payments',
+            'UAPM_Installations', 'UAPM_Notifications', 'UAPM_Activity_Log', 'UAPM_Customers',
+            'UAPM_Advertising', 'UAPM_Referrals', 'UAPM_Tasks', 'UAPM_Task_Sync',
+            'UAPM_Mailings', 'UAPM_Email_Templates', 'UAPM_Webhooks', 'UAPM_Logs',
+            'UAPM_Audit', 'UAPM_Backups', 'UAPM_Releases', 'UAPM_Notes',
+            'UAPM_Comments', 'UAPM_Attachments', 'UAPM_Milestones', 'UAPM_Project_Activity',
+            'UAPM_License_Sites', 'UAPM_Buttons',
+        );
+        foreach (get_declared_classes() as $dc) {
+            if (strpos($dc, 'UAPM_') === 0 && !in_array($dc, $schema_classes, true) && method_exists($dc, 'install_schema')) {
+                $schema_classes[] = $dc;
+            }
+        }
+        foreach ($schema_classes as $class) {
             if (class_exists($class) && method_exists($class, 'install_schema')) {
                 call_user_func(array($class, 'install_schema'));
             }
         }
 
-        update_option('uapm_db_version', defined('UAPM_DB_VERSION') ? UAPM_DB_VERSION : '1.2.0');
+        $ver = defined('UAPM_DB_VERSION') ? UAPM_DB_VERSION : '1.5.0';
+        update_option('uapm_db_version', $ver);
+        update_option('uapm_modules_schema_ver', $ver, false);
     }
 
     private static function get_table_definitions($charset) {

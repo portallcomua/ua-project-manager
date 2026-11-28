@@ -8,8 +8,9 @@ class UAPM_Activity_Feed {
     const TABLE = 'uapm_activity_feed';
 
     public static function init() {
-        self::install_schema();
-
+        if (defined('UAPM_DB_VERSION') && get_option('uapm_modules_schema_ver') !== UAPM_DB_VERSION) {
+            self::install_schema();
+        }
         add_action('admin_menu', array(__CLASS__, 'register_menu'), 85);
 
         add_action('uapm_project_created', array(__CLASS__, 'log_project_created'), 10, 2);

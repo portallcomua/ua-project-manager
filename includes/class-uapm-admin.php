@@ -126,11 +126,11 @@ final class UAPM_Admin {
             'uapm-hub-projects' => array('uapm-projects', 'uapm-clients', 'uapm-customers', 'uapm-calendar', 'uapm-notes', 'uapm-comments', 'uapm-attachments', 'uapm-project-activity', 'uapm-activity-feed'),
             'uapm-hub-advertising' => array('uapm-advertisers', 'uapm-ad-blocks', 'uapm-ad-reports', 'uacc', 'uacc_new', 'uacc_edit', 'uacc_newsletter'),
             'uapm-hub-payments' => array('uapm-payments', 'uapm-licenses', 'uapm-paybox-services', 'uapm-paybox-premiums', 'uapm-paybox-settings'),
-            'uapm-hub-finder' => array('uapm-finder-search', 'uapm-finder-import', 'uapm-finder-lists', 'uapm-finder-contacts', 'uapm-finder-templates', 'uapm-finder-settings', 'uapm-mailings', 'uapm-finder-pro'),
-            'uapm-hub-tasks' => array('uapm-tasks', 'uapm-milestones'),
+            'uapm-hub-finder' => array('uapm-finder-search', 'uapm-finder-import', 'uapm-finder-lists', 'uapm-finder-contacts', 'uapm-finder-templates', 'uapm-finder-settings', 'uapm-mailings'),
+            'uapm-hub-tasks' => array('uapm-tasks', 'uapm-milestones', 'uapm-task-sync'),
             'uapm-hub-statistics' => array('uapm-analytics', 'uapm-reports'),
             'uapm-hub-referrals' => array('uapm-referrals', 'uapm-referral', 'uapm-referral-system'),
-            'uapm-hub-settings' => array('uapm-settings', 'uapm-import', 'uapm-dependencies', 'uapm-search', 'uapm-github', 'uapm-code-generator', 'uapm-code-inspector', 'uapm-integrations', 'uapm-downloads', 'uapm-installations'),
+            'uapm-hub-settings' => array('uapm-settings', 'uapm-import', 'uapm-dependencies', 'uapm-search', 'uapm-github', 'uapm-code-generator', 'uapm-code-inspector', 'uapm-integrations', 'uapm-downloads', 'uapm-installations', 'uapm-sync'),
         );
 
         $labels = array(
@@ -162,7 +162,6 @@ final class UAPM_Admin {
             'uapm-finder-templates' => 'Шаблони листів',
             'uapm-finder-settings' => 'Налаштування Web Finder',
             'uapm-mailings' => 'Розсилки клієнтам',
-            'uapm-finder-pro' => 'Web Finder Pro / Активація',
             'uapm-tasks' => 'Завдання',
             'uapm-milestones' => 'Етапи проєктів',
             'uapm-task-sync' => 'Синхронізація задач',
@@ -272,8 +271,7 @@ final class UAPM_Admin {
                 array('Збір email', 'uapm-finder-contacts', 'Сканування сайтів і збір адрес.'),
                 array('Шаблони листів', 'uapm-finder-templates', 'Шаблони для Finder.'),
                 array('Налаштування Finder', 'uapm-finder-settings', 'Параметри пошуку та збору контактів.'),
-                array('Розсилки', 'uapm-mailings', 'Кампанії для клієнтів проєктів.'),
-                array('Pro / Активація', 'uapm-finder-pro', 'Стан пробного періоду та активація.')
+                array('Розсилки', 'uapm-mailings', 'Кампанії для клієнтів проєктів.')
             )),
             'uapm-hub-tasks' => array('title' => 'Задачі', 'description' => 'Планування та контроль виконання.', 'links' => array(
                 array('Задачі', 'uapm-tasks', 'Створення та оновлення завдань.'),
@@ -331,7 +329,9 @@ final class UAPM_Admin {
             }
         }
 
-        echo '<div class="wrap"><h1>' . esc_html($section['title']) . '</h1>';
+        echo '<div class="wrap">';
+        self::render_breadcrumb($section['title'], '');
+        echo '<h1>' . esc_html($section['title']) . '</h1>';
         echo '<p class="description" style="font-size:14px;margin:8px 0 20px">' . esc_html($section['description']) . '</p>';
 
         if (!$links) {
@@ -469,8 +469,23 @@ final class UAPM_Admin {
         return current_user_can('uapm_manage_payments') || current_user_can('manage_options');
     }
 
-    private static function header($title, $description = '') {
+    public static function render_breadcrumb($section, $page = '') {
+        echo '<nav class="uapm-breadcrumb" aria-label="Навігація" style="margin:4px 0 10px;font-size:13px;color:#50575e">';
+        echo '<a href="' . esc_url(admin_url('admin.php?page=uapm')) . '">UA Project Manager</a>';
+        if ($section !== '') {
+            echo ' <span aria-hidden="true">/</span> <span>' . esc_html($section) . '</span>';
+        }
+        if ($page !== '') {
+            echo ' <span aria-hidden="true">/</span> <strong>' . esc_html($page) . '</strong>';
+        }
+        echo '</nav>';
+    }
+
+    private static function header($title, $description = '', $section = '') {
         echo '<div class="wrap uapm-wrap">';
+        if ($section !== '') {
+            self::render_breadcrumb($section, $title);
+        }
         echo '<div class="uapm-header">';
         echo '<div class="uapm-brand">UA Project Manager <span>v' . esc_html(UAPM_VERSION) . '</span></div>';
         echo '<nav class="uapm-quick-nav" aria-label="Швидке меню">';
@@ -520,7 +535,7 @@ final class UAPM_Admin {
         }
 
         self::header(
-            __('UA Project Manager', 'ua-project-manager'),
+            'UA Project Manager v' . (defined('UAPM_VERSION') ? UAPM_VERSION : '1.2.0'),
             __('Central management of projects, releases, installations and payments.', 'ua-project-manager')
         );
 
@@ -614,7 +629,7 @@ final class UAPM_Admin {
 
         $edit_id = isset($_GET['edit_project']) ? absint($_GET['edit_project']) : 0;
         $project = $edit_id ? UAPM_Projects::get($edit_id) : null;
-        self::header($edit_id ? 'Редагувати проєкт' : 'Додати проєкт', 'Керування проєктами та їхніми посиланнями.');
+        self::header($edit_id ? 'Редагувати проєкт' : 'Додати проєкт', 'Керування проєктами та їхніми посиланнями.', 'Проєкти');
 
         if ($edit_id && !$project) {
             echo '<div class="notice notice-error"><p>' . esc_html__('Проєкт не знайдено.', 'ua-project-manager') . '</p></div>';
@@ -731,8 +746,19 @@ final class UAPM_Admin {
         echo '<div class="uapm-field"><label for="uapm-all-projects-url">Посилання «Всі проєкти»</label><input type="url" id="uapm-all-projects-url" name="project[all_projects_url]" value="' . esc_attr($display['all_projects_url'] ?? '') . '" placeholder="https://uaserver.pp.ua/..."> <label><input type="checkbox" name="project[all_projects_visible]" value="1" ' . checked(!empty($display['all_projects_visible']), true, false) . '> Відображати посилання у плагіні / додатку</label></div>';
         echo '<div class="uapm-field"><label for="uapm-project-banner-html">HTML banner для цього проєкту</label><textarea id="uapm-project-banner-html" name="project[project_banner_html]" rows="5" class="large-text code">' . esc_textarea($display['project_banner_html'] ?? '') . '</textarea><label><input type="checkbox" name="project[project_banner_visible]" value="1" ' . checked(!empty($display['project_banner_visible']), true, false) . '> Відображати банер у плагіні / додатку</label></div>';
         echo '<div class="uapm-field"><label><input type="checkbox" name="project[ads_available]" value="1" ' . checked(!empty($display['ads_available']), true, false) . '> Доступний для розміщення реклами</label><p class="description">Якщо галочка вимкнена, проєкт не з’являється у виборі рекламного блоку.</p></div>';
+        if ($is_edit) {
+            $pb_map = get_option('uapm_paybox_project_map', array());
+            $pb_sid = is_array($pb_map) && isset($pb_map[(int) $value('id', 0)]) ? absint($pb_map[(int) $value('id', 0)]) : 0;
+            if ($pb_sid && class_exists('\\UAPM\\PayBox\\UPB_Services')) {
+                $pb_svc = \UAPM\PayBox\UPB_Services::get($pb_sid);
+                if ($pb_svc) {
+                    $edit_pb_url = admin_url('admin.php?page=uapm-paybox-services&action=edit&id=' . $pb_sid);
+                    echo '<div class="uapm-field"><strong>Пов’язана послуга Pay Box:</strong> ' . esc_html($pb_svc['name']) . ' (ID ' . $pb_sid . ') · <a href="' . esc_url($edit_pb_url) . '">Налаштувати Freemius / ціну →</a></div>';
+                }
+            }
+        }
         if ($is_edit && class_exists('UAPM_Advertising')) {
-            echo '<div class="uapm-field"><label>Код підключення рекламного блоку</label><textarea readonly rows="5" class="large-text code" onclick="this.select()">' . esc_textarea(UAPM_Advertising::project_embed_code($value('id', 0))) . '</textarea></div>';
+            echo '<div class="uapm-field"><label>Код підключення банера та реклами (REST для зовнішнього плагіна)</label><textarea readonly rows="7" class="large-text code" onclick="this.select()">' . esc_textarea(UAPM_Advertising::project_embed_code($value('id', 0))) . '</textarea></div>';
         }
         if ($is_edit && class_exists('UAPM_Shared_Sync')) {
             $finder = UAPM_Shared_Sync::project_finder_summary($value('id', 0));
@@ -889,7 +915,8 @@ final class UAPM_Admin {
 
         self::header(
             __('Платежі', 'ua-project-manager'),
-            __('Record actual receipts. PRO access is confirmed only after manual verification.', 'ua-project-manager')
+            __('Record actual receipts. PRO access is confirmed only after manual verification.', 'ua-project-manager'),
+            'Оплати'
         );
 
         $status = isset($_GET['status']) ? sanitize_key(wp_unslash($_GET['status'])) : '';

@@ -1,4 +1,3 @@
-
 <?php
 if (!defined('ABSPATH')) {
     exit;
@@ -7,7 +6,9 @@ if (!defined('ABSPATH')) {
 class UAPM_Mailings {
 
     public static function init() {
-        self::install_schema();
+        if (defined('UAPM_DB_VERSION') && get_option('uapm_modules_schema_ver') !== UAPM_DB_VERSION) {
+            self::install_schema();
+        }
         add_action('admin_menu', array(__CLASS__, 'register_menu'), 60);
         add_action('admin_post_uapm_send_mailing', array(__CLASS__, 'send_mailing'));
         add_action('admin_post_uapm_save_mailing', array(__CLASS__, 'save_mailing'));
@@ -43,6 +44,7 @@ class UAPM_Mailings {
             subject varchar(255) NOT NULL,
             message longtext NOT NULL,
             project_id bigint(20) unsigned NOT NULL DEFAULT 0,
+            target_filter varchar(120) NOT NULL DEFAULT 'customers',
             status varchar(30) NOT NULL DEFAULT 'draft',
             recipient_count int(10) unsigned NOT NULL DEFAULT 0,
             sent_count int(10) unsigned NOT NULL DEFAULT 0,
@@ -57,6 +59,10 @@ class UAPM_Mailings {
         ) {$charset};";
 
         dbDelta($sql);
+        $cols = $wpdb->get_col("SHOW COLUMNS FROM {$table}", 0);
+        if (is_array($cols) && !in_array('target_filter', $cols, true)) {
+            $wpdb->query("ALTER TABLE {$table} ADD COLUMN target_filter varchar(120) NOT NULL DEFAULT 'customers' AFTER project_id");
+        }
     }
 
     public static function create($data) {
@@ -75,6 +81,7 @@ class UAPM_Mailings {
             'subject' => $subject,
             'message' => $message,
             'project_id' => absint($data['project_id'] ?? 0),
+            'target_filter' => sanitize_text_field($data['target_filter'] ?? 'customers'),
             'status' => 'draft',
             'created_by' => get_current_user_id(),
             'created_at' => current_time('mysql'),
@@ -101,19 +108,55 @@ class UAPM_Mailings {
         ));
     }
 
-    public static function get_recipients($project_id = 0) {
+    public static function get_recipients($project_id = 0, $source = 'customers') {
         global $wpdb;
+        $project_id = absint($project_id);
+        $source = sanitize_text_field((string) $source);
+        if ($source === '') $source = 'customers';
 
-        $customers = $wpdb->prefix . 'uapm_customers';
-
-        $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($customers)));
-        if ($exists !== $customers) {
-            return array();
+        if ($source === 'paybox_pro') {
+            $licenses = $wpdb->prefix . 'upb_licenses';
+            if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($licenses))) !== $licenses) return array();
+            $map = get_option('uapm_paybox_project_map', array());
+            $sid = ($project_id && is_array($map) && !empty($map[$project_id])) ? absint($map[$project_id]) : 0;
+            if ($project_id && !$sid) return array();
+            if ($sid) {
+                return $wpdb->get_results($wpdb->prepare(
+                    "SELECT DISTINCT email, '' AS name FROM {$licenses} WHERE service_id=%d AND email <> '' AND status='active' ORDER BY email ASC",
+                    $sid
+                ));
+            }
+            return $wpdb->get_results("SELECT DISTINCT email, '' AS name FROM {$licenses} WHERE email <> '' AND status='active' ORDER BY email ASC");
         }
 
+        if ($source === 'click_counter') {
+            $emails_table = $wpdb->prefix . 'uacc_emails';
+            if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($emails_table))) !== $emails_table) return array();
+            if ($project_id) {
+                return $wpdb->get_results($wpdb->prepare(
+                    "SELECT DISTINCT e.email, '' AS name FROM {$emails_table} e INNER JOIN {$wpdb->postmeta} pm ON pm.post_id = e.button_id AND pm.meta_key = '_uacc_project_id' AND pm.meta_value = %s WHERE e.email <> '' ORDER BY e.email ASC",
+                    (string) $project_id
+                ));
+            }
+            return $wpdb->get_results("SELECT DISTINCT email, '' AS name FROM {$emails_table} WHERE email <> '' ORDER BY email ASC");
+        }
+
+        if (0 === strpos($source, 'cmsfc_list:')) {
+            $list_id = absint(substr($source, 11));
+            $contacts = $wpdb->prefix . 'cmsfc_contacts';
+            if (!$list_id || $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($contacts))) !== $contacts) return array();
+            return $wpdb->get_results($wpdb->prepare(
+                "SELECT DISTINCT email, COALESCE(name, '') AS name FROM {$contacts} WHERE list_id=%d AND email <> '' ORDER BY email ASC",
+                $list_id
+            ));
+        }
+
+        $customers = $wpdb->prefix . 'uapm_customers';
+        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($customers))) !== $customers) {
+            return array();
+        }
         if ($project_id) {
             $payments = $wpdb->prefix . 'uapm_payments';
-
             return $wpdb->get_results($wpdb->prepare(
                 "SELECT DISTINCT c.email, c.name
                  FROM {$customers} c
@@ -125,10 +168,9 @@ class UAPM_Mailings {
                     AND p.customer_email = c.email
                  )
                  ORDER BY c.email ASC",
-                absint($project_id)
+                $project_id
             ));
         }
-
         return $wpdb->get_results(
             "SELECT DISTINCT email, name
              FROM {$customers}
@@ -149,6 +191,7 @@ class UAPM_Mailings {
             'subject' => wp_unslash($_POST['subject'] ?? ''),
             'message' => wp_unslash($_POST['message'] ?? ''),
             'project_id' => absint($_POST['project_id'] ?? 0),
+            'target_filter' => sanitize_text_field(wp_unslash($_POST['recipient_source'] ?? 'customers')),
         ));
 
         $url = admin_url('admin.php?page=uapm-mailings');
@@ -177,7 +220,7 @@ class UAPM_Mailings {
             wp_die('Розсилку не знайдено або її вже відправлено.');
         }
 
-        $recipients = self::get_recipients(absint($mailing->project_id));
+        $recipients = self::get_recipients(absint($mailing->project_id), isset($mailing->target_filter) ? $mailing->target_filter : 'customers');
         $sent = 0;
         $failed = 0;
 
@@ -233,7 +276,9 @@ class UAPM_Mailings {
 
         $mailings = self::get_all();
 
-        echo '<div class="wrap uapm-admin"><h1>Розсилки</h1>';
+        echo '<div class="wrap uapm-admin">';
+        if (class_exists('UAPM_Admin')) { UAPM_Admin::render_breadcrumb('Збір і розсилка', 'Розсилки проєктів'); }
+        echo '<h1>Розсилки проєктів</h1>';
 
         if (isset($_GET['uapm_sent'])) {
             echo '<div class="notice notice-success"><p>Відправлено: ' . absint($_GET['uapm_sent']) . '; помилок: ' . absint($_GET['uapm_failed'] ?? 0) . '.</p></div>';
@@ -251,7 +296,25 @@ class UAPM_Mailings {
         echo '<table class="form-table">';
         echo '<tr><th><label for="uapm-mailing-name">Назва</label></th><td><input required class="regular-text" id="uapm-mailing-name" name="name"></td></tr>';
         echo '<tr><th><label for="uapm-mailing-subject">Тема листа</label></th><td><input required class="regular-text" id="uapm-mailing-subject" name="subject"></td></tr>';
-        echo '<tr><th><label for="uapm-mailing-project">Проєкт</label></th><td><input type="number" min="0" id="uapm-mailing-project" name="project_id" value="0"><p class="description">0 — усі клієнти з підтвердженою згодою.</p></td></tr>';
+        $projects = class_exists('UAPM_Projects') ? UAPM_Projects::get_all(array('limit' => 200, 'orderby' => 'name', 'order' => 'ASC')) : array();
+        global $wpdb;
+        $cmsfc_lists_table = $wpdb->prefix . 'cmsfc_lists';
+        $cmsfc_lists = ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($cmsfc_lists_table))) === $cmsfc_lists_table)
+            ? $wpdb->get_results("SELECT id, name FROM {$cmsfc_lists_table} ORDER BY id DESC LIMIT 100")
+            : array();
+        echo '<tr><th><label for="uapm-mailing-project">Проєкт</label></th><td><select id="uapm-mailing-project" name="project_id"><option value="0">— Усі проєкти —</option>';
+        foreach ((array) $projects as $proj) {
+            echo '<option value="' . (int) $proj->id . '">' . esc_html($proj->name) . '</option>';
+        }
+        echo '</select></td></tr>';
+        echo '<tr><th><label for="uapm-mailing-source">База отримувачів</label></th><td><select id="uapm-mailing-source" name="recipient_source">';
+        echo '<option value="customers">Клієнти (з розсилковою згодою)</option>';
+        echo '<option value="paybox_pro">Покупці PRO (Pay Box / Freemius)</option>';
+        echo '<option value="click_counter">Підписники кнопок завантаження (Click Counter)</option>';
+        foreach ((array) $cmsfc_lists as $lst) {
+            echo '<option value="cmsfc_list:' . (int) $lst->id . '">Список контактів Finder: ' . esc_html($lst->name) . '</option>';
+        }
+        echo '</select></td></tr>';
         echo '<tr><th><label for="uapm-mailing-message">Текст</label></th><td><textarea required class="large-text" rows="10" id="uapm-mailing-message" name="message"></textarea><p class="description">Мітки: {{name}}, {{email}}.</p></td></tr>';
         echo '</table>';
 

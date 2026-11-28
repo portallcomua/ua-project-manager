@@ -12,8 +12,9 @@ if (!defined('ABSPATH')) {
 class UAPM_Clients {
 
     public static function init() {
-        self::install_schema();
-
+        if (defined('UAPM_DB_VERSION') && get_option('uapm_modules_schema_ver') !== UAPM_DB_VERSION) {
+            self::install_schema();
+        }
         add_action('admin_post_uapm_save_client', array(__CLASS__, 'handle_save'));
         add_action('admin_post_uapm_delete_client', array(__CLASS__, 'handle_delete'));
         add_action('admin_post_uapm_manager_save_client', array(__CLASS__, 'handle_manager_save'));

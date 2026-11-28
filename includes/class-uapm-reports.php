@@ -1,4 +1,3 @@
-
 <?php
 /**
  * UA Project Manager — reports and analytics.

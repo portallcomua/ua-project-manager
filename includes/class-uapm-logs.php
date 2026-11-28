@@ -11,8 +11,9 @@ class UAPM_Logs {
     }
 
     public static function init() {
-        self::install_schema();
-
+        if (defined('UAPM_DB_VERSION') && get_option('uapm_modules_schema_ver') !== UAPM_DB_VERSION) {
+            self::install_schema();
+        }
         add_action('admin_post_uapm_logs_clear', array(__CLASS__, 'handle_clear'));
         add_action('admin_post_uapm_logs_export', array(__CLASS__, 'handle_export'));
 

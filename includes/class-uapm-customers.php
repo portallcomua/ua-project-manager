@@ -1,4 +1,3 @@
-
 <?php
 if (!defined('ABSPATH')) {
     exit;
@@ -58,8 +57,9 @@ class UAPM_Customers {
     public static function create($data) {
         global $wpdb;
 
-        self::install_schema();
-
+        if (defined('UAPM_DB_VERSION') && get_option('uapm_modules_schema_ver') !== UAPM_DB_VERSION) {
+            self::install_schema();
+        }
         $data = self::sanitize_data($data);
 
         if (!$data['email'] || !is_email($data['email'])) {
@@ -98,8 +98,9 @@ class UAPM_Customers {
     public static function update($customer_id, $data) {
         global $wpdb;
 
-        self::install_schema();
-
+        if (defined('UAPM_DB_VERSION') && get_option('uapm_modules_schema_ver') !== UAPM_DB_VERSION) {
+            self::install_schema();
+        }
         $customer_id = absint($customer_id);
 
         if (!$customer_id || !self::get($customer_id)) {
@@ -175,8 +176,9 @@ class UAPM_Customers {
     public static function get($customer_id) {
         global $wpdb;
 
-        self::install_schema();
-
+        if (defined('UAPM_DB_VERSION') && get_option('uapm_modules_schema_ver') !== UAPM_DB_VERSION) {
+            self::install_schema();
+        }
         return $wpdb->get_row(
             $wpdb->prepare(
                 'SELECT * FROM ' . self::table() . ' WHERE id = %d',
@@ -188,8 +190,9 @@ class UAPM_Customers {
     public static function get_by_email($email) {
         global $wpdb;
 
-        self::install_schema();
-
+        if (defined('UAPM_DB_VERSION') && get_option('uapm_modules_schema_ver') !== UAPM_DB_VERSION) {
+            self::install_schema();
+        }
         return $wpdb->get_row(
             $wpdb->prepare(
                 'SELECT * FROM ' . self::table() . ' WHERE email = %s LIMIT 1',
@@ -201,8 +204,9 @@ class UAPM_Customers {
     public static function get_by_user_id($user_id) {
         global $wpdb;
 
-        self::install_schema();
-
+        if (defined('UAPM_DB_VERSION') && get_option('uapm_modules_schema_ver') !== UAPM_DB_VERSION) {
+            self::install_schema();
+        }
         return $wpdb->get_row(
             $wpdb->prepare(
                 'SELECT * FROM ' . self::table() . ' WHERE user_id = %d LIMIT 1',
@@ -214,8 +218,9 @@ class UAPM_Customers {
     public static function get_all($args = array()) {
         global $wpdb;
 
-        self::install_schema();
-
+        if (defined('UAPM_DB_VERSION') && get_option('uapm_modules_schema_ver') !== UAPM_DB_VERSION) {
+            self::install_schema();
+        }
         $defaults = array(
             'search' => '',
             'status' => '',
@@ -270,8 +275,9 @@ class UAPM_Customers {
     public static function count($args = array()) {
         global $wpdb;
 
-        self::install_schema();
-
+        if (defined('UAPM_DB_VERSION') && get_option('uapm_modules_schema_ver') !== UAPM_DB_VERSION) {
+            self::install_schema();
+        }
         $where = array('1=1');
         $values = array();
 
@@ -304,8 +310,9 @@ class UAPM_Customers {
     public static function delete($customer_id) {
         global $wpdb;
 
-        self::install_schema();
-
+        if (defined('UAPM_DB_VERSION') && get_option('uapm_modules_schema_ver') !== UAPM_DB_VERSION) {
+            self::install_schema();
+        }
         $customer_id = absint($customer_id);
 
         if (!$customer_id || !self::get($customer_id)) {

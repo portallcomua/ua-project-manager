@@ -8,8 +8,9 @@ class UAPM_Comments {
     const TABLE = 'uapm_comments';
 
     public static function init() {
-        self::install_schema();
-
+        if (defined('UAPM_DB_VERSION') && get_option('uapm_modules_schema_ver') !== UAPM_DB_VERSION) {
+            self::install_schema();
+        }
         add_action('admin_menu', array(__CLASS__, 'register_menu'), 105);
         add_action('admin_post_uapm_add_comment', array(__CLASS__, 'handle_add'));
         add_action('admin_post_uapm_delete_comment', array(__CLASS__, 'handle_delete'));

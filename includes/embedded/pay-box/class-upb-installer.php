@@ -7,7 +7,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class UPB_Installer {
 
-	const DB_VERSION = '4';
+	const DB_VERSION = '5';
 
 	public static function activate() {
 		self::create_table();
@@ -29,6 +29,7 @@ class UPB_Installer {
 		add_option('upb_settings', UPB_Settings::defaults(), '', 'no');
 		if ((string) get_option('upb_db_version') === self::DB_VERSION) return;
 		self::create_table();
+		self::ensure_columns();
 		update_option('upb_db_version', self::DB_VERSION);
 	}
 
@@ -46,6 +47,9 @@ class UPB_Installer {
 			email VARCHAR(191) NOT NULL DEFAULT '',
 			status VARCHAR(20) NOT NULL DEFAULT 'active',
 			expires BIGINT(20) NOT NULL DEFAULT 0,
+			environment VARCHAR(20) NOT NULL DEFAULT 'production',
+			payment_amount DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+			payment_currency VARCHAR(10) NOT NULL DEFAULT '',
 			created_at DATETIME NOT NULL,
 			updated_at DATETIME NOT NULL,
 			PRIMARY KEY  (id),
@@ -55,5 +59,25 @@ class UPB_Installer {
 			KEY service_email (service_id,email)
 		) {$charset};";
 		dbDelta( $sql );
+	}
+
+	public static function ensure_columns() {
+		global $wpdb;
+		$licenses = $wpdb->prefix . 'upb_licenses';
+		$found = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( $licenses ) ) );
+		if ( $found !== $licenses ) {
+			return;
+		}
+		$cols = $wpdb->get_col( "SHOW COLUMNS FROM {$licenses}", 0 );
+		$cols = is_array( $cols ) ? $cols : array();
+		if ( ! in_array( 'environment', $cols, true ) ) {
+			$wpdb->query( "ALTER TABLE {$licenses} ADD COLUMN environment VARCHAR(20) NOT NULL DEFAULT 'production'" );
+		}
+		if ( ! in_array( 'payment_amount', $cols, true ) ) {
+			$wpdb->query( "ALTER TABLE {$licenses} ADD COLUMN payment_amount DECIMAL(18,2) NOT NULL DEFAULT 0.00" );
+		}
+		if ( ! in_array( 'payment_currency', $cols, true ) ) {
+			$wpdb->query( "ALTER TABLE {$licenses} ADD COLUMN payment_currency VARCHAR(10) NOT NULL DEFAULT ''" );
+		}
 	}
 }

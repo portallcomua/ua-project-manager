@@ -11,8 +11,9 @@ class UAPM_License_Sites {
     }
 
     public static function init() {
-        self::install_schema();
-
+        if (defined('UAPM_DB_VERSION') && get_option('uapm_modules_schema_ver') !== UAPM_DB_VERSION) {
+            self::install_schema();
+        }
         add_action('rest_api_init', array(__CLASS__, 'register_routes'));
         add_action('admin_post_uapm_remove_license_site', array(__CLASS__, 'handle_remove'));
     }

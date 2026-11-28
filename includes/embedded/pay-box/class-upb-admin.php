@@ -116,29 +116,35 @@ class UPB_Admin {
 		$pages = (int) ceil( $total / $per );
 		?>
 		<div class="wrap upb-wrap">
+			<?php if ( class_exists( '\\UAPM_Admin' ) ) { \UAPM_Admin::render_breadcrumb( 'Оплати', 'PRO ліцензії Freemius' ); } ?>
 			<h1>Ліцензії Freemius</h1>
 			<?php self::notice(); ?>
 			<p>Це актуальні записи ліцензій, отримані від Freemius через підписані webhook-повідомлення. Доступ до PRO визначається лише чинним статусом ліцензії Freemius. Ручне блокування через Pay Box більше не використовується.</p>
 			<form method="get" class="upb-search">
-				<input type="hidden" name="page" value="upb-premiums">
+				<input type="hidden" name="page" value="uapm-paybox-premiums">
 				<input type="search" name="s" value="<?php echo esc_attr( $s ); ?>" placeholder="Email або ID ліцензії">
 				<button class="button">Пошук</button>
-				<?php if ( '' !== $s ) : ?><a class="button-link" href="<?php echo esc_url( self::url( 'upb-premiums' ) ); ?>">Скинути</a><?php endif; ?>
+				<?php if ( '' !== $s ) : ?><a class="button-link" href="<?php echo esc_url( self::url( 'uapm-paybox-premiums' ) ); ?>">Скинути</a><?php endif; ?>
 			</form>
 			<table class="widefat striped upb-table">
-				<thead><tr><th>Оновлено</th><th>Послуга</th><th>Email покупця</th><th>ID ліцензії</th><th>Діє до</th><th>Статус Freemius</th></tr></thead>
+				<thead><tr><th>Оновлено</th><th>Послуга</th><th>Email покупця</th><th>ID ліцензії</th><th>Оплата</th><th>Середовище</th><th>Діє до</th><th>Статус Freemius</th></tr></thead>
 				<tbody>
-				<?php if ( ! $rows ) : ?><tr><td colspan="6">Ліцензій Freemius поки немає. Вони з’являться після надходження webhook від Freemius.</td></tr><?php endif; ?>
+				<?php if ( ! $rows ) : ?><tr><td colspan="8">Ліцензій Freemius поки немає. Вони з’являться після надходження webhook від Freemius.</td></tr><?php endif; ?>
 				<?php foreach ( $rows as $r ) :
 					$sid = (int) $r->service_id;
 					$service_name = isset( $services[ $sid ]['name'] ) ? $services[ $sid ]['name'] : 'Послуга #' . $sid;
 					$status = 'active' === $r->status ? 'Активна' : ( 'revoked' === $r->status ? 'Скасована / відкликана' : esc_html( $r->status ) );
+					$env = ! empty( $r->environment ) ? $r->environment : 'production';
+					$paid_amt = isset( $r->payment_amount ) ? (float) $r->payment_amount : 0.0;
+					$paid_cur = isset( $r->payment_currency ) ? (string) $r->payment_currency : '';
 				?>
 				<tr>
 					<td><?php echo esc_html( $r->updated_at ); ?></td>
 					<td><?php echo esc_html( $service_name ); ?> <span class="upb-id">ID <?php echo $sid; ?></span></td>
 					<td><?php echo esc_html( $r->email ? $r->email : '—' ); ?></td>
 					<td><code><?php echo esc_html( $r->license_id ); ?></code></td>
+					<td><?php echo $paid_amt > 0 ? esc_html( number_format_i18n( $paid_amt, 2 ) . ' ' . $paid_cur ) : '—'; ?></td>
+					<td><?php echo 'sandbox' === $env ? '<strong style="color:#b45309">Sandbox (тест)</strong>' : '<strong style="color:#0a7d32">Production</strong>'; ?></td>
 					<td><?php echo (int) $r->expires ? esc_html( UPB_Util::fmt_ts( (int) $r->expires ) ) : 'Безстроково'; ?></td>
 					<td><?php echo esc_html( $status ); ?></td>
 				</tr>
@@ -187,6 +193,7 @@ class UPB_Admin {
 		ksort( $services );
 		?>
 		<div class="wrap upb-wrap">
+			<?php if ( class_exists( '\\UAPM_Admin' ) ) { \UAPM_Admin::render_breadcrumb( 'Оплати', 'Послуги Pay Box' ); } ?>
 			<h1 class="wp-heading-inline">Послуги</h1>
 			<a href="<?php echo esc_url( self::url( 'uapm-paybox-services', array( 'action' => 'add' ) ) ); ?>" class="page-title-action">Додати послугу</a>
 			<hr class="wp-header-end">
@@ -325,8 +332,8 @@ class UPB_Admin {
 				<textarea readonly rows="2" class="large-text code" onclick="this.select()"><?php echo esc_textarea( rest_url( 'upb/v1/check' ) . '?service=' . ( ! empty( $svc['slug'] ) ? $svc['slug'] : $id ) . '&username=LOGIN&api_key=' . UPB_Rest::api_key() ); ?></textarea>
 				<?php if ( ! empty( $svc['freemius_checkout_url'] ) && ! empty( $svc['freemius_product_id'] ) && ! empty( $svc['freemius_plan_id'] ) && ! empty( $svc['freemius_secret_key'] ) ) : ?>
 					<hr>
-					<h2>🔐 Freemius — код перевірки ліцензії</h2>
-					<p>Ці фрагменти не містять Product Secret Key. Користувач вводить ліцензійний ключ, який отримав після купівлі у Freemius.</p>
+					<h2>🔐 Freemius — безключова перевірка ліцензії за email</h2>
+					<p>Ці фрагменти не містять Product Secret Key. Клієнт платить у Freemius Checkout (з переданим <code>user_email</code> та <code>readonly_user=true</code>), після чого довічний PRO активується автоматично за email через webhook — без введення ключів.</p>
 					<h3>WordPress / PHP</h3>
 					<textarea readonly rows="22" class="large-text code" onclick="this.select()"><?php echo esc_textarea( UPB_Snippet::freemius_php( $svc ) ); ?></textarea>
 					<h3>Android / Kotlin</h3>
@@ -414,6 +421,7 @@ class UPB_Admin {
 		$o = UPB_Settings::all();
 		?>
 		<div class="wrap upb-wrap">
+			<?php if ( class_exists( '\\UAPM_Admin' ) ) { \UAPM_Admin::render_breadcrumb( 'Оплати', 'Налаштування Pay Box' ); } ?>
 			<h1>Налаштування Pay Box</h1>
 			<?php self::notice(); ?>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">

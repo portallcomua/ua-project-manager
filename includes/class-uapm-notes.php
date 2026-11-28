@@ -8,8 +8,9 @@ class UAPM_Notes {
     const TABLE = 'uapm_notes';
 
     public static function init() {
-        self::install_schema();
-
+        if (defined('UAPM_DB_VERSION') && get_option('uapm_modules_schema_ver') !== UAPM_DB_VERSION) {
+            self::install_schema();
+        }
         add_action('admin_menu', array(__CLASS__, 'register_menu'), 95);
         add_action('admin_post_uapm_save_note', array(__CLASS__, 'handle_save'));
         add_action('admin_post_uapm_delete_note', array(__CLASS__, 'handle_delete'));

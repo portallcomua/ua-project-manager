@@ -354,7 +354,7 @@ cmsf_ajax('inspect', function () {
             $err = $wpdb->last_error ?: 'не вдалося зберегти результат';
             cmsf_mark_failed($id, 'Помилка збереження: ' . $err);
         }
-    } catch (Throwable $e) {
+    } catch (\Throwable $e) {
         cmsf_mark_failed($id, 'Помилка перевірки: ' . $e->getMessage());
     }
     wp_send_json_success(cmsf_row_out(cmsf_site_row($id)));

@@ -68,11 +68,11 @@ class UPB_Freemius {
 	}
 
 	/** Signed webhook endpoint. Product Secret Key is never sent to client apps. */
-	public static function webhook( WP_REST_Request $request ) {
+	public static function webhook( \WP_REST_Request $request ) {
 		$service_id = absint( $request['service_id'] );
 		$service    = UPB_Services::get( $service_id );
 		if ( ! $service || empty( $service['freemius_secret_key'] ) ) {
-			return new WP_REST_Response( array( 'message' => 'Freemius integration is not configured.' ), 404 );
+			return new \WP_REST_Response( array( 'message' => 'Freemius integration is not configured.' ), 404 );
 		}
 
 		$raw       = $request->get_body();
@@ -80,12 +80,12 @@ class UPB_Freemius {
 		$signature = preg_replace( '/^sha256=/i', '', $signature );
 		$expected  = hash_hmac( 'sha256', $raw, $service['freemius_secret_key'] );
 		if ( '' === $signature || ! hash_equals( $expected, $signature ) ) {
-			return new WP_REST_Response( array( 'message' => 'Invalid webhook signature.' ), 401 );
+			return new \WP_REST_Response( array( 'message' => 'Invalid webhook signature.' ), 401 );
 		}
 
 		$data = json_decode( $raw, true );
 		if ( ! is_array( $data ) ) {
-			return new WP_REST_Response( array( 'message' => 'Invalid JSON payload.' ), 400 );
+			return new \WP_REST_Response( array( 'message' => 'Invalid JSON payload.' ), 400 );
 		}
 
 		/*
@@ -150,18 +150,18 @@ class UPB_Freemius {
 		);
 
 		if ( '' !== $product_id && ! empty( $service['freemius_product_id'] ) && $product_id !== (string) $service['freemius_product_id'] ) {
-			return new WP_REST_Response( array( 'message' => 'Product ID does not match this Pay Box service.' ), 403 );
+			return new \WP_REST_Response( array( 'message' => 'Product ID does not match this Pay Box service.' ), 403 );
 		}
 		if ( '' !== $plan_id && ! empty( $service['freemius_plan_id'] ) && $plan_id !== (string) $service['freemius_plan_id'] ) {
-			return new WP_REST_Response( array( 'message' => 'Plan ID does not match this Pay Box service.' ), 403 );
+			return new \WP_REST_Response( array( 'message' => 'Plan ID does not match this Pay Box service.' ), 403 );
 		}
 
 		$event = strtolower( (string) self::value( $data, 'type', self::value( $data, 'event.type', self::value( $data, 'action', $request->get_header( 'x-event' ) ) ) ) );
 
-		$active_events = array( 'license.created', 'license.activated', 'license.updated', 'license.extended', 'license.shortened', 'license.plan.changed', 'payment.dispute.won' );
+		$active_events = array( 'license.created', 'license.activated', 'license.updated', 'license.extended', 'license.shortened', 'license.plan.changed', 'payment.created', 'payment.dispute.won' );
 		$revoked_events = array( 'license.cancelled', 'license.canceled', 'license.deactivated', 'license.expired', 'license.deleted', 'payment.refund', 'payment.dispute.closed', 'payment.dispute.lost' );
 		if ( ! in_array( $event, $active_events, true ) && ! in_array( $event, $revoked_events, true ) ) {
-			return new WP_REST_Response( array( 'received' => true, 'ignored' => true, 'event' => $event ), 200 );
+			return new \WP_REST_Response( array( 'received' => true, 'ignored' => true, 'event' => $event ), 200 );
 		}
 
 		$license_id = (string) self::value(
@@ -174,7 +174,7 @@ class UPB_Freemius {
 			$license_id = (string) absint( $data['data'] );
 		}
 		if ( '' === $license_id ) {
-			return new WP_REST_Response( array( 'message' => 'License ID is missing from the Freemius event.' ), 400 );
+			return new \WP_REST_Response( array( 'message' => 'License ID is missing from the Freemius event.' ), 400 );
 		}
 
 		$license_state = strtolower( (string) self::value( $license, 'status', '' ) );
@@ -198,6 +198,17 @@ class UPB_Freemius {
 				self::value( $data, 'user.email', self::value( $event_data, 'email', self::value( $license, 'email', '' ) ) )
 			)
 		);
+		$env_raw = strtolower( (string) self::value( $data, 'environment', self::value( $event_data, 'environment', self::value( $payment, 'environment', '' ) ) ) );
+		$is_sandbox = ! empty( $data['is_sandbox'] )
+			|| ! empty( $event_data['is_sandbox'] )
+			|| ! empty( $license['is_sandbox'] )
+			|| ! empty( $payment['is_sandbox'] )
+			|| 'sandbox' === $env_raw;
+		$environment = $is_sandbox ? 'sandbox' : 'production';
+
+		$paid_amount = (float) self::value( $payment, 'gross', self::value( $payment, 'amount', self::value( $event_data, 'gross', self::value( $event_data, 'amount', 0 ) ) ) );
+		$paid_currency = strtoupper( sanitize_text_field( (string) self::value( $payment, 'currency', self::value( $event_data, 'currency', '' ) ) ) );
+
 		$status = $revoked ? 'revoked' : 'active';
 
 		global $wpdb;
@@ -210,16 +221,19 @@ class UPB_Freemius {
 			$expires = (int) $existing->expires;
 		}
 		if ( '' === $email ) {
-			return new WP_REST_Response( array( 'message' => 'Purchaser email is missing from the Freemius license event.' ), 400 );
+			return new \WP_REST_Response( array( 'message' => 'Purchaser email is missing from the Freemius license event.' ), 400 );
 		}
 
 		$record = array(
-			'service_id' => $service_id,
-			'license_id' => sanitize_text_field( $license_id ),
-			'email'      => $email,
-			'status'     => $status,
-			'expires'    => $expires,
-			'updated_at' => current_time( 'mysql', true ),
+			'service_id'       => $service_id,
+			'license_id'       => sanitize_text_field( $license_id ),
+			'email'            => $email,
+			'status'           => $status,
+			'expires'          => $expires,
+			'environment'      => $environment,
+			'payment_amount'   => max( 0, $paid_amount ),
+			'payment_currency' => substr( $paid_currency, 0, 10 ),
+			'updated_at'       => current_time( 'mysql', true ),
 		);
 
 		if ( '' !== $key ) {
@@ -235,17 +249,26 @@ class UPB_Freemius {
 			$wpdb->insert( $table, $record );
 		}
 
-		// Advertising placements are renewed only from a verified, active Freemius webhook.
-		if ( ! $revoked && class_exists( '\\UAPM_Advertising' ) ) {
-			\UAPM_Advertising::handle_freemius_license( $service_id, $email, $license_id );
+		// Sandbox purchases never activate live ad renewals or accrue live referral commissions.
+		if ( ! $revoked && ! $is_sandbox ) {
+			if ( class_exists( '\\UAPM_Advertising' ) ) {
+				\UAPM_Advertising::handle_freemius_license( $service_id, $email, $license_id, $paid_amount, $paid_currency );
+			}
+			if ( class_exists( '\\UAPM_Referrals' ) ) {
+				\UAPM_Referrals::record_freemius_payment( $service_id, $email, $license_id, $paid_amount, $paid_currency, $payment );
+			}
+		} elseif ( $revoked && ! $is_sandbox && class_exists( '\\UAPM_Referrals' ) ) {
+			\UAPM_Referrals::revoke_transaction( $license_id );
 		}
 
-		return new WP_REST_Response(
+		return new \WP_REST_Response(
 			array(
 				'received'       => true,
 				'license_status' => $status,
 				'license_id'     => sanitize_text_field( $license_id ),
 				'lifetime'       => 0 === $expires,
+				'environment'    => $environment,
+				'sandbox'        => $is_sandbox,
 			),
 			200
 		);
@@ -260,7 +283,7 @@ class UPB_Freemius {
 		}
 		$table = self::license_table();
 		return $wpdb->get_row( $wpdb->prepare(
-			"SELECT status, expires FROM {$table} WHERE service_id=%d AND LOWER(email)=LOWER(%s) AND status='active' AND (expires=0 OR expires>%d) ORDER BY updated_at DESC, id DESC LIMIT 1",
+			"SELECT status, expires, environment FROM {$table} WHERE service_id=%d AND LOWER(email)=LOWER(%s) AND status='active' AND (expires=0 OR expires>%d) AND (environment IN ('production','live','0','') OR environment IS NULL) ORDER BY updated_at DESC, id DESC LIMIT 1",
 			(int) $service_id, $email, time()
 		) );
 	}
@@ -274,11 +297,11 @@ class UPB_Freemius {
 	 * New clients authenticate by the purchaser email supplied to Freemius
 	 * Checkout; legacy clients may continue to validate a license key.
 	 */
-	public static function license_status( WP_REST_Request $request ) {
+	public static function license_status( \WP_REST_Request $request ) {
 		$service_param = sanitize_text_field( (string) $request->get_param( 'service' ) );
 		$service_id    = upb_service_id( $service_param );
 		if ( ! $service_id ) {
-			return new WP_REST_Response( array( 'valid' => false, 'message' => 'Service is required.' ), 400 );
+			return new \WP_REST_Response( array( 'valid' => false, 'message' => 'Service is required.' ), 400 );
 		}
 
 		$email = sanitize_email( (string) $request->get_param( 'email' ) );
@@ -288,30 +311,34 @@ class UPB_Freemius {
 		if ( $email && is_email( $email ) ) {
 			$row = self::get_email_license( $service_id, $email );
 			$valid = (bool) $row;
-			return new WP_REST_Response( array(
-				'valid'   => (bool) $valid,
-				'status'  => $row ? $row->status : 'not_found',
-				'expires' => $row && (int) $row->expires ? (int) $row->expires : 0,
-				'method'  => 'email',
+			return new \WP_REST_Response( array(
+				'valid'       => (bool) $valid,
+				'status'      => $row ? $row->status : 'not_found',
+				'expires'     => $row && (int) $row->expires ? (int) $row->expires : 0,
+				'lifetime'    => $row ? ( 0 === (int) $row->expires ) : false,
+				'environment' => $row && ! empty( $row->environment ) ? $row->environment : 'production',
+				'method'      => 'email',
 			), 200 );
 		}
 
 		$key = trim( (string) $request->get_param( 'license_key' ) );
 		if ( '' === $key ) {
-			return new WP_REST_Response( array( 'valid' => false, 'message' => 'A valid purchaser email is required.' ), 400 );
+			return new \WP_REST_Response( array( 'valid' => false, 'message' => 'A valid purchaser email is required.' ), 400 );
 		}
 		$hash = hash_hmac( 'sha256', $key, wp_salt( 'auth' ) );
 		$row = $wpdb->get_row( $wpdb->prepare(
-			"SELECT status, expires FROM {$table} WHERE service_id=%d AND license_hash=%s ORDER BY id DESC LIMIT 1",
+			"SELECT status, expires, environment FROM {$table} WHERE service_id=%d AND license_hash=%s AND (environment IN ('production','live','0','') OR environment IS NULL) ORDER BY id DESC LIMIT 1",
 			$service_id,
 			$hash
 		) );
 		$valid = $row && 'active' === $row->status && ( ! (int) $row->expires || (int) $row->expires > time() );
-		return new WP_REST_Response( array(
-			'valid'   => (bool) $valid,
-			'status'  => $row ? $row->status : 'not_found',
-			'expires' => $row && (int) $row->expires ? (int) $row->expires : 0,
-			'method'  => 'license_key',
+		return new \WP_REST_Response( array(
+			'valid'       => (bool) $valid,
+			'status'      => $row ? $row->status : 'not_found',
+			'expires'     => $row && (int) $row->expires ? (int) $row->expires : 0,
+			'lifetime'    => $row ? ( 0 === (int) $row->expires ) : false,
+			'environment' => $row && ! empty( $row->environment ) ? $row->environment : 'production',
+			'method'      => 'license_key',
 		), 200 );
 	}
 

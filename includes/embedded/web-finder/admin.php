@@ -58,7 +58,8 @@ function cmsf_page_search() {
     $platforms = array_combine(cmsf_platforms(), cmsf_platforms());
     ?>
     <div class="wrap cmsf" data-page="search">
-        <h1>UA Web Finder 2.6.0 — пошук сайтів</h1>
+        <?php if (class_exists('\\UAPM_Admin')) { \UAPM_Admin::render_breadcrumb('Збір і розсилка', 'Пошук сайтів'); } ?>
+        <h1>Пошук сайтів</h1>
         <div class="cmsf-card">
             <div class="cmsf-presets">
                 <label><span>Шаблон пошуку (збережені параметри)</span><select id="cmsf-preset"><option value="">— обрати збережений шаблон —</option></select></label>
@@ -127,6 +128,7 @@ function cmsf_page_import() {
     $platforms = array_combine(cmsf_platforms(), cmsf_platforms());
     ?>
     <div class="wrap cmsf" data-page="import">
+        <?php if (class_exists('\\UAPM_Admin')) { \UAPM_Admin::render_breadcrumb('Збір і розсилка', 'Імпорт сайтів'); } ?>
         <h1>Свій список доменів</h1>
         <div class="cmsf-card">
             <p class="description">Вставте домени або завантажте файл TXT/CSV. Плагін відвідає кожен сайт і визначить CMS, версію, країну, мову та контакти. Результат зберігається як окремий список.</p>
@@ -172,6 +174,7 @@ function cmsf_page_lists() {
     if (!cmsf_can_manage()) return;
     ?>
     <div class="wrap cmsf" data-page="lists">
+        <?php if (class_exists('\\UAPM_Admin')) { \UAPM_Admin::render_breadcrumb('Збір і розсилка', 'Списки сайтів'); } ?>
         <h1>Збережені списки</h1>
         <div id="cmsf-lists"></div>
         <div id="cmsf-open" hidden>
@@ -187,6 +190,7 @@ function cmsf_page_templates() {
     if (!cmsf_can_manage()) return;
     ?>
     <div class="wrap cmsf" data-page="templates">
+        <?php if (class_exists('\\UAPM_Admin')) { \UAPM_Admin::render_breadcrumb('Збір і розсилка', 'Шаблони листів'); } ?>
         <h1>Шаблони листів</h1>
         <div class="cmsf-twocol">
             <div class="cmsf-card cmsf-tpl-list">
@@ -224,7 +228,8 @@ function cmsf_page_settings() {
     $s = cmsf_settings();
     ?>
     <div class="wrap cmsf" data-page="settings">
-        <h1>Налаштування</h1>
+        <?php if (class_exists('\\UAPM_Admin')) { \UAPM_Admin::render_breadcrumb('Збір і розсилка', 'Налаштування пошуку'); } ?>
+        <h1>Налаштування пошуку та збору</h1>
         <div class="cmsf-card">
             <form id="cmsf-settings-form" onsubmit="return false">
                 <h2>Відправка листів</h2>

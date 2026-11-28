@@ -1,4 +1,3 @@
-
 <?php
 /**
  * UA Project Manager — installation registration and monitoring.
@@ -15,8 +14,9 @@ final class UAPM_Installations {
     private static $table = 'uapm_installations';
 
     public static function init() {
-        self::install_schema();
-
+        if (defined('UAPM_DB_VERSION') && get_option('uapm_modules_schema_ver') !== UAPM_DB_VERSION) {
+            self::install_schema();
+        }
         add_action('rest_api_init', array(__CLASS__, 'register_routes'));
         add_action('admin_post_uapm_installation_action', array(__CLASS__, 'handle_admin_action'));
     }

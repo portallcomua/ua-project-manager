@@ -18,6 +18,9 @@ final class UAPM_Task_Sync {
     }
 
     public static function upgrade_schema() {
+        if (get_option('uapm_task_sync_db_version') === '1.1') {
+            return;
+        }
         global $wpdb;
 
         $table = $wpdb->prefix . 'uapm_tasks';

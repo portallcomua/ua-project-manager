@@ -8,8 +8,9 @@ class UAPM_Attachments {
     const TABLE = 'uapm_attachments';
 
     public static function init() {
-        self::install_schema();
-
+        if (defined('UAPM_DB_VERSION') && get_option('uapm_modules_schema_ver') !== UAPM_DB_VERSION) {
+            self::install_schema();
+        }
         add_action('admin_menu', array(__CLASS__, 'register_menu'), 106);
         add_action('admin_post_uapm_upload_attachment', array(__CLASS__, 'handle_upload'));
         add_action('admin_post_uapm_delete_attachment', array(__CLASS__, 'handle_delete'));

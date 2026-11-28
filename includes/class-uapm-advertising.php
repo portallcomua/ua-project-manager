@@ -18,6 +18,7 @@ final class UAPM_Advertising {
         add_action('admin_post_uapm_ad_save_advertiser', array(__CLASS__, 'save_advertiser'));
         add_action('admin_post_uapm_ad_save_block', array(__CLASS__, 'save_block'));
         add_action('admin_post_uapm_ad_save_payment', array(__CLASS__, 'save_payment'));
+        add_action('admin_post_uapm_ad_send_reports_now', array(__CLASS__, 'handle_send_reports_now'));
         add_action('init', array(__CLASS__, 'track_click'));
         add_action('init', array(__CLASS__, 'register_shortcodes'));
         add_action('rest_api_init', array(__CLASS__, 'register_routes'));
@@ -129,7 +130,7 @@ final class UAPM_Advertising {
         add_submenu_page('uapm', 'Рекламодавці', 'Рекламодавці', 'manage_options', 'uapm-advertisers', array(__CLASS__, 'render_page'));
         add_submenu_page('uapm', 'Рекламні блоки', 'Рекламні блоки', 'manage_options', 'uapm-ad-blocks', array(__CLASS__, 'render_blocks_index'));
         add_submenu_page('uapm', 'Звіти реклами', 'Звіти', 'manage_options', 'uapm-ad-reports', array(__CLASS__, 'render_reports'));
-        add_submenu_page('uapm', 'Реклама (сумісність)', 'Реклама (сумісність)', 'manage_options', 'uapm-advertising', array(__CLASS__, 'render_page'));
+        // Canonical advertising entry is uapm-advertisers; keep handler backward-compatible via menu hook if needed.
     }
 
     public static function assets($hook) {
@@ -172,7 +173,7 @@ final class UAPM_Advertising {
             $wpdb->insert(self::table('advertisers'), $data);
             $id = (int) $wpdb->insert_id;
         }
-        wp_safe_redirect(add_query_arg(array('page'=>'uapm-advertising','advertiser_id'=>$id,'saved'=>'1'), admin_url('admin.php')));
+        wp_safe_redirect(add_query_arg(array('page'=>'uapm-advertisers','advertiser_id'=>$id,'saved'=>'1'), admin_url('admin.php')));
         exit;
     }
 
@@ -201,10 +202,16 @@ final class UAPM_Advertising {
         }
         $currency = strtoupper(sanitize_key(wp_unslash($_POST['currency'] ?? 'UAH')));
         if (!in_array($currency, array('UAH','USD'), true)) $currency = 'UAH';
+        $type = sanitize_key(wp_unslash($_POST['payment_type'] ?? 'cash'));
+        if (!in_array($type, array('freemius','privat_envelope','cash'), true)) $type = 'cash';
         $service_id = absint($_POST['service_id'] ?? 0);
         $services = class_exists('\\UAPM\\PayBox\\UPB_Services') ? \UAPM\PayBox\UPB_Services::all() : array();
-        if (!$service_id || empty($services[$service_id]) || (($services[$service_id]['service_type'] ?? 'license') !== 'advertising')) {
-            wp_die('Створи або вибери в Pay Box окрему активну послугу з типом «Розміщення реклами». Вона потрібна для оплати та автоматичного продовження.');
+        if ($type === 'freemius') {
+            if (!$service_id || empty($services[$service_id]) || (($services[$service_id]['service_type'] ?? 'license') !== 'advertising')) {
+                wp_die('Для оплати через Freemius оберіть у Pay Box послугу з типом «Розміщення реклами».');
+            }
+        } elseif ($service_id && (empty($services[$service_id]) || (($services[$service_id]['service_type'] ?? 'license') !== 'advertising'))) {
+            $service_id = 0;
         }
         $banner_html = self::sanitize_banner_html(wp_unslash($_POST['banner_html'] ?? ''));
         $banner_image = esc_url_raw(wp_unslash($_POST['banner_image'] ?? ''));
@@ -216,8 +223,6 @@ final class UAPM_Advertising {
         $amount = max(0, (float) str_replace(',', '.', sanitize_text_field(wp_unslash($_POST['payment_amount'] ?? '0'))));
         $payment_currency = strtoupper(sanitize_key(wp_unslash($_POST['payment_currency'] ?? $currency)));
         if (!in_array($payment_currency, array('UAH','USD'), true)) $payment_currency = $currency;
-        $type = sanitize_key(wp_unslash($_POST['payment_type'] ?? 'cash'));
-        if (!in_array($type, array('freemius','privat_envelope','cash'), true)) $type = 'cash';
         if ($type === 'freemius' && $amount <= 0) $amount = $monthly_price;
         $data = array(
             'advertiser_id' => $advertiser_id,
@@ -248,14 +253,14 @@ final class UAPM_Advertising {
                 'payment_date'=>$payment_date,'status'=>$payment_status,'created_at'=>current_time('mysql')
             ));
         }
-        if ($type === 'freemius' && is_email($advertiser->email)) {
+        if ($type === 'freemius' && $service_id && !empty($services[$service_id]) && is_email($advertiser->email)) {
             $checkout = class_exists('\\UAPM\\PayBox\\UPB_Freemius') ? \UAPM\PayBox\UPB_Freemius::checkout_url($services[$service_id]) : '';
             if ($checkout) {
                 $checkout = add_query_arg('user_email', $advertiser->email, $checkout);
                 wp_mail($advertiser->email, 'Оплата розміщення реклами', 'Для оплати розміщення реклами перейдіть за посиланням: ' . $checkout);
             }
         }
-        wp_safe_redirect(add_query_arg(array('page'=>'uapm-advertising','advertiser_id'=>$advertiser_id,'block_saved'=>$block_id), admin_url('admin.php')));
+        wp_safe_redirect(add_query_arg(array('page'=>'uapm-advertisers','advertiser_id'=>$advertiser_id,'block_saved'=>$block_id), admin_url('admin.php')));
         exit;
     }
 
@@ -284,7 +289,7 @@ final class UAPM_Advertising {
                 if ($checkout) wp_mail($advertiser_email, 'Оплата розміщення реклами', 'Для оплати розміщення реклами перейдіть за посиланням: ' . add_query_arg('user_email', $advertiser_email, $checkout));
             }
         }
-        wp_safe_redirect(add_query_arg(array('page'=>'uapm-advertising','advertiser_id'=>(int)$block->advertiser_id,'payment_saved'=>'1'), admin_url('admin.php')));
+        wp_safe_redirect(add_query_arg(array('page'=>'uapm-advertisers','advertiser_id'=>(int)$block->advertiser_id,'payment_saved'=>'1'), admin_url('admin.php')));
         exit;
     }
 
@@ -355,7 +360,9 @@ final class UAPM_Advertising {
         $edit_id = absint($_GET['advertiser_id'] ?? 0);
         $advertiser = $edit_id ? $wpdb->get_row($wpdb->prepare("SELECT * FROM " . self::table('advertisers') . " WHERE id=%d", $edit_id)) : null;
         $advertisers = $wpdb->get_results("SELECT * FROM " . self::table('advertisers') . " ORDER BY created_at DESC");
-        echo '<div class="wrap"><h1>Реклама — рекламодавці та розміщення</h1>';
+        echo '<div class="wrap">';
+        if (class_exists('UAPM_Admin')) { UAPM_Admin::render_breadcrumb('Реклама', 'Рекламодавці'); }
+        echo '<h1>Реклама — рекламодавці та розміщення</h1>';
         if (!empty($_GET['saved'])) echo '<div class="notice notice-success"><p>Рекламодавця збережено.</p></div>';
         if (!empty($_GET['block_saved'])) echo '<div class="notice notice-success"><p>Рекламний блок додано.</p></div>';
         if (!empty($_GET['payment_saved'])) echo '<div class="notice notice-success"><p>Платіж записано.</p></div>';
@@ -380,7 +387,7 @@ final class UAPM_Advertising {
             if ($a->phone) $contacts[] = '<a href="tel:' . esc_attr(preg_replace('/[^0-9+]/','',$a->phone)) . '">' . esc_html($a->phone) . '</a>';
             if ($a->viber) $contacts[] = '<a href="' . esc_url('viber://chat?number=' . rawurlencode($a->viber)) . '">Viber</a>';
             if ($a->telegram) { $tg = preg_match('~^https?://~i',$a->telegram) ? $a->telegram : 'https://t.me/' . ltrim($a->telegram,'@'); $contacts[] = '<a href="' . esc_url($tg) . '" target="_blank" rel="noopener">Telegram</a>'; }
-            echo '<tr><td><strong>' . esc_html($a->name) . '</strong></td><td>' . implode(' · ', $contacts) . '</td><td>' . esc_html($a->created_at) . '</td><td><a class="button button-small" href="' . esc_url(add_query_arg(array('page'=>'uapm-advertising','advertiser_id'=>$a->id),admin_url('admin.php'))) . '">Відкрити / редагувати</a></td></tr>';
+            echo '<tr><td><strong>' . esc_html($a->name) . '</strong></td><td>' . implode(' · ', $contacts) . '</td><td>' . esc_html($a->created_at) . '</td><td><a class="button button-small" href="' . esc_url(add_query_arg(array('page'=>'uapm-advertisers','advertiser_id'=>$a->id),admin_url('admin.php'))) . '">Відкрити / редагувати</a></td></tr>';
         }
         if (!$advertisers) echo '<tr><td colspan="4">Рекламодавців ще немає.</td></tr>';
         echo '</tbody></table>';
@@ -400,7 +407,9 @@ final class UAPM_Advertising {
              LEFT JOIN " . self::table('advertisers') . " a ON a.id = b.advertiser_id
              ORDER BY b.id DESC"
         );
-        echo '<div class="wrap"><h1>Рекламні блоки</h1><p>Усі рекламні розміщення за рекламодавцями та проєктами.</p>';
+        echo '<div class="wrap">';
+        if (class_exists('UAPM_Admin')) { UAPM_Admin::render_breadcrumb('Реклама', 'Рекламні блоки'); }
+        echo '<h1>Рекламні блоки</h1><p>Усі рекламні розміщення за рекламодавцями та проєктами.</p>';
         echo '<table class="widefat striped"><thead><tr><th>Рекламодавець</th><th>Проєкти</th><th>Період</th><th>Ціна / місяць</th><th>Покази</th><th>Кліки</th><th>Оплати</th><th>Статус</th><th></th></tr></thead><tbody>';
         foreach ((array) $rows as $block) {
             $project_names = array();
@@ -414,7 +423,7 @@ final class UAPM_Advertising {
                 (int) $block->id
             ));
             $status = $block->status === 'pending_payment' ? 'Очікує оплати' : ($block->end_date < current_time('Y-m-d') ? 'Завершено' : 'Активне');
-            $manage_url = add_query_arg(array('page'=>'uapm-advertising','advertiser_id'=>(int)$block->advertiser_id), admin_url('admin.php'));
+            $manage_url = add_query_arg(array('page'=>'uapm-advertisers','advertiser_id'=>(int)$block->advertiser_id), admin_url('admin.php'));
             echo '<tr><td>' . esc_html($block->advertiser_name ? $block->advertiser_name : '—') . '</td>';
             echo '<td>' . esc_html(implode(', ', $project_names)) . '</td>';
             echo '<td>' . esc_html($block->start_date . ' — ' . $block->end_date) . '</td>';
@@ -442,7 +451,7 @@ final class UAPM_Advertising {
         echo '<p><label>Посилання банера<br><input type="url" name="target_url" class="large-text" placeholder="https://..." required></label></p>';
         echo '<p><label>Ціна за місяць<br><input type="number" min="0" step="0.01" name="monthly_price" required> <select name="currency"><option value="UAH">грн</option><option value="USD">USD</option></select></label></p>';
         echo '<p><label>Початок розміщення <input type="date" name="start_date" required value="' . esc_attr(current_time('Y-m-d')) . '"></label>　<label>Закінчення <input type="date" name="end_date" required></label></p>';
-        echo '<p><label>Послуга Pay Box для реклами<br><select name="service_id" required><option value="0">— не прив’язувати —</option>';
+        echo '<p><label>Послуга Pay Box для реклами<br><select name="service_id"><option value="0">— не прив’язувати (для готівки / Приват Конверта) —</option>';
         foreach ($services as $id=>$name) echo '<option value="' . (int)$id . '">' . esc_html($name) . '</option>';
         echo '</select></label> <span class="description">Створи в Pay Box окрему послугу з типом «Розміщення реклами».</span></p>';
         echo '<h3>Початкова оплата (можна залишити порожньою)</h3>';
@@ -476,12 +485,31 @@ final class UAPM_Advertising {
         echo '</tbody></table>';
     }
 
+    public static function handle_send_reports_now() {
+        self::guard();
+        check_admin_referer('uapm_ad_send_reports_now');
+        $from = sanitize_text_field(wp_unslash($_POST['from'] ?? date('Y-m-01', strtotime('-1 month'))));
+        $to   = sanitize_text_field(wp_unslash($_POST['to'] ?? date('Y-m-t', strtotime('-1 month'))));
+        $sent_count = self::send_monthly_reports($from, $to, true);
+        wp_safe_redirect(add_query_arg(array('page' => 'uapm-ad-reports', 'from' => $from, 'to' => $to, 'report_sent' => $sent_count), admin_url('admin.php')));
+        exit;
+    }
+
     public static function render_reports() {
         self::guard();
         global $wpdb;
         $from = sanitize_text_field($_GET['from'] ?? date('Y-m-01', strtotime('-1 month')));
         $to = sanitize_text_field($_GET['to'] ?? date('Y-m-t', strtotime('-1 month')));
-        echo '<div class="wrap"><h1>Звіти реклами</h1><form method="get"><input type="hidden" name="page" value="uapm-ad-reports"><label>З <input type="date" name="from" value="' . esc_attr($from) . '"></label> <label>По <input type="date" name="to" value="' . esc_attr($to) . '"></label> <button class="button">Показати</button></form>';
+        echo '<div class="wrap">';
+        if (class_exists('UAPM_Admin')) { UAPM_Admin::render_breadcrumb('Реклама', 'Звіти реклами'); }
+        echo '<h1>Звіти реклами</h1>';
+        if (isset($_GET['report_sent'])) {
+            echo '<div class="notice notice-success is-dismissible"><p>Щомісячний звіт надіслано рекламодавцям: <strong>' . absint($_GET['report_sent']) . '</strong>.</p></div>';
+        }
+        echo '<form method="get" style="display:inline-block;margin-right:16px"><input type="hidden" name="page" value="uapm-ad-reports"><label>З <input type="date" name="from" value="' . esc_attr($from) . '"></label> <label>По <input type="date" name="to" value="' . esc_attr($to) . '"></label> <button class="button">Показати</button></form>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline-block"><input type="hidden" name="action" value="uapm_ad_send_reports_now"><input type="hidden" name="from" value="' . esc_attr($from) . '"><input type="hidden" name="to" value="' . esc_attr($to) . '">';
+        wp_nonce_field('uapm_ad_send_reports_now');
+        echo '<button type="submit" class="button button-primary">Надіслати місячний звіт зараз</button></form>';
         $rows = $wpdb->get_results($wpdb->prepare("SELECT a.name advertiser,b.id block_id,b.project_ids,b.start_date,b.end_date, SUM(e.event_type='impression') impressions,SUM(e.event_type='click') clicks FROM " . self::table('blocks') . " b INNER JOIN " . self::table('advertisers') . " a ON a.id=b.advertiser_id LEFT JOIN " . self::table('events') . " e ON e.block_id=b.id AND DATE(e.created_at) BETWEEN %s AND %s GROUP BY b.id ORDER BY a.name,b.id DESC", $from, $to));
         echo '<table class="widefat striped"><thead><tr><th>Рекламодавець</th><th>Блок / проєкти</th><th>Покази</th><th>Кліки</th><th>Період</th></tr></thead><tbody>';
         foreach ($rows as $r) {
@@ -615,27 +643,52 @@ final class UAPM_Advertising {
     public static function project_embed_code($project_id) {
         $project = UAPM_Projects::get($project_id);
         if (!$project) return '';
-        $url = rest_url('uapm/v1/ad/' . rawurlencode($project->slug));
-        $config_url = rest_url('uapm/v1/project-config/' . rawurlencode($project->slug));
+        $slug = $project->slug;
+        $fn = 'uapm_remote_' . preg_replace('/[^a-z0-9_]/', '_', strtolower($slug));
+        $url = rest_url('uapm/v1/ad/' . rawurlencode($slug));
+        $config_url = rest_url('uapm/v1/project-config/' . rawurlencode($slug));
         $template = <<<'UAPM_CODE'
-WordPress plugin admin placement (banner at top, All Projects link at bottom):
-add_action('admin_notices', function () { if (current_user_can('manage_options')) echo do_shortcode('[uapm_project_header project="%SLUG%"]'); });
-add_action('admin_footer', function () { if (current_user_can('manage_options')) echo do_shortcode('[uapm_project_footer project="%SLUG%"]'); });
+// Зовнішній WordPress-плагін: розміщення банера та посилання «Всі проєкти» внизу сторінки плагіна через REST API
+if (!function_exists('%FN%_render_bottom_banner')) {
+    function %FN%_render_bottom_banner() {
+        $cache_key = '%FN%_remote_cfg';
+        $cfg = get_transient($cache_key);
+        if (!is_array($cfg)) {
+            $cfg = array('all_projects_url' => '', 'project_banner_html' => '', 'ad_html' => '');
+            $r1 = wp_remote_get('%CONFIG_URL%', array('timeout' => 5));
+            if (!is_wp_error($r1) && 200 === (int) wp_remote_retrieve_response_code($r1)) {
+                $d1 = json_decode(wp_remote_retrieve_body($r1), true);
+                if (is_array($d1)) {
+                    $cfg['all_projects_url'] = !empty($d1['all_projects_url']) ? esc_url_raw($d1['all_projects_url']) : '';
+                    $cfg['project_banner_html'] = !empty($d1['project_banner_html']) ? (string) $d1['project_banner_html'] : '';
+                }
+            }
+            $r2 = wp_remote_get('%AD_URL%', array('timeout' => 5));
+            if (!is_wp_error($r2) && 200 === (int) wp_remote_retrieve_response_code($r2)) {
+                $d2 = json_decode(wp_remote_retrieve_body($r2), true);
+                if (is_array($d2) && !empty($d2['active']) && !empty($d2['html'])) {
+                    $cfg['ad_html'] = (string) $d2['html'];
+                }
+            }
+            set_transient($cache_key, $cfg, 30 * MINUTE_IN_SECONDS);
+        }
+        if ($cfg['ad_html'] || $cfg['project_banner_html'] || $cfg['all_projects_url']) {
+            echo '<div class="uapm-remote-footer" style="margin-top:20px;padding:12px 16px;background:#fff;border:1px solid #dcdcde;border-radius:6px">';
+            if ($cfg['ad_html']) echo '<div class="uapm-remote-ad">' . wp_kses_post($cfg['ad_html']) . '</div>';
+            if ($cfg['project_banner_html']) echo '<div class="uapm-remote-banner">' . wp_kses_post($cfg['project_banner_html']) . '</div>';
+            if ($cfg['all_projects_url']) echo '<p style="margin:8px 0 0"><a href="' . esc_url($cfg['all_projects_url']) . '" target="_blank" rel="noopener">Усі наші проєкти →</a></p>';
+            echo '</div>';
+        }
+    }
+}
 
-WordPress frontend shortcodes:
-[uapm_project_display project="%SLUG%"]
-[uapm_ad project="%SLUG%"]
-
-Android / other app REST configuration:
-GET %CONFIG_URL%
-REST advertising banner endpoint:
-GET %AD_URL%
-
-The configuration endpoint returns the enabled All Projects URL and project HTML banner. The advertising endpoint returns JSON with active, html and block_id.
+// REST endpoints для Android / Chrome / сторонніх додатків:
+// Конфігурація проєкту: GET %CONFIG_URL%
+// Активний рекламний блок: GET %AD_URL%
 UAPM_CODE;
         return str_replace(
-            array('%SLUG%', '%CONFIG_URL%', '%AD_URL%'),
-            array($project->slug, $config_url, $url),
+            array('%FN%', '%CONFIG_URL%', '%AD_URL%'),
+            array($fn, $config_url, $url),
             $template
         );
     }
@@ -652,18 +705,28 @@ UAPM_CODE;
         return array();
     }
 
-    public static function handle_freemius_license($service_id, $email, $license_id) {
+    public static function handle_freemius_license($service_id, $email, $license_id, $paid_amount = 0, $paid_currency = '') {
         global $wpdb;
-        $service_id=absint($service_id); $email=sanitize_email($email);
-        if (!$service_id || !is_email($email)) return false;
+        $service_id=absint($service_id); $email=sanitize_email($email); $license_id=sanitize_text_field((string)$license_id);
+        if (!$service_id || !is_email($email) || '' === $license_id) return false;
         $services=class_exists('\\UAPM\\PayBox\\UPB_Services') ? \UAPM\PayBox\UPB_Services::all() : array();
         if (empty($services[$service_id]) || ($services[$service_id]['service_type'] ?? 'license') !== 'advertising') return false;
+        // Idempotency: prevent duplicate renewal/payment creation when Freemius retries or sends license.* + payment.created.
+        $already_recorded = $wpdb->get_var($wpdb->prepare("SELECT id FROM " . self::table('payments') . " WHERE reference=%s AND status='paid' LIMIT 1", $license_id));
+        if ($already_recorded) return true;
         $order=$wpdb->get_row($wpdb->prepare("SELECT * FROM " . self::table('renewals') . " WHERE service_id=%d AND status='pending' AND advertiser_id IN (SELECT id FROM " . self::table('advertisers') . " WHERE LOWER(email)=LOWER(%s)) ORDER BY id DESC LIMIT 1", $service_id, $email));
         if (!$order) {
             // Initial placement payment: confirm the newest pending Freemius payment for this advertiser and service.
             $payment = $wpdb->get_row($wpdb->prepare("SELECT p.* FROM " . self::table('payments') . " p INNER JOIN " . self::table('blocks') . " b ON b.id=p.block_id INNER JOIN " . self::table('advertisers') . " a ON a.id=b.advertiser_id WHERE b.service_id=%d AND LOWER(a.email)=LOWER(%s) AND p.payment_type='freemius' AND p.status='pending' ORDER BY p.id DESC LIMIT 1", $service_id, $email));
             if ($payment) {
-                $wpdb->update(self::table('payments'), array('status'=>'paid','reference'=>sanitize_text_field($license_id),'payment_date'=>current_time('Y-m-d')), array('id'=>(int)$payment->id));
+                $upd = array('status'=>'paid','reference'=>$license_id,'payment_date'=>current_time('Y-m-d'));
+                if ((float)$paid_amount > 0) {
+                    $upd['amount'] = round((float)$paid_amount, 2);
+                    if (in_array(strtoupper((string)$paid_currency), array('UAH','USD'), true)) {
+                        $upd['currency'] = strtoupper((string)$paid_currency);
+                    }
+                }
+                $wpdb->update(self::table('payments'), $upd, array('id'=>(int)$payment->id));
                 $wpdb->update(self::table('blocks'), array('status'=>'active'), array('id'=>(int)$payment->block_id));
                 return true;
             }
@@ -673,6 +736,8 @@ UAPM_CODE;
         if (!$old) return false;
         $start = $old->end_date >= current_time('Y-m-d') ? date('Y-m-d', strtotime($old->end_date . ' +1 day')) : current_time('Y-m-d');
         $end = date('Y-m-d', strtotime($start . ' +1 month -1 day'));
+        $recorded_amount = (float)$paid_amount > 0 ? round((float)$paid_amount, 2) : (float)$old->monthly_price;
+        $recorded_currency = in_array(strtoupper((string)$paid_currency), array('UAH','USD'), true) ? strtoupper((string)$paid_currency) : $old->currency;
         $wpdb->insert(self::table('blocks'), array(
             'advertiser_id'=>(int)$old->advertiser_id,'project_ids'=>$old->project_ids,'banner_html'=>$old->banner_html,'banner_image'=>$old->banner_image,'target_url'=>$old->target_url,
             'monthly_price'=>$old->monthly_price,'currency'=>$old->currency,'start_date'=>$start,'end_date'=>$end,'status'=>'active','service_id'=>$service_id,
@@ -680,8 +745,8 @@ UAPM_CODE;
         ));
         $new_id=(int)$wpdb->insert_id;
         if (!$new_id) return false;
-        $wpdb->insert(self::table('payments'), array('block_id'=>$new_id,'amount'=>$old->monthly_price,'currency'=>$old->currency,'payment_type'=>'freemius','payment_date'=>current_time('Y-m-d'),'status'=>'paid','reference'=>sanitize_text_field($license_id),'created_at'=>current_time('mysql')));
-        $wpdb->update(self::table('renewals'), array('status'=>'paid','freemius_license_id'=>sanitize_text_field($license_id),'completed_at'=>current_time('mysql')), array('id'=>(int)$order->id));
+        $wpdb->insert(self::table('payments'), array('block_id'=>$new_id,'amount'=>$recorded_amount,'currency'=>$recorded_currency,'payment_type'=>'freemius','payment_date'=>current_time('Y-m-d'),'status'=>'paid','reference'=>$license_id,'created_at'=>current_time('mysql')));
+        $wpdb->update(self::table('renewals'), array('status'=>'paid','freemius_license_id'=>$license_id,'completed_at'=>current_time('mysql')), array('id'=>(int)$order->id));
         return true;
     }
 
@@ -719,23 +784,30 @@ UAPM_CODE;
         return add_query_arg('user_email',(string)$wpdb->get_var($wpdb->prepare("SELECT email FROM " . self::table('advertisers') . " WHERE id=%d",$block->advertiser_id)),$checkout);
     }
 
-    private static function send_monthly_reports() {
+    private static function send_monthly_reports($custom_from = '', $custom_to = '', $force = false) {
         global $wpdb;
         $report_month = wp_date('Y-m', strtotime('first day of last month', current_time('timestamp')));
-        if (get_option('uapm_ad_report_sent_month') === $report_month) return;
-        $from = $report_month . '-01';
-        $to = wp_date('Y-m-t', strtotime('last day of last month', current_time('timestamp')));
+        if (!$force && get_option('uapm_ad_report_sent_month') === $report_month) return 0;
+        $from = $custom_from ?: ($report_month . '-01');
+        $to = $custom_to ?: wp_date('Y-m-t', strtotime('last day of last month', current_time('timestamp')));
         $advertisers=$wpdb->get_results("SELECT * FROM " . self::table('advertisers') . " WHERE email<>''");
+        $sent_count = 0;
         foreach ($advertisers as $a) {
             if (!is_email($a->email)) continue;
             $rows=$wpdb->get_results($wpdb->prepare("SELECT b.id,b.project_ids,b.start_date,b.end_date,SUM(e.event_type='impression') impressions,SUM(e.event_type='click') clicks FROM " . self::table('blocks') . " b LEFT JOIN " . self::table('events') . " e ON e.block_id=b.id AND DATE(e.created_at) BETWEEN %s AND %s WHERE b.advertiser_id=%d GROUP BY b.id", $from,$to,$a->id));
+            if (!$rows) continue;
             $body="Звіт про рекламне розміщення за період $from — $to\n\n";
             foreach ($rows as $r) {
                 $names=array();foreach((array)json_decode($r->project_ids,true) as $id){$p=UAPM_Projects::get($id);if($p)$names[]=$p->name;}
                 $body.='Проєкти: '.implode(', ',$names)."\nПокази: ".(int)$r->impressions."\nКліки: ".(int)$r->clicks."\nПеріод: ".$r->start_date.' — '.$r->end_date."\n\n";
             }
-            wp_mail($a->email,'Щомісячний звіт рекламного розміщення',$body);
+            if (wp_mail($a->email,'Щомісячний звіт рекламного розміщення',$body)) {
+                $sent_count++;
+            }
         }
-        update_option('uapm_ad_report_sent_month',$report_month,false);
+        if (!$force) {
+            update_option('uapm_ad_report_sent_month',$report_month,false);
+        }
+        return $sent_count;
     }
 }

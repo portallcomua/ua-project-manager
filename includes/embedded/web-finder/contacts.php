@@ -384,7 +384,7 @@ function cmsfc_extract_links($html, $page_url, $root_domain) {
 
     libxml_use_internal_errors(true);
 
-    $dom = new DOMDocument();
+    $dom = new \DOMDocument();
 
     if (!$dom->loadHTML('<?xml encoding="UTF-8">' . $html)) {
         libxml_clear_errors();
@@ -437,7 +437,7 @@ function cmsfc_create_list($domain, $name, $max_pages, $max_depth, $project_ids 
     $domain = cmsfc_normalize_host($domain);
 
     if (!$domain || !preg_match('/^[a-z0-9.-]+\.[a-z]{2,}$/i', $domain)) {
-        return new WP_Error('bad_domain', 'Вкажіть коректний домен.');
+        return new \WP_Error('bad_domain', 'Вкажіть коректний домен.');
     }
 
     $name = sanitize_text_field($name);
@@ -474,7 +474,7 @@ function cmsfc_create_list($domain, $name, $max_pages, $max_depth, $project_ids 
     );
 
     if (!$wpdb->insert_id) {
-        return new WP_Error('db_error', 'Не вдалося створити список.');
+        return new \WP_Error('db_error', 'Не вдалося створити список.');
     }
 
     return (int)$wpdb->insert_id;
@@ -496,7 +496,7 @@ function cmsfc_scan_step($list_id) {
     );
 
     if (!$list) {
-        return new WP_Error('missing_list', 'Список не знайдено.');
+        return new \WP_Error('missing_list', 'Список не знайдено.');
     }
 
     if (in_array($list['status'], ['paused', 'stopped', 'done'], true)) {
@@ -1244,8 +1244,8 @@ function cmsfc_admin_page() {
     ?>
 
     <div class="wrap cmsfc" id="cmsfc-app">
-
-        <h1>CMS Web Finder — збір контактів</h1>
+        <?php if (class_exists('\\UAPM_Admin')) { \UAPM_Admin::render_breadcrumb('Збір і розсилка', 'Збір email та контакти'); } ?>
+        <h1>Збір email та контакти</h1>
 
         <div class="cmsfc-card">
             <h2>1. Зібрати email із сайту</h2>

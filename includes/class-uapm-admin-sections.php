@@ -25,7 +25,7 @@ if (!class_exists('UAPM_Admin_Sections')) {
                 __('Clients', 'ua-project-manager'),
                 'uapm_manage_clients',
                 'uapm-clients',
-                array('UAPM_Clients', 'render_page')
+                array(__CLASS__, 'render_clients')
             );
 
             self::add_page(
@@ -33,7 +33,7 @@ if (!class_exists('UAPM_Admin_Sections')) {
                 __('Integrations', 'ua-project-manager'),
                 'uapm_manage_integrations',
                 'uapm-integrations',
-                array('UAPM_Integrations', 'render_page')
+                array(__CLASS__, 'render_integrations')
             );
 
             self::add_page(
@@ -41,7 +41,7 @@ if (!class_exists('UAPM_Admin_Sections')) {
                 __('Downloads', 'ua-project-manager'),
                 'uapm_manage_downloads',
                 'uapm-downloads',
-                array('UAPM_Downloads', 'render_stats')
+                array(__CLASS__, 'render_downloads')
             );
 
             self::add_page(
@@ -57,7 +57,7 @@ if (!class_exists('UAPM_Admin_Sections')) {
                 __('GitHub', 'ua-project-manager'),
                 'uapm_manage_repository',
                 'uapm-github',
-                array('UAPM_Repository', 'render_page')
+                array(__CLASS__, 'render_github')
             );
 
             self::add_page(
@@ -65,7 +65,7 @@ if (!class_exists('UAPM_Admin_Sections')) {
                 __('Code Generator', 'ua-project-manager'),
                 'uapm_manage_code_generator',
                 'uapm-code-generator',
-                array('UAPM_Code_Generator', 'render_form')
+                array(__CLASS__, 'render_code_generator')
             );
 
             self::add_page(
@@ -73,7 +73,7 @@ if (!class_exists('UAPM_Admin_Sections')) {
                 __('Code Inspector', 'ua-project-manager'),
                 'uapm_manage_code_inspector',
                 'uapm-code-inspector',
-                array('UAPM_Code_Inspector', 'render_form')
+                array(__CLASS__, 'render_code_inspector')
             );
 
             self::add_page(
@@ -81,7 +81,7 @@ if (!class_exists('UAPM_Admin_Sections')) {
                 __('Analytics', 'ua-project-manager'),
                 'uapm_manage_analytics',
                 'uapm-analytics',
-                array('UAPM_Analytics', 'render_page')
+                array(__CLASS__, 'render_analytics')
             );
 
             self::add_page(
@@ -89,7 +89,7 @@ if (!class_exists('UAPM_Admin_Sections')) {
                 __('Settings', 'ua-project-manager'),
                 'uapm_manage_settings',
                 'uapm-settings',
-                array('UAPM_Settings', 'render')
+                array(__CLASS__, 'render_settings')
             );
         }
 
@@ -107,6 +107,7 @@ if (!class_exists('UAPM_Admin_Sections')) {
         private static function header($title, $description = '') {
             ?>
             <div class="wrap uapm-wrap">
+                <?php if (class_exists('UAPM_Admin')) { UAPM_Admin::render_breadcrumb('Налаштування та модулі', $title); } ?>
                 <div class="uapm-header">
                     <div class="uapm-header-content">
                         <h1><?php echo esc_html($title); ?></h1>
@@ -283,53 +284,36 @@ if (!class_exists('UAPM_Admin_Sections')) {
         }
 
         public static function render_installations() {
-            if (!class_exists('UAPM_Installations') || !UAPM_Installations::can_view_installations()) {
+            if (!current_user_can('uapm_manage_installations')) {
                 wp_die(esc_html__('Access denied.', 'ua-project-manager'));
             }
 
-            $items = UAPM_Installations::get_all(array('limit' => 200));
-            $total = UAPM_Installations::count();
+            self::header(
+                __('Installations', 'ua-project-manager'),
+                __('Manage connected installations.', 'ua-project-manager')
+            );
 
-            echo '<div class="wrap">';
-            echo '<h1>Встановлення</h1>';
-            echo '<p>Зареєстровані сайти, на яких працюють підключені проєкти та плагіни.</p>';
-            echo '<p>Усього встановлень: <strong>' . esc_html(number_format_i18n($total)) . '</strong></p>';
-
-            if (empty($items)) {
-                echo '<div class="notice notice-info"><p>Поки що немає зареєстрованих встановлень. Після підключення сайту він з’явиться тут.</p></div>';
-                echo '</div>';
-                return;
+            if (class_exists('UAPM_Installations')) {
+                if (method_exists('UAPM_Installations', 'render')) {
+                    UAPM_Installations::render();
+                } elseif (method_exists('UAPM_Installations', 'admin_page')) {
+                    UAPM_Installations::admin_page();
+                } else {
+                    self::placeholder(
+                        __('Installations', 'ua-project-manager'),
+                        __('The installations module is loaded.', 'ua-project-manager'),
+                        '🖥️'
+                    );
+                }
+            } else {
+                self::placeholder(
+                    __('Installations', 'ua-project-manager'),
+                    __('The installations module is not available.', 'ua-project-manager'),
+                    '🖥️'
+                );
             }
 
-            echo '<div style="overflow-x:auto">';
-            echo '<table class="widefat striped"><thead><tr>';
-            echo '<th>Сайт</th><th>Проєкт</th><th>Плагін</th><th>Версії</th><th>Статус</th><th>Останній зв’язок</th><th>Дія</th>';
-            echo '</tr></thead><tbody>';
-
-            foreach ($items as $item) {
-                $project = class_exists('UAPM_Projects') ? UAPM_Projects::get(absint($item->project_id)) : null;
-                $project_name = $project ? $project->name : 'Проєкт #' . absint($item->project_id);
-                $active = isset($item->status) && $item->status === 'active';
-
-                echo '<tr>';
-                echo '<td><strong><a href="' . esc_url($item->site_url) . '" target="_blank" rel="noopener noreferrer">' . esc_html($item->site_name ? $item->site_name : $item->site_url) . '</a></strong><br><small>' . esc_html($item->site_url) . '</small></td>';
-                echo '<td>' . esc_html($project_name) . '</td>';
-                echo '<td>' . esc_html($item->plugin_slug) . '</td>';
-                echo '<td>Плагін: ' . esc_html($item->plugin_version) . '<br>WordPress: ' . esc_html($item->wordpress_version) . '<br>PHP: ' . esc_html($item->php_version) . '</td>';
-                echo '<td>' . ($active ? '<span style="color:#16803c;font-weight:600">Активне</span>' : '<span style="color:#b32d2e;font-weight:600">Неактивне</span>') . '</td>';
-                echo '<td>' . esc_html($item->last_seen ? $item->last_seen : '—') . '</td>';
-                echo '<td><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
-                echo '<input type="hidden" name="action" value="uapm_installation_action">';
-                echo '<input type="hidden" name="installation_id" value="' . esc_attr(absint($item->id)) . '">';
-                echo '<input type="hidden" name="installation_action" value="' . esc_attr($active ? 'deactivate' : 'activate') . '">';
-                wp_nonce_field('uapm_installation_action');
-                echo '<button type="submit" class="button button-small">' . esc_html($active ? 'Вимкнути' : 'Активувати') . '</button>';
-                echo '</form></td>';
-                echo '</tr>';
-            }
-
-            echo '</tbody></table></div>';
-            echo '</div>';
+            self::footer();
         }
 
         public static function render_github() {

@@ -25,6 +25,8 @@ final class UAPM_Code_Generator {
             'installation_reporter' => __('Installation reporter', 'ua-project-manager'),
             'github_config' => __('GitHub updater configuration', 'ua-project-manager'),
             'complete_connector' => __('Complete UPM connector', 'ua-project-manager'),
+            'freemius_paybox' => 'Безключова перевірка PRO (Pay Box + Freemius)',
+            'remote_banner' => 'Зовнішній банер і «Всі проєкти» (REST)',
         );
     }
 
@@ -98,6 +100,26 @@ final class UAPM_Code_Generator {
 
             case 'complete_connector':
                 return self::generate_complete_connector($data);
+
+            case 'freemius_paybox':
+                if (class_exists('\\UAPM\\PayBox\\UPB_Snippet')) {
+                    $map = get_option('uapm_paybox_project_map', array());
+                    $sid = isset($map[$data['id']]) ? absint($map[$data['id']]) : 0;
+                    $svc = $sid && class_exists('\\UAPM\\PayBox\\UPB_Services') ? \UAPM\PayBox\UPB_Services::get($sid) : null;
+                    if (!$svc && function_exists('\\UAPM\\PayBox\\upb_get_service')) {
+                        $svc = \UAPM\PayBox\upb_get_service($data['slug']);
+                    }
+                    if (is_array($svc)) {
+                        return "<?php\n" . \UAPM\PayBox\UPB_Snippet::freemius_php($svc);
+                    }
+                }
+                return "<?php\n// Послугу Pay Box для проєкту «" . $data['slug'] . "» ще не налаштовано.";
+
+            case 'remote_banner':
+                if (class_exists('UAPM_Advertising')) {
+                    return "<?php\n" . UAPM_Advertising::project_embed_code($data['id']);
+                }
+                return "<?php\n// Модуль реклами недоступний.";
         }
 
         return new WP_Error(

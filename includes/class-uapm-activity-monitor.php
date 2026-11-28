@@ -11,8 +11,9 @@ class UAPM_Activity_Monitor {
     }
 
     public static function init() {
-        self::install_schema();
-
+        if (defined('UAPM_DB_VERSION') && get_option('uapm_modules_schema_ver') !== UAPM_DB_VERSION) {
+            self::install_schema();
+        }
         add_action('wp_login', array(__CLASS__, 'track_login'), 10, 2);
         add_action('wp_logout', array(__CLASS__, 'track_logout'));
         add_action('user_register', array(__CLASS__, 'track_registration'));
