@@ -14,6 +14,7 @@ if (!class_exists('UAPM_Integrations')) {
 final class UAPM_Integrations {
 
     public static function init() {
+        add_action('init', array(__CLASS__, 'ensure_catalog'), 30);
         add_action('admin_post_uapm_save_integration', array(__CLASS__, 'handle_save'));
         add_action('admin_post_uapm_delete_integration', array(__CLASS__, 'handle_delete'));
         add_action('admin_post_uapm_toggle_integration', array(__CLASS__, 'handle_toggle'));
@@ -86,6 +87,10 @@ final class UAPM_Integrations {
             KEY created_at (created_at)
         ) {$charset};");
 
+        self::seed_catalog();
+    }
+
+    public static function ensure_catalog() {
         self::seed_catalog();
     }
 
