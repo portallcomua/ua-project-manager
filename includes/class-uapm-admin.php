@@ -127,10 +127,10 @@ final class UAPM_Admin {
             'uapm-hub-advertising' => array('uapm-advertisers', 'uapm-ad-blocks', 'uapm-ad-reports', 'uacc', 'uacc_new', 'uacc_edit', 'uacc_newsletter'),
             'uapm-hub-payments' => array('uapm-payments', 'uapm-licenses', 'uapm-paybox-services', 'uapm-paybox-premiums', 'uapm-paybox-settings'),
             'uapm-hub-finder' => array('uapm-finder-search', 'uapm-finder-import', 'uapm-finder-lists', 'uapm-finder-contacts', 'uapm-finder-templates', 'uapm-finder-settings', 'uapm-mailings', 'uapm-finder-pro'),
-            'uapm-hub-tasks' => array('uapm-tasks', 'uapm-milestones', 'uapm-task-sync'),
+            'uapm-hub-tasks' => array('uapm-tasks', 'uapm-milestones'),
             'uapm-hub-statistics' => array('uapm-analytics', 'uapm-reports'),
             'uapm-hub-referrals' => array('uapm-referrals', 'uapm-referral', 'uapm-referral-system'),
-            'uapm-hub-settings' => array('uapm-settings', 'uapm-import', 'uapm-dependencies', 'uapm-search', 'uapm-github', 'uapm-code-generator', 'uapm-code-inspector', 'uapm-integrations', 'uapm-downloads', 'uapm-installations', 'uapm-sync'),
+            'uapm-hub-settings' => array('uapm-settings', 'uapm-import', 'uapm-dependencies', 'uapm-search', 'uapm-github', 'uapm-code-generator', 'uapm-code-inspector', 'uapm-integrations', 'uapm-downloads', 'uapm-installations'),
         );
 
         $labels = array(
